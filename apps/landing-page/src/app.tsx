@@ -226,6 +226,11 @@ function LandingHomePage() {
                   />
                 ))}
               </div>
+            ) : newsItems.length === 0 ? (
+              <div className="landing-panel border-2 border-line bg-surface p-6 text-center">
+                <p className="landing-kicker text-muted">Novosti</p>
+                <h2 className="mt-3 text-3xl">Nema objavljenih novosti.</h2>
+              </div>
             ) : (
               <>
                 <div className="grid gap-5 lg:grid-cols-3">
