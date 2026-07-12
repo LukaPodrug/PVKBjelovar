@@ -1,0 +1,407 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  COACH
+  PLAYER
+  PARENT
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum SignupStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum PracticeType {
+  WATER
+  DRYLAND
+}
+
+enum NotificationType {
+  PRACTICE_CREATED
+  PRACTICE_UPDATED
+  PRACTICE_CANCELLED
+  SCHEDULE_UPDATED
+  MEMBERSHIP_EXPIRING
+  MEMBERSHIP_RENEWED
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+model ClubSettings {
+  id           String   @id @default("club-settings")
+  clubName     String
+  logoUrl      String?
+  contactEmail String
+  contactPhone String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("club_settings")
+}
+
+/// Shared identity and RBAC table for every system actor.
+model User {
+  id                String        @id @default(cuid())
+  role              UserRole
+  email             String?       @unique
+  username          String?       @unique
+  passwordHash      String?
+  firstName         String
+  lastName          String
+  phone             String?
+  profileImageUrl   String?
+  accountStatus     AccountStatus @default(PENDING)
+  mustChangePassword Boolean      @default(false)
+  lastLoginAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  coach                 Coach?
+  parent                Parent?
+  player                Player?
+  reviewedSignupRequests SignupRequest[] @relation("SignupReviewer")
+  activatedWeeklySchedules WeeklyScheduleActivation[] @relation("WeeklyScheduleActivator")
+  createdAttendanceQrSessions AttendanceQrSession[]   @relation("AttendanceQrCreator")
+  pushDevices           PushDevice[]
+  notifications         Notification[]
+
+  @@index([role, accountStatus])
+  @@map("users")
+}
+
+model Coach {
+  id                  String                   @id @default(cuid())
+  userId              String                   @unique
+  isConditioningCoach Boolean                  @default(false)
+  user                User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories          CoachCategory[]
+  schedules           ScheduleCoach[]
+  occurrences         ScheduleOccurrenceCoach[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@map("coaches")
+}
+
+model Parent {
+  id                                 String          @id @default(cuid())
+  userId                             String          @unique
+  user                               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  players                            ParentPlayer[]
+  approvedAsPrimaryInSignupRequests  SignupRequest[] @relation("ApprovedPrimaryParent")
+  approvedAsSecondaryInSignupRequests SignupRequest[] @relation("ApprovedSecondaryParent")
+  createdAt                          DateTime        @default(now())
+  updatedAt                          DateTime        @updatedAt
+
+  @@map("parents")
+}
+
+model Player {
+  id                  String           @id @default(cuid())
+  userId              String           @unique
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dateOfBirth         DateTime
+  oib                 String           @unique
+  gdprConsent         Boolean
+  membershipExpiresAt DateTime?
+  sourceSignupId      String?          @unique
+  sourceSignup        SignupRequest?   @relation("SignupToPlayer", fields: [sourceSignupId], references: [id], onDelete: SetNull)
+  categories          PlayerCategory[]
+  parents             ParentPlayer[]
+  attendanceRecords   ScheduleAttendance[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([dateOfBirth])
+  @@map("players")
+}
+
+model Category {
+  id                      String          @id @default(cuid())
+  name                    String          @unique
+  logoUrl                 String?
+  endDateOfBirth          DateTime
+  players                 PlayerCategory[]
+  coaches                 CoachCategory[]
+  schedules               Schedule[]
+  weeklySchedules         WeeklySchedule[]
+  suggestedSignupRequests SignupRequest[] @relation("SuggestedCategory")
+  assignedSignupRequests  SignupRequest[] @relation("AssignedCategory")
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  @@index([endDateOfBirth])
+  @@map("categories")
+}
+
+model PlayerCategory {
+  playerId    String
+  categoryId  String
+  assignedAt  DateTime @default(now())
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, categoryId])
+  @@index([categoryId])
+  @@map("player_categories")
+}
+
+model CoachCategory {
+  coachId     String
+  categoryId  String
+  assignedAt  DateTime @default(now())
+  coach       Coach    @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([coachId, categoryId])
+  @@index([categoryId])
+  @@map("coach_categories")
+}
+
+model ParentPlayer {
+  parentId         String
+  playerId         String
+  isPrimaryContact Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  parent           Parent   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  player           Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([parentId, playerId])
+  @@index([playerId])
+  @@map("parent_players")
+}
+
+model Schedule {
+  id               String          @id @default(cuid())
+  categoryId       String
+  weeklyScheduleId String?
+  practiceType     PracticeType    @default(WATER)
+  category         Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  weeklySchedule   WeeklySchedule? @relation(fields: [weeklyScheduleId], references: [id], onDelete: Cascade)
+  startTime        DateTime
+  endTime          DateTime
+  notes            String?
+  isWeeklyTemplate Boolean         @default(false)
+  isArchived       Boolean         @default(false)
+  dayOfWeek        DayOfWeek?
+  coaches          ScheduleCoach[]
+  occurrences      ScheduleOccurrence[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([weeklyScheduleId])
+  @@index([categoryId, startTime])
+  @@index([isWeeklyTemplate, isArchived, dayOfWeek])
+  @@map("schedules")
+}
+
+model ScheduleCoach {
+  scheduleId String
+  coachId    String
+  assignedAt DateTime @default(now())
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  coach      Coach    @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@id([scheduleId, coachId])
+  @@index([coachId])
+  @@map("schedule_coaches")
+}
+
+model ScheduleOccurrence {
+  id                String               @id @default(cuid())
+  scheduleId        String
+  activationId      String?
+  occurrenceDate    DateTime
+  practiceType      PracticeType         @default(WATER)
+  startTime         DateTime?
+  endTime           DateTime?
+  notes             String?
+  isCancelled       Boolean              @default(false)
+  attendanceRecords ScheduleAttendance[]
+  coaches           ScheduleOccurrenceCoach[]
+  attendanceQrSessions AttendanceQrSession[]
+  activation        WeeklyScheduleActivation? @relation(fields: [activationId], references: [id], onDelete: SetNull)
+  schedule          Schedule             @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@unique([scheduleId, occurrenceDate])
+  @@index([activationId])
+  @@index([occurrenceDate])
+  @@map("schedule_occurrences")
+}
+
+model ScheduleOccurrenceCoach {
+  occurrenceId String
+  coachId      String
+  assignedAt   DateTime           @default(now())
+  occurrence   ScheduleOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  coach        Coach              @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@id([occurrenceId, coachId])
+  @@index([coachId])
+  @@map("schedule_occurrence_coaches")
+}
+
+model ScheduleAttendance {
+  occurrenceId String
+  playerId     String
+  markedAt     DateTime           @default(now())
+  occurrence   ScheduleOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  player       Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([occurrenceId, playerId])
+  @@index([playerId])
+  @@map("schedule_attendance")
+}
+
+model AttendanceQrSession {
+  id           String             @id @default(cuid())
+  token        String             @unique
+  occurrenceId String
+  createdById  String?
+  expiresAt    DateTime
+  occurrence   ScheduleOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  createdBy    User?              @relation("AttendanceQrCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime           @default(now())
+
+  @@index([occurrenceId, expiresAt])
+  @@index([createdById])
+  @@map("attendance_qr_sessions")
+}
+
+model WeeklySchedule {
+  id          String                   @id @default(cuid())
+  categoryId  String
+  name        String
+  description String?
+  category    Category                 @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  schedules   Schedule[]
+  activations WeeklyScheduleActivation[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
+  @@map("weekly_schedules")
+}
+
+model WeeklyScheduleActivation {
+  id               String               @id @default(cuid())
+  weeklyScheduleId String
+  weekStartDate    DateTime
+  activatedById    String?
+  weeklySchedule   WeeklySchedule       @relation(fields: [weeklyScheduleId], references: [id], onDelete: Cascade)
+  activatedBy      User?                @relation("WeeklyScheduleActivator", fields: [activatedById], references: [id], onDelete: SetNull)
+  occurrences      ScheduleOccurrence[]
+  createdAt        DateTime             @default(now())
+
+  @@unique([weeklyScheduleId, weekStartDate])
+  @@index([weekStartDate])
+  @@map("weekly_schedule_activations")
+}
+
+/// Expo push token registered by a user's device; used to deliver push notifications.
+model PushDevice {
+  id            String         @id @default(cuid())
+  userId        String
+  expoPushToken String         @unique
+  platform      DevicePlatform @default(ANDROID)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastSeenAt    DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+
+  @@index([userId])
+  @@map("push_devices")
+}
+
+/// Persisted in-app notification. `dedupeKey` lets recurring reminders (e.g. membership expiry)
+/// avoid resending the same notification.
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  dedupeKey String?          @unique
+  readAt    DateTime?
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+/// Stores the public signup payload exactly as submitted so approvals can be audited later.
+model SignupRequest {
+  id                           String        @id @default(cuid())
+  status                       SignupStatus  @default(PENDING)
+  parentOneFirstName           String
+  parentOneLastName            String
+  parentOneEmail               String
+  parentOnePhone               String
+  parentOneProfileImageUrl     String?
+  parentTwoFirstName           String?
+  parentTwoLastName            String?
+  parentTwoEmail               String?
+  parentTwoPhone               String?
+  parentTwoProfileImageUrl     String?
+  childFirstName               String
+  childLastName                String
+  childDateOfBirth             DateTime
+  childOib                     String
+  childProfileImageUrl         String?
+  gdprConsent                  Boolean
+  suggestedCategoryId          String?
+  suggestedCategory            Category?     @relation("SuggestedCategory", fields: [suggestedCategoryId], references: [id], onDelete: SetNull)
+  assignedCategoryId           String?
+  assignedCategory             Category?     @relation("AssignedCategory", fields: [assignedCategoryId], references: [id], onDelete: SetNull)
+  reviewedById                 String?
+  reviewedBy                   User?         @relation("SignupReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt                   DateTime?
+  declineReason                String?
+  approvedPrimaryParentId      String?
+  approvedPrimaryParent        Parent?       @relation("ApprovedPrimaryParent", fields: [approvedPrimaryParentId], references: [id], onDelete: SetNull)
+  approvedSecondaryParentId    String?
+  approvedSecondaryParent      Parent?       @relation("ApprovedSecondaryParent", fields: [approvedSecondaryParentId], references: [id], onDelete: SetNull)
+  approvedPlayer               Player?       @relation("SignupToPlayer")
+  createdAt                    DateTime      @default(now())
+  updatedAt                    DateTime      @updatedAt
+
+  @@index([status])
+  @@index([parentOneEmail])
+  @@index([childOib])
+  @@index([childDateOfBirth])
+  @@map("signup_requests")
+}

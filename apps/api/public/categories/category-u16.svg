@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="480" viewBox="0 0 720 480" fill="none">
+  <rect width="720" height="480" rx="40" fill="#FAF6FF"/>
+  <rect x="28" y="28" width="664" height="424" rx="30" fill="url(#bg)"/>
+  <rect x="52" y="52" width="616" height="376" rx="24" fill="white" fill-opacity="0.96"/>
+  <path d="M144 126H576" stroke="#7C3A8D" stroke-width="10" stroke-linecap="round"/>
+  <text x="360" y="110" text-anchor="middle" fill="#7C6690" font-family="Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="6">PVK MLADOST BJELOVAR</text>
+  <circle cx="360" cy="254" r="94" fill="#7C3A8D"/>
+  <circle cx="360" cy="254" r="72" fill="#FFD447"/>
+  <path d="M322 226C342 200 378 196 404 214" stroke="#7C3A8D" stroke-width="8" stroke-linecap="round"/>
+  <path d="M316 278C336 300 376 306 406 288" stroke="#7C3A8D" stroke-width="8" stroke-linecap="round"/>
+  <path d="M343 188C376 214 391 248 388 320" stroke="#7C3A8D" stroke-width="8" stroke-linecap="round"/>
+  <path d="M309 245C345 234 383 236 424 256" stroke="#7C3A8D" stroke-width="8" stroke-linecap="round"/>
+  <text x="360" y="266" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="56" font-weight="800" letter-spacing="4">U16</text>
+  <text x="360" y="376" text-anchor="middle" fill="#7C3A8D" font-family="Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="7">ZAVRSNA PRIPREMA</text>
+  <defs>
+    <linearGradient id="bg" x1="40" y1="44" x2="684" y2="436" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4EAFF"/>
+      <stop offset="1" stop-color="#E9DBFF"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,0 +1,988 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap");
+@import "tailwindcss";
+
+:root {
+  --bg: #f3f7fb;
+  --surface: #ffffff;
+  --panel: #eef3f8;
+  --panel-strong: #dfe8f4;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #d7e0ea;
+  --accent: #1d4f91;
+  --accent-strong: #173d71;
+  --accent-soft: #e8f0ff;
+  --signal: #b85c5c;
+  --success: #3f755e;
+  --warning: #a98549;
+  --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 18px 44px rgba(15, 23, 42, 0.08);
+  --shadow-strong: 0 24px 60px rgba(15, 23, 42, 0.12);
+  --radius-card: 24px;
+  --radius-control: 14px;
+}
+
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-panel-strong: var(--panel-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-signal: var(--signal);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-display: "Sora", "Avenir Next", "Segoe UI", sans-serif;
+  --font-ui: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(29, 79, 145, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.08), transparent 24%),
+    linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+img {
+  display: block;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.admin-shell h1,
+.admin-shell h2,
+.admin-shell h3,
+.admin-login h1,
+.admin-login h2,
+.admin-login h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  text-transform: none !important;
+}
+
+.admin-shell input,
+.admin-shell select,
+.admin-shell textarea,
+.admin-login input,
+.admin-login select,
+.admin-login textarea {
+  background: #fffdf8;
+  transition: background-color 140ms ease;
+}
+
+.admin-shell select,
+.admin-login select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3.5 5.25L7 8.75L10.5 5.25' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right 0.95rem center;
+  background-repeat: no-repeat;
+  background-size: 0.85rem;
+  padding-right: 2.9rem !important;
+}
+
+.admin-shell input:focus,
+.admin-shell select:focus,
+.admin-shell textarea:focus,
+.admin-login input:focus,
+.admin-login select:focus,
+.admin-login textarea:focus {
+  background: var(--surface);
+}
+
+.admin-shell button,
+.admin-login button,
+.admin-shell a {
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.admin-shell [class~="border-2"],
+.admin-login [class~="border-2"] {
+  border-width: 1px !important;
+}
+
+.admin-shell [class~="border-b-2"],
+.admin-login [class~="border-b-2"] {
+  border-bottom-width: 1px !important;
+}
+
+.admin-shell [class~="border-r-2"],
+.admin-login [class~="border-r-2"] {
+  border-right-width: 1px !important;
+}
+
+.admin-shell [class~="border-l-2"],
+.admin-login [class~="border-l-2"] {
+  border-left-width: 1px !important;
+}
+
+.admin-shell [class~="border-t-2"],
+.admin-login [class~="border-t-2"] {
+  border-top-width: 1px !important;
+}
+
+.admin-shell [class~="not-last:border-r-2"]:not(:last-child) {
+  border-right-width: 1px !important;
+}
+
+.admin-shell [class~="not-last:border-b-2"]:not(:last-child) {
+  border-bottom-width: 1px !important;
+}
+
+@media (min-width: 1024px) {
+  .admin-shell [class~="lg:not-last:border-l-2"]:not(:last-child) {
+    border-left-width: 1px !important;
+  }
+
+  .admin-shell [class~="lg:not-last:border-b-0"]:not(:last-child) {
+    border-bottom-width: 0 !important;
+  }
+}
+
+.ui-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ui-copy {
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.ui-stat-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  opacity: 0.82;
+  text-transform: uppercase;
+}
+
+.ui-stat-value {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 2vw, 2.35rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.admin-shell .ui-pill,
+.admin-login .ui-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 32px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .ui-pill strong,
+.admin-login .ui-pill strong {
+  font-weight: 800;
+}
+
+.admin-shell .ui-pill-button,
+.admin-login .ui-pill-button {
+  appearance: none;
+  cursor: pointer;
+}
+
+.admin-shell .ui-pill-button:disabled,
+.admin-login .ui-pill-button:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.admin-shell .ui-pill--accent,
+.admin-login .ui-pill--accent {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.admin-shell .ui-pill--panel,
+.admin-login .ui-pill--panel {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.admin-shell .ui-pill--outline,
+.admin-login .ui-pill--outline {
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ink);
+}
+
+.admin-shell .ui-pill--success,
+.admin-login .ui-pill--success {
+  background: var(--success);
+  color: var(--surface);
+}
+
+.admin-shell .ui-pill--signal,
+.admin-login .ui-pill--signal {
+  background: var(--signal);
+  color: var(--surface);
+}
+
+.admin-shell .ui-pill--warning,
+.admin-login .ui-pill--warning {
+  background: var(--warning);
+  color: var(--surface);
+}
+
+.admin-shell,
+.admin-login {
+  color: var(--ink);
+}
+
+.admin-shell aside,
+.admin-shell > div > .min-w-0 > header,
+.admin-shell section.space-y-6 > header,
+.admin-shell section.space-y-6 > .border-2,
+.admin-shell section.space-y-6 > div > .border-2,
+.admin-shell section.space-y-6 > div > section.border-2,
+.admin-shell section.space-y-6 > div > article.border-2,
+.admin-login section,
+.admin-login .admin-surface {
+  border-color: var(--line) !important;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.admin-shell section.space-y-6 > header,
+.admin-shell .admin-surface,
+.admin-login .admin-surface {
+  background: var(--surface);
+}
+
+.admin-shell section.space-y-6 > header p:first-child {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em !important;
+}
+
+.admin-shell a,
+.admin-login a,
+.admin-shell button,
+.admin-login button {
+  border-radius: var(--radius-control);
+}
+
+.admin-shell button:hover,
+.admin-login button:hover,
+.admin-shell a:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell input,
+.admin-shell select,
+.admin-shell textarea,
+.admin-login input,
+.admin-login select,
+.admin-login textarea {
+  border-color: var(--line) !important;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.admin-shell table,
+.admin-login table {
+  width: 100%;
+}
+
+.admin-shell thead,
+.admin-login thead {
+  background: var(--panel) !important;
+}
+
+.admin-shell tbody tr,
+.admin-login tbody tr {
+  transition: background-color 140ms ease;
+}
+
+.admin-shell tbody tr:hover,
+.admin-login tbody tr:hover {
+  background: #f8fbff !important;
+}
+
+.admin-shell main {
+  margin: 0 auto;
+  max-width: 1520px;
+  width: 100%;
+}
+
+.admin-shell ::placeholder,
+.admin-login ::placeholder {
+  color: #94a3b8;
+}
+
+.admin-shell .schedule-board-shell {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 251, 255, 0.96) 100%),
+    var(--surface);
+}
+
+.admin-shell .schedule-board-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.08), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(243, 247, 251, 0.92) 100%);
+}
+
+.admin-shell .schedule-board-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.admin-shell .schedule-week-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-shell .schedule-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-shell .schedule-week-nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+}
+
+.admin-shell .schedule-week-nav-summary {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.admin-shell .schedule-week-nav-summary span,
+.admin-shell .schedule-week-nav-summary em {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.admin-shell .schedule-week-nav-summary strong {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.admin-shell .schedule-week-today-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  width: fit-content;
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-shell .schedule-week-today-button:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+
+.admin-shell .schedule-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-shell .schedule-pill strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.admin-shell .schedule-board-layout {
+  display: grid;
+}
+
+.admin-shell .schedule-board-main,
+.admin-shell .schedule-board-sidebar {
+  padding: 1rem;
+}
+
+.admin-shell .schedule-board-sidebar {
+  display: grid;
+  gap: 1rem;
+  border-top: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(248, 251, 255, 0.88) 0%, rgba(255, 255, 255, 0.96) 100%);
+}
+
+.admin-shell .schedule-desktop-view {
+  display: none;
+}
+
+.admin-shell .schedule-grid-shell {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .schedule-grid-header,
+.admin-shell .schedule-grid-body {
+  display: grid;
+  min-width: 980px;
+}
+
+.admin-shell .schedule-grid-corner {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  padding: 1rem 0.75rem;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-shell .schedule-day-header {
+  padding: 1rem 1rem 0.9rem;
+  border-left: 1px solid var(--line);
+  background: linear-gradient(180deg, #fcfdff 0%, #f6f9fd 100%);
+}
+
+.admin-shell .schedule-day-header.is-today {
+  background: linear-gradient(180deg, #f3f8ff 0%, #ebf2fb 100%);
+}
+
+.admin-shell .schedule-day-header p,
+.admin-shell .schedule-day-header span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-shell .schedule-day-header h4 {
+  margin: 0.45rem 0 0.2rem;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.admin-shell .schedule-grid-body {
+  border-top: 1px solid var(--line);
+}
+
+.admin-shell .schedule-time-rail {
+  border-right: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(243, 247, 251, 0.72) 0%, rgba(255, 255, 255, 0.98) 100%);
+}
+
+.admin-shell .schedule-time-slot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0.9rem 0.6rem;
+  border-bottom: 1px solid rgba(215, 224, 234, 0.8);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-shell .schedule-day-track {
+  position: relative;
+  overflow: hidden;
+  border-left: 1px solid var(--line);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+}
+
+.admin-shell .schedule-day-track.is-today {
+  background: linear-gradient(180deg, rgba(243, 248, 255, 0.9) 0%, rgba(255, 255, 255, 1) 100%);
+}
+
+.admin-shell .schedule-day-track-cells {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.admin-shell .schedule-day-cell {
+  border-bottom: 1px solid rgba(215, 224, 234, 0.82);
+}
+
+.admin-shell .schedule-day-empty {
+  position: absolute;
+  top: 1rem;
+  left: 0.9rem;
+  right: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 70px;
+  padding: 0.8rem;
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+  background: rgba(243, 247, 251, 0.7);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .schedule-event,
+.admin-shell .schedule-mobile-card,
+.admin-shell .schedule-side-list-item {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(180deg, var(--schedule-soft) 0%, #ffffff 100%);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+}
+
+.admin-shell .schedule-event::before,
+.admin-shell .schedule-mobile-card::before,
+.admin-shell .schedule-side-list-item::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--schedule-accent);
+}
+
+.admin-shell .schedule-event {
+  left: 0.6rem;
+  right: 0.6rem;
+  padding: 0.9rem 0.9rem 0.9rem 1rem;
+  text-align: left;
+}
+
+.admin-shell .schedule-event--coach-only {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  padding: 0.22rem 0.4rem 0.22rem 0.7rem;
+}
+
+.admin-shell .schedule-event-button {
+  appearance: none;
+  cursor: pointer;
+}
+
+.admin-shell .schedule-event-button.is-selected {
+  box-shadow:
+    0 0 0 2px var(--schedule-accent),
+    0 18px 34px rgba(15, 23, 42, 0.1);
+}
+
+.admin-shell .schedule-event-time {
+  margin: 0;
+  color: var(--schedule-text);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-shell .schedule-event-title {
+  margin: 0.45rem 0 0;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.admin-shell .schedule-event-title--coach-only {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+.admin-shell .schedule-event-note {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  display: -webkit-box;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.admin-shell .schedule-event-meta {
+  margin: 0.55rem 0 0;
+  color: var(--schedule-text);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.admin-shell .schedule-mobile-view {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-shell .schedule-mobile-days {
+  display: flex;
+  gap: 0.75rem;
+  padding-bottom: 0.2rem;
+  overflow-x: auto;
+}
+
+.admin-shell .schedule-mobile-day-button {
+  min-width: 132px;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow-soft);
+  text-align: left;
+}
+
+.admin-shell .schedule-mobile-day-button.is-active {
+  border-color: rgba(29, 79, 145, 0.28);
+  background: linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-shell .schedule-mobile-day-button span,
+.admin-shell .schedule-mobile-day-button em {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-shell .schedule-mobile-day-button strong {
+  display: block;
+  margin: 0.4rem 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.admin-shell .schedule-mobile-panel,
+.admin-shell .schedule-side-card {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .schedule-mobile-panel {
+  padding: 1rem;
+}
+
+.admin-shell .schedule-mobile-panel-header,
+.admin-shell .schedule-side-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.admin-shell .schedule-mobile-header-actions {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: end;
+}
+
+.admin-shell .schedule-mobile-day-nav {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.admin-shell .schedule-mobile-list,
+.admin-shell .schedule-side-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.admin-shell .schedule-mobile-card,
+.admin-shell .schedule-side-list-item {
+  padding: 1rem 1rem 1rem 1.1rem;
+  text-align: left;
+}
+
+.admin-shell .schedule-mobile-card--coach-only {
+  padding: 0.75rem 0.9rem 0.75rem 1rem;
+}
+
+.admin-shell .schedule-mobile-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.admin-shell .schedule-side-card {
+  padding: 1rem;
+}
+
+.admin-shell .schedule-side-card-inline {
+  margin-top: 1rem;
+}
+
+.admin-shell .schedule-mini-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.admin-shell .schedule-mini-calendar-label {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .schedule-mini-calendar-day {
+  display: grid;
+  place-items: center;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.admin-shell .schedule-mini-calendar-day-button {
+  padding: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+
+.admin-shell .schedule-mini-calendar-day.is-outside {
+  color: #9aa8ba;
+}
+
+.admin-shell .schedule-mini-calendar-day.is-in-week {
+  background: #eef4ff;
+  color: var(--accent);
+}
+
+.admin-shell .schedule-mini-calendar-day.is-selected {
+  border-color: rgba(29, 79, 145, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(29, 79, 145, 0.18);
+}
+
+.admin-shell .schedule-mini-calendar-day.is-today {
+  border-color: rgba(29, 79, 145, 0.2);
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.admin-shell .schedule-summary-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-shell .schedule-summary-grid div {
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.admin-shell .schedule-summary-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-shell .schedule-summary-grid strong {
+  display: block;
+  margin-top: 0.45rem;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.admin-shell .schedule-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  padding: 1.25rem;
+  border: 1px dashed var(--line);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(243, 247, 251, 0.7) 0%, rgba(255, 255, 255, 0.92) 100%);
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.admin-shell .schedule-empty-state-mobile {
+  min-height: auto;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+@media (min-width: 640px) {
+  .admin-shell .schedule-board-toolbar,
+  .admin-shell .schedule-board-main,
+  .admin-shell .schedule-board-sidebar {
+    padding: 1.25rem;
+  }
+
+  .admin-shell .schedule-week-controls {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .admin-shell .schedule-mobile-header-actions {
+    justify-items: end;
+  }
+
+  .admin-shell .schedule-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .admin-shell .schedule-board-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-shell .schedule-board-sidebar > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-shell .schedule-desktop-view {
+    display: block;
+  }
+
+  .admin-shell .schedule-mobile-view {
+    display: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .admin-shell .schedule-board-layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+
+  .admin-shell .schedule-board-layout.schedule-board-layout-compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-shell .schedule-board-sidebar {
+    align-content: start;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
+}

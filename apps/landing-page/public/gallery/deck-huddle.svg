@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#f3ecdf"/>
+  <rect x="56" y="56" width="688" height="488" fill="#fffdf7" stroke="#101010" stroke-width="8"/>
+  <rect x="96" y="104" width="608" height="120" fill="#d7d8cf" stroke="#101010" stroke-width="8"/>
+  <rect x="96" y="256" width="608" height="208" fill="#8fc4d2" stroke="#101010" stroke-width="8"/>
+  <circle cx="212" cy="172" r="28" fill="#0d5e90" stroke="#101010" stroke-width="8"/>
+  <circle cx="324" cy="172" r="28" fill="#d44b2f" stroke="#101010" stroke-width="8"/>
+  <circle cx="436" cy="172" r="28" fill="#2d6c43" stroke="#101010" stroke-width="8"/>
+  <circle cx="548" cy="172" r="28" fill="#0d5e90" stroke="#101010" stroke-width="8"/>
+  <circle cx="660" cy="172" r="28" fill="#d44b2f" stroke="#101010" stroke-width="8"/>
+  <rect x="176" y="308" width="92" height="108" fill="#fffdf7" stroke="#101010" stroke-width="8"/>
+  <rect x="354" y="292" width="92" height="124" fill="#fffdf7" stroke="#101010" stroke-width="8"/>
+  <rect x="532" y="324" width="92" height="92" fill="#fffdf7" stroke="#101010" stroke-width="8"/>
+</svg>
