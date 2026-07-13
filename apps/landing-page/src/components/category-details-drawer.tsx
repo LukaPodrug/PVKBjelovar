@@ -1,10 +1,6 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef } from "react";
-import {
-  fetchPublicCategoryDetail,
-  type PublicCategory,
-  type PublicCategoryPlayerAssignment,
-} from "../lib/public-api";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { fetchPublicCategoryDetail, type PublicCategory } from "../lib/public-api";
 
 interface CategoryDetailsDrawerProps {
   categoryId: string;
@@ -19,32 +15,30 @@ export function CategoryDetailsDrawer({
   categoryPreview,
   onClose,
 }: CategoryDetailsDrawerProps) {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
-  const detailQuery = useInfiniteQuery({
-    queryKey: ["public-category-detail", categoryId, publicCategoryPlayersPageSize],
-    queryFn: ({ pageParam }) =>
+  const [playersPage, setPlayersPage] = useState(1);
+  const detailQuery = useQuery({
+    queryKey: ["public-category-detail", categoryId, playersPage, publicCategoryPlayersPageSize],
+    queryFn: () =>
       fetchPublicCategoryDetail(categoryId, {
         playersLimit: publicCategoryPlayersPageSize,
-        playersOffset: pageParam,
+        playersOffset: (playersPage - 1) * publicCategoryPlayersPageSize,
       }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage) => lastPage.nextPlayersOffset ?? undefined,
   });
 
-  const firstPage = detailQuery.data?.pages[0] ?? null;
-  const players = useMemo(
-    () =>
-      detailQuery.data?.pages.flatMap((page) => page.players) ??
-      ([] as PublicCategoryPlayerAssignment[]),
-    [detailQuery.data],
-  );
-  const category = firstPage;
+  const category = detailQuery.data ?? null;
+  const players = category?.players ?? [];
   const title = category?.name ?? categoryPreview?.name ?? "Detalji kategorije";
   const logoUrl = category?.logoUrl ?? categoryPreview?.logoUrl ?? null;
   const cutoffDate = category?.endDateOfBirth ?? categoryPreview?.endDateOfBirth ?? null;
   const playerCount = category?.playerCount ?? players.length;
-  const isLoading = detailQuery.isLoading && firstPage === null;
+  const playersTotalPages = Math.max(1, Math.ceil(playerCount / publicCategoryPlayersPageSize));
+  const firstVisiblePlayerIndex =
+    playerCount === 0 ? 0 : (playersPage - 1) * publicCategoryPlayersPageSize + 1;
+  const lastVisiblePlayerIndex = Math.min(
+    playerCount,
+    (playersPage - 1) * publicCategoryPlayersPageSize + players.length,
+  );
+  const isLoading = detailQuery.isLoading && category === null;
   const isError = detailQuery.isError;
   const errorMessage =
     detailQuery.error instanceof Error
@@ -52,41 +46,14 @@ export function CategoryDetailsDrawer({
       : "Detalje kategorije trenutno nije moguće učitati.";
 
   useEffect(() => {
-    if (!detailQuery.hasNextPage || detailQuery.isFetchingNextPage) {
-      return;
+    setPlayersPage(1);
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (playersPage > playersTotalPages) {
+      setPlayersPage(playersTotalPages);
     }
-
-    const scrollContainer = scrollContainerRef.current;
-    const trigger = loadMoreTriggerRef.current;
-
-    if (!scrollContainer || !trigger) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          void detailQuery.fetchNextPage();
-        }
-      },
-      {
-        root: scrollContainer,
-        rootMargin: "240px 0px 240px 0px",
-        threshold: 0.01,
-      },
-    );
-
-    observer.observe(trigger);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [
-    detailQuery.fetchNextPage,
-    detailQuery.hasNextPage,
-    detailQuery.isFetchingNextPage,
-    players.length,
-  ]);
+  }, [playersPage, playersTotalPages]);
 
   return (
     <div className="landing-drawer-backdrop" onClick={onClose}>
@@ -129,7 +96,7 @@ export function CategoryDetailsDrawer({
             </div>
           </div>
         ) : isError ? (
-          <div ref={scrollContainerRef} className="landing-drawer-body">
+          <div className="landing-drawer-body">
             <div className="landing-drawer-empty-state">
               <p>{errorMessage}</p>
               <button
@@ -142,7 +109,7 @@ export function CategoryDetailsDrawer({
             </div>
           </div>
         ) : category ? (
-          <div ref={scrollContainerRef} className="landing-drawer-body">
+          <div className="landing-drawer-body">
             <div className="landing-drawer-content">
               <section className="landing-drawer-hero landing-panel border-2 border-line bg-surface">
                 <div className="landing-drawer-logo-shell">
@@ -247,34 +214,47 @@ export function CategoryDetailsDrawer({
                       })}
                     </div>
 
-                    {detailQuery.hasNextPage || detailQuery.isFetchingNextPage ? (
+                    <div className="landing-drawer-pagination">
                       <div className="landing-drawer-load-state">
                         <p>
-                          Prikazano {players.length} od {playerCount} igrača
+                          Stranica {playersPage} od {playersTotalPages}
                         </p>
-                        {detailQuery.isFetchingNextPage ? (
-                          <span>Učitavanje dodatnih igrača...</span>
-                        ) : (
-                          <span>Pomaknite niže za učitavanje novih igrača</span>
-                        )}
-                        <div
-                          ref={loadMoreTriggerRef}
-                          className="landing-drawer-load-trigger"
-                          aria-hidden="true"
-                        />
+                        <span>
+                          Prikazano {firstVisiblePlayerIndex}-{lastVisiblePlayerIndex} od{" "}
+                          {playerCount} igrača
+                        </span>
                       </div>
-                    ) : players.length > 0 ? (
-                      <div className="landing-drawer-load-state compact">
-                        <p>Prikazano svih {playerCount} igrača u kategoriji</p>
+
+                      <div className="landing-drawer-pagination-actions">
+                        <button
+                          className="landing-pill landing-pill-button landing-pill--outline"
+                          type="button"
+                          disabled={playersPage <= 1 || detailQuery.isFetching}
+                          onClick={() => setPlayersPage((current) => Math.max(1, current - 1))}
+                        >
+                          Prethodna
+                        </button>
+                        <button
+                          className="landing-pill landing-pill-button landing-pill--accent"
+                          type="button"
+                          disabled={playersPage >= playersTotalPages || detailQuery.isFetching}
+                          onClick={() =>
+                            setPlayersPage((current) =>
+                              Math.min(playersTotalPages, current + 1),
+                            )
+                          }
+                        >
+                          Sljedeća
+                        </button>
                       </div>
-                    ) : null}
+                    </div>
                   </>
                 )}
               </section>
             </div>
           </div>
         ) : (
-          <div ref={scrollContainerRef} className="landing-drawer-body">
+          <div className="landing-drawer-body">
             <div className="landing-drawer-empty-state">
               <p>Detalji kategorije trenutno nisu dostupni.</p>
               <button
