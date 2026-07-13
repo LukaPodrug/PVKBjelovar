@@ -438,21 +438,6 @@ textarea {
     linear-gradient(180deg, #edf5ff 0%, #dfeafb 100%);
 }
 
-.landing-page .landing-news-card-placeholder span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 0 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .landing-page .landing-news-card-body {
   display: flex;
   flex: 1;

@@ -707,9 +707,7 @@ function NewsCard({ item }: { item: NewsItem }) {
         {item.imageUrl ? (
           <img src={item.imageUrl} alt={item.title} />
         ) : (
-          <div className="landing-news-card-placeholder">
-            <span>{item.eyebrow}</span>
-          </div>
+          <div className="landing-news-card-placeholder" aria-hidden="true" />
         )}
       </div>
 
