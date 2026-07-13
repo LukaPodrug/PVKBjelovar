@@ -826,6 +826,7 @@ textarea {
 .landing-page .landing-drawer-summary-grid {
   display: grid;
   gap: 0.75rem;
+  grid-template-columns: 1fr;
 }
 
 .landing-page .landing-drawer-summary-grid div {
@@ -833,6 +834,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 20px;
   background: linear-gradient(180deg, #ffffff 0%, #f6f9fd 100%);
+  min-height: 78px;
 }
 
 .landing-page .landing-drawer-summary-grid span {
@@ -1508,10 +1510,6 @@ textarea {
 
   .landing-page .landing-drawer-body {
     padding: 1.25rem;
-  }
-
-  .landing-page .landing-drawer-summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .landing-page .landing-drawer-person-grid,
