@@ -670,7 +670,7 @@ export function CoachesPage() {
                         items={categories.map((category) => ({
                           id: category.id,
                           label: category.name,
-                          meta: `${category.players.length} igrača`,
+                          meta: `${category.playerCount} igrača`,
                         }))}
                         selectedIds={form.categoryIds}
                         disabled={form.isConditioningCoach}

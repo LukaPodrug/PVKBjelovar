@@ -103,15 +103,17 @@ export interface ParentRecord {
   }>;
 }
 
+export interface CategoryPlayerAssignment {
+  playerId: string;
+  player: PlayerRecord;
+}
+
 export interface CategoryRecord extends CategoryOption {
   endDateOfBirth: string;
+  playerCount: number;
   coaches: Array<{
     coachId: string;
     coach: CoachRecord;
-  }>;
-  players: Array<{
-    playerId: string;
-    player: PlayerRecord;
   }>;
 }
 

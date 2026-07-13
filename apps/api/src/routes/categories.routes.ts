@@ -27,12 +27,29 @@ const categoryInclude = {
       },
     },
   },
-  players: {
-    take: 100,
+  _count: {
+    select: {
+      players: true,
+    },
+  },
+} as const;
+
+const categoryPlayerInclude = {
+  player: {
     include: {
-      player: {
+      user: true,
+      categories: {
         include: {
-          user: true,
+          category: true,
+        },
+      },
+      parents: {
+        include: {
+          parent: {
+            include: {
+              user: true,
+            },
+          },
         },
       },
     },
@@ -182,7 +199,9 @@ categoriesRouter.get(
       prisma.category.count(),
     ]);
 
-    response.json(buildPaginatedResponse(categories, total, pagination));
+    response.json(
+      buildPaginatedResponse(categories.map(serializeCategory), total, pagination),
+    );
   }),
 );
 
@@ -306,7 +325,60 @@ categoriesRouter.get(
       throw new AppError("Kategorija nije pronađena.", 404);
     }
 
-    response.json(category);
+    response.json(serializeCategory(category));
+  }),
+);
+
+categoriesRouter.get(
+  "/:id/players",
+  asyncHandler(async (request, response) => {
+    const categoryId = requireString(request.params.id, "id");
+    const pagination = parsePaginationInput(request.query, {
+      defaultPageSize: 10,
+      maxPageSize: 50,
+    });
+
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { id: true },
+    });
+
+    if (!category) {
+      throw new AppError("Kategorija nije pronađena.", 404);
+    }
+
+    const [assignments, total] = await prisma.$transaction([
+      prisma.playerCategory.findMany({
+        where: { categoryId },
+        include: categoryPlayerInclude,
+        orderBy: [
+          {
+            player: {
+              user: {
+                lastName: "asc",
+              },
+            },
+          },
+          {
+            player: {
+              user: {
+                firstName: "asc",
+              },
+            },
+          },
+          {
+            playerId: "asc",
+          },
+        ],
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      prisma.playerCategory.count({
+        where: { categoryId },
+      }),
+    ]);
+
+    response.json(buildPaginatedResponse(assignments, total, pagination));
   }),
 );
 
@@ -387,7 +459,7 @@ categoriesRouter.post(
       include: categoryInclude,
     });
 
-    response.status(201).json(category);
+    response.status(201).json(serializeCategory(category));
   }),
 );
 
@@ -428,7 +500,7 @@ categoriesRouter.patch(
       include: categoryInclude,
     });
 
-    response.json(category);
+    response.json(serializeCategory(category));
   }),
 );
 
@@ -443,3 +515,23 @@ categoriesRouter.delete(
     response.status(204).send();
   }),
 );
+
+function serializeCategory(category: {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  endDateOfBirth: Date;
+  coaches: unknown[];
+  _count: {
+    players: number;
+  };
+}) {
+  return {
+    id: category.id,
+    name: category.name,
+    logoUrl: category.logoUrl,
+    endDateOfBirth: category.endDateOfBirth,
+    coaches: category.coaches,
+    playerCount: category._count.players,
+  };
+}

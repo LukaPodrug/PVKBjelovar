@@ -6,6 +6,7 @@ import { api } from "../core/api";
 import { formatDate, toDateInputValue } from "../core/date";
 import type {
   AccountStatus,
+  CategoryPlayerAssignment,
   CategoryRecord,
   CoachRecord,
   PaginatedResponse,
@@ -68,6 +69,7 @@ const emptyManagedPlayerForm: ManagedPlayerFormState = {
 
 const optionPageSize = 100;
 const managementPageSize = 25;
+const categoryPlayersPageSize = 10;
 
 export function CategoriesPage() {
   const { user } = useAuth();
@@ -84,6 +86,7 @@ export function CategoriesPage() {
     emptyManagedPlayerForm,
   );
   const [categoriesPage, setCategoriesPage] = useState(1);
+  const [categoryPlayersPage, setCategoryPlayersPage] = useState(1);
 
   const categoriesQuery = useQuery({
     queryKey: ["categories", "management", categoriesPage],
@@ -126,6 +129,23 @@ export function CategoriesPage() {
     },
   });
 
+  const categoryPlayersQuery = useQuery({
+    queryKey: ["categories", selectedCategoryId, "players", categoryPlayersPage],
+    enabled: Boolean(selectedCategoryId && formMode === "edit" && isDrawerOpen),
+    queryFn: async () => {
+      const response = await api.get<PaginatedResponse<CategoryPlayerAssignment>>(
+        `/categories/${selectedCategoryId}/players`,
+        {
+          params: {
+            page: categoryPlayersPage,
+            pageSize: categoryPlayersPageSize,
+          },
+        },
+      );
+      return response.data;
+    },
+  });
+
   const categoriesPageData = categoriesQuery.data;
   const categories = categoriesPageData?.items ?? [];
   const categoryOptions = categoryOptionsQuery.data ?? [];
@@ -136,15 +156,24 @@ export function CategoriesPage() {
     categories.find((category) => category.id === selectedCategoryId) ??
     categoryOptions.find((category) => category.id === selectedCategoryId) ??
     null;
+  const categoryPlayersPageData = categoryPlayersQuery.data;
+  const categoryPlayers = categoryPlayersPageData?.items ?? [];
+  const selectedCategoryPlayerTotal =
+    categoryPlayersPageData?.total ?? selectedCategory?.playerCount ?? 0;
   const managedPlayer =
-    selectedCategory?.players.find((assignment) => assignment.playerId === managedPlayerId)
-      ?.player ?? null;
+    categoryPlayers.find((assignment) => assignment.playerId === managedPlayerId)?.player ?? null;
 
   useEffect(() => {
     if (categoriesPageData && categoriesPage > categoriesPageData.totalPages) {
       setCategoriesPage(categoriesPageData.totalPages);
     }
   }, [categoriesPage, categoriesPageData]);
+
+  useEffect(() => {
+    if (categoryPlayersPageData && categoryPlayersPage > categoryPlayersPageData.totalPages) {
+      setCategoryPlayersPage(categoryPlayersPageData.totalPages);
+    }
+  }, [categoryPlayersPage, categoryPlayersPageData]);
 
   useEffect(() => {
     if (!selectedCategoryId && categories.length > 0 && formMode === "edit") {
@@ -180,6 +209,8 @@ export function CategoriesPage() {
     setFeedback(null);
     setFormMode("create");
     setSelectedCategoryId(null);
+    setManagedPlayerId(null);
+    setCategoryPlayersPage(1);
     setForm(emptyCategoryForm);
     setIsDrawerOpen(true);
   };
@@ -188,6 +219,8 @@ export function CategoriesPage() {
     setFeedback(null);
     setFormMode("edit");
     setSelectedCategoryId(category.id);
+    setManagedPlayerId(null);
+    setCategoryPlayersPage(1);
     setForm(createFormFromCategory(category));
     setIsDrawerOpen(true);
   };
@@ -471,7 +504,7 @@ export function CategoriesPage() {
                           {formatDate(category.endDateOfBirth)}
                         </td>
                         <td className="px-4 py-4 align-top text-sm">{category.coaches.length}</td>
-                        <td className="px-4 py-4 align-top text-sm">{category.players.length}</td>
+                        <td className="px-4 py-4 align-top text-sm">{category.playerCount}</td>
                       </tr>
                     );
                   })}
@@ -531,7 +564,7 @@ export function CategoriesPage() {
                       Treneri <strong>{selectedCategory.coaches.length}</strong>
                     </span>
                     <span className="ui-pill ui-pill--panel">
-                      Igrači <strong>{selectedCategory.players.length}</strong>
+                      Igrači <strong>{selectedCategoryPlayerTotal}</strong>
                     </span>
                     <span className="ui-pill ui-pill--outline">
                       Godište do <strong>{formatDate(selectedCategory.endDateOfBirth)}</strong>
@@ -661,42 +694,65 @@ export function CategoriesPage() {
                       </p>
                     </div>
 
-                    {selectedCategory.players.length === 0 ? (
+                    {categoryPlayersQuery.isLoading ? (
+                      <div className="px-4 py-5 text-sm text-muted">
+                        Učitavanje igrača u kategoriji...
+                      </div>
+                    ) : categoryPlayersQuery.isError ? (
+                      <div className="px-4 py-5 text-sm text-signal">
+                        Popis igrača trenutno nije moguće učitati.
+                      </div>
+                    ) : selectedCategoryPlayerTotal === 0 ? (
                       <div className="px-4 py-5 text-sm text-muted">
                         U ovoj kategoriji trenutno nema upisanih igrača.
                       </div>
                     ) : (
-                      <div className="grid gap-3 p-4">
-                        {selectedCategory.players.map((assignment) => (
-                          <button
-                            key={assignment.playerId}
-                            className="flex flex-col gap-3 border-2 border-line bg-surface px-4 py-4 text-left sm:flex-row sm:items-center sm:justify-between"
-                            type="button"
-                            onClick={() => openPlayerFromCategory(assignment.playerId)}
-                          >
-                            <span className="min-w-0">
-                              <span className="block text-sm font-bold uppercase text-ink">
-                                {assignment.player.user.firstName} {assignment.player.user.lastName}
+                      <>
+                        <div className="grid gap-3 p-4">
+                          {categoryPlayers.map((assignment) => (
+                            <button
+                              key={assignment.playerId}
+                              className="flex flex-col gap-3 border-2 border-line bg-surface px-4 py-4 text-left sm:flex-row sm:items-center sm:justify-between"
+                              type="button"
+                              onClick={() => openPlayerFromCategory(assignment.playerId)}
+                            >
+                              <span className="min-w-0">
+                                <span className="block text-sm font-bold uppercase text-ink">
+                                  {assignment.player.user.firstName}{" "}
+                                  {assignment.player.user.lastName}
+                                </span>
+                                <span className="mt-1 block text-[11px] uppercase tracking-[0.2em] text-muted">
+                                  Rođen {formatDate(assignment.player.dateOfBirth)}
+                                </span>
                               </span>
-                              <span className="mt-1 block text-[11px] uppercase tracking-[0.2em] text-muted">
-                                Rođen {formatDate(assignment.player.dateOfBirth)}
-                              </span>
-                            </span>
 
-                            <span className="flex flex-wrap gap-2">
-                              <PlayerStatusChip status={assignment.player.user.accountStatus} />
-                              <span className="ui-pill ui-pill--outline">
-                                Članstvo{" "}
-                                <strong>
-                                  {assignment.player.membershipExpiresAt
-                                    ? formatDate(assignment.player.membershipExpiresAt)
-                                    : "nije postavljeno"}
-                                </strong>
+                              <span className="flex flex-wrap gap-2">
+                                <PlayerStatusChip status={assignment.player.user.accountStatus} />
+                                <span className="ui-pill ui-pill--outline">
+                                  Članstvo{" "}
+                                  <strong>
+                                    {assignment.player.membershipExpiresAt
+                                      ? formatDate(assignment.player.membershipExpiresAt)
+                                      : "nije postavljeno"}
+                                  </strong>
+                                </span>
                               </span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
+                            </button>
+                          ))}
+                        </div>
+
+                        {categoryPlayersPageData ? (
+                          <div className="border-t-2 border-line px-4 py-4">
+                            <PaginationControls
+                              page={categoryPlayersPageData.page}
+                              pageSize={categoryPlayersPageData.pageSize}
+                              total={categoryPlayersPageData.total}
+                              totalPages={categoryPlayersPageData.totalPages}
+                              onPageChange={setCategoryPlayersPage}
+                            />
+                          </div>
+                        ) : null}
+                      </>
                     )}
                   </div>
                 ) : null}
