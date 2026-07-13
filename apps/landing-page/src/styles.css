@@ -1541,7 +1541,11 @@ textarea {
 @media (min-width: 768px) {
   .landing-page .landing-drawer-hero {
     grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-    align-items: start;
+    align-items: stretch;
+  }
+
+  .landing-page .landing-drawer-summary-grid {
+    grid-template-rows: repeat(3, minmax(0, 1fr));
   }
 }
 
