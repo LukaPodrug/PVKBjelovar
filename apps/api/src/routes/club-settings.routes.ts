@@ -1,6 +1,5 @@
 import { UserRole } from "@prisma/client";
 import { Router } from "express";
-import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
 import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
@@ -11,16 +10,23 @@ import { resolveUploadedImageUrl } from "../utils/upload-helpers";
 
 export const clubSettingsRouter = Router();
 
+const clubSettingsId = "club-settings";
+const defaultClubSettings = {
+  id: clubSettingsId,
+  clubName: "PVK Bjelovar",
+  logoUrl: null,
+  contactEmail: "info@pvkbjelovar.com",
+  contactPhone: "+385",
+};
+
 clubSettingsRouter.get(
   "/",
   asyncHandler(async (_request, response) => {
-    const settings = await prisma.clubSettings.findUnique({
-      where: { id: "club-settings" },
+    const settings = await prisma.clubSettings.upsert({
+      where: { id: clubSettingsId },
+      update: {},
+      create: defaultClubSettings,
     });
-
-    if (!settings) {
-      throw new AppError("Postavke kluba nisu inicijalizirane.", 404);
-    }
 
     response.json(settings);
   }),
@@ -39,7 +45,7 @@ clubSettingsRouter.post(
     );
 
     const settings = await prisma.clubSettings.upsert({
-      where: { id: "club-settings" },
+      where: { id: clubSettingsId },
       update: {
         clubName: requireString(request.body.clubName, "clubName"),
         contactEmail: requireString(request.body.contactEmail, "contactEmail"),
@@ -47,7 +53,7 @@ clubSettingsRouter.post(
         logoUrl,
       },
       create: {
-        id: "club-settings",
+        id: clubSettingsId,
         clubName: requireString(request.body.clubName, "clubName"),
         contactEmail: requireString(request.body.contactEmail, "contactEmail"),
         contactPhone: requireString(request.body.contactPhone, "contactPhone"),
@@ -65,28 +71,37 @@ clubSettingsRouter.patch(
   authorizeRoles(UserRole.ADMIN),
   uploadClubLogo,
   asyncHandler(async (request, response) => {
-    const current = await prisma.clubSettings.findUnique({
-      where: { id: "club-settings" },
-    });
+    const hasLogoInput = Boolean(request.file || request.body.logoUrl);
+    const logoUrl = hasLogoInput
+      ? await resolveUploadedImageUrl(request.file, "Club settings logo", request.body.logoUrl)
+      : undefined;
 
-    if (!current) {
-      throw new AppError("Postavke kluba nisu inicijalizirane.", 404);
-    }
-
-    const settings = await prisma.clubSettings.update({
-      where: { id: "club-settings" },
-      data: {
-        clubName: request.body.clubName ? requireString(request.body.clubName, "clubName") : undefined,
+    const settings = await prisma.clubSettings.upsert({
+      where: { id: clubSettingsId },
+      update: {
+        clubName: request.body.clubName
+          ? requireString(request.body.clubName, "clubName")
+          : undefined,
         contactEmail: request.body.contactEmail
           ? requireString(request.body.contactEmail, "contactEmail")
           : undefined,
         contactPhone: request.body.contactPhone
           ? requireString(request.body.contactPhone, "contactPhone")
           : undefined,
-        logoUrl:
-          request.file || request.body.logoUrl
-            ? await resolveUploadedImageUrl(request.file, "Club settings logo", request.body.logoUrl)
-            : undefined,
+        logoUrl,
+      },
+      create: {
+        ...defaultClubSettings,
+        clubName: request.body.clubName
+          ? requireString(request.body.clubName, "clubName")
+          : defaultClubSettings.clubName,
+        contactEmail: request.body.contactEmail
+          ? requireString(request.body.contactEmail, "contactEmail")
+          : defaultClubSettings.contactEmail,
+        contactPhone: request.body.contactPhone
+          ? requireString(request.body.contactPhone, "contactPhone")
+          : defaultClubSettings.contactPhone,
+        logoUrl: hasLogoInput ? (logoUrl ?? null) : defaultClubSettings.logoUrl,
       },
     });
 
