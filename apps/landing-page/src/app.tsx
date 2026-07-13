@@ -907,7 +907,11 @@ function formatLongDate(dateIso: string) {
 }
 
 function formatBirthYear(dateIso: string) {
-  return `${new Intl.DateTimeFormat("hr-HR", { year: "numeric" }).format(new Date(dateIso))}. i mlađi`;
+  const year = new Intl.DateTimeFormat("hr-HR", { year: "numeric" })
+    .format(new Date(dateIso))
+    .replace(/\.+$/, "");
+
+  return `${year}. i mlađi`;
 }
 
 function createClubMonogram(name: string) {
