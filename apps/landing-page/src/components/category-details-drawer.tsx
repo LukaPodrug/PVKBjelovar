@@ -112,7 +112,7 @@ export function CategoryDetailsDrawer({
           </div>
 
           <button
-            className="landing-drawer-close border-2 border-line bg-surface px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em]"
+            className="landing-pill landing-pill-button landing-pill--outline"
             type="button"
             onClick={onClose}
           >
