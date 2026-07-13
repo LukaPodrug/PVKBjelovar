@@ -46,7 +46,7 @@ function readStringList(...names: string[]): string[] {
 
     const entries = value
       .split(",")
-      .map((entry) => entry.trim())
+      .map((entry) => entry.trim().replace(/^['"]+|['"]+$/g, ""))
       .filter(Boolean);
 
     if (entries.length > 0) {

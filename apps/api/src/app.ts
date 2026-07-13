@@ -6,11 +6,22 @@ import { errorHandler } from "./middlewares/error-handler";
 import { notFoundMiddleware } from "./middlewares/not-found";
 import { apiRouter } from "./routes";
 
+function normalizeOrigin(value: string): string {
+  const cleanedValue = value.trim().replace(/^['"]+|['"]+$/g, "").replace(/\/$/, "");
+
+  try {
+    const parsed = new URL(cleanedValue);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return cleanedValue;
+  }
+}
+
 function buildAllowedOrigins(frontendUrls: string[]) {
   const allowedOrigins = new Set<string>();
 
   for (const frontendUrl of frontendUrls) {
-    const normalizedUrl = frontendUrl.replace(/\/$/, "");
+    const normalizedUrl = normalizeOrigin(frontendUrl);
     allowedOrigins.add(normalizedUrl);
 
     try {
@@ -24,7 +35,7 @@ function buildAllowedOrigins(frontendUrls: string[]) {
 
       if (hostname) {
         parsed.hostname = hostname;
-        allowedOrigins.add(parsed.toString().replace(/\/$/, ""));
+        allowedOrigins.add(normalizeOrigin(parsed.toString()));
       }
     } catch {
       allowedOrigins.add(normalizedUrl);
@@ -42,12 +53,12 @@ export function createApp() {
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
           callback(null, true);
           return;
         }
 
-        callback(new Error("Origin not allowed by CORS."));
+        callback(new Error(`Origin ${origin} not allowed by CORS.`));
       },
       credentials: true,
     }),
