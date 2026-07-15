@@ -867,6 +867,38 @@ textarea {
   line-height: 1.5;
 }
 
+.landing-page .landing-footer-social-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.landing-page .landing-footer-social-link {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(215, 224, 234, 0.92);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--accent);
+}
+
+.landing-page .landing-footer-social-link:hover,
+.landing-page .landing-footer-social-link:focus-visible {
+  border-color: rgba(29, 79, 145, 0.34);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.landing-page .landing-footer-social-link svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
 .landing-page .landing-category-card {
   width: 100%;
   padding: 0;

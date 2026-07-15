@@ -59,9 +59,16 @@ enum DevicePlatform {
 model ClubSettings {
   id           String   @id @default("club-settings")
   clubName     String
+  clubSubtitle String?
   logoUrl      String?
   contactEmail String
   contactPhone String
+  facebookUrl  String?
+  instagramUrl String?
+  youtubeUrl   String?
+  bankRecipient String?
+  bankIban     String?
+  bankName     String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -29,36 +29,6 @@ interface SignupFormState {
   gdprConsent: boolean;
 }
 
-const footerSocialLinks = [
-  {
-    label: "Facebook",
-    value: "Dodajte službenu Facebook poveznicu",
-  },
-  {
-    label: "Instagram",
-    value: "Dodajte službenu Instagram poveznicu",
-  },
-  {
-    label: "YouTube",
-    value: "Dodajte službenu YouTube poveznicu",
-  },
-] as const;
-
-const footerBankDetails = [
-  {
-    label: "Primatelj",
-    value: "PVK Mladost Bjelovar",
-  },
-  {
-    label: "IBAN",
-    value: "Dodajte službeni IBAN kluba",
-  },
-  {
-    label: "Banka",
-    value: "Dodajte naziv banke",
-  },
-] as const;
-
 const emptySignupForm: SignupFormState = {
   parentOneFirstName: "",
   parentOneLastName: "",
@@ -174,6 +144,7 @@ function LandingHomePage() {
   const newsItems = newsFeed?.items ?? [];
   const categories = categoriesQuery.data ?? [];
   const clubName = clubSettings?.clubName ?? "PVK Mladost Bjelovar";
+  const clubSubtitle = clubSettings?.clubSubtitle ?? "Plivački vaterpolski klub";
   const selectedCategoryPreview =
     categories.find((category) => category.id === selectedCategoryId) ?? null;
   const contactEmail = clubSettings?.contactEmail ?? "info@mladostbjelovar.test";
@@ -212,7 +183,11 @@ function LandingHomePage() {
 
   return (
     <div className="landing-page bg-bg text-ink">
-      <LandingHeader clubName={clubName} logoUrl={clubSettings?.logoUrl ?? null} />
+      <LandingHeader
+        clubName={clubName}
+        clubSubtitle={clubSubtitle}
+        logoUrl={clubSettings?.logoUrl ?? null}
+      />
 
       <main>
         <section className="border-b-2 border-line bg-bg" id="news">
@@ -570,7 +545,16 @@ function LandingHomePage() {
         </section>
       </main>
 
-      <LandingFooter clubName={clubName} contactEmail={contactEmail} contactPhone={contactPhone} />
+      <LandingFooter
+        bankName={clubSettings?.bankName ?? null}
+        bankIban={clubSettings?.bankIban ?? null}
+        bankRecipient={clubSettings?.bankRecipient ?? clubName}
+        contactEmail={contactEmail}
+        contactPhone={contactPhone}
+        facebookUrl={clubSettings?.facebookUrl ?? null}
+        instagramUrl={clubSettings?.instagramUrl ?? null}
+        youtubeUrl={clubSettings?.youtubeUrl ?? null}
+      />
 
       {selectedCategoryId ? (
         <CategoryDetailsDrawer
@@ -585,9 +569,11 @@ function LandingHomePage() {
 
 function LandingHeader({
   clubName,
+  clubSubtitle,
   logoUrl,
 }: {
   clubName: string;
+  clubSubtitle: string;
   logoUrl: string | null;
 }) {
   const [isLogoBroken, setIsLogoBroken] = useState(false);
@@ -615,7 +601,7 @@ function LandingHeader({
 
           <span className="landing-header-brand-copy">
             <strong>{clubName}</strong>
-            <span>Plivački vaterpolski klub</span>
+            <span>{clubSubtitle}</span>
           </span>
         </Link>
 
@@ -636,21 +622,55 @@ function LandingHeader({
 }
 
 function LandingFooter({
-  clubName,
+  bankName,
+  bankIban,
+  bankRecipient,
   contactEmail,
   contactPhone,
+  facebookUrl,
+  instagramUrl,
+  youtubeUrl,
 }: {
-  clubName: string;
+  bankName: string | null;
+  bankIban: string | null;
+  bankRecipient: string | null;
   contactEmail: string;
   contactPhone: string;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  youtubeUrl: string | null;
 }) {
   const bankDetails = [
     {
       label: "Primatelj",
-      value: clubName,
+      value: bankRecipient,
     },
-    ...footerBankDetails.slice(1),
-  ];
+    {
+      label: "IBAN",
+      value: bankIban,
+    },
+    {
+      label: "Banka",
+      value: bankName,
+    },
+  ].filter((item): item is { label: string; value: string } => Boolean(item.value));
+  const socialLinks = [
+    {
+      label: "Facebook",
+      platform: "facebook" as const,
+      url: facebookUrl,
+    },
+    {
+      label: "Instagram",
+      platform: "instagram" as const,
+      url: instagramUrl,
+    },
+    {
+      label: "YouTube",
+      platform: "youtube" as const,
+      url: youtubeUrl,
+    },
+  ].filter((item): item is { label: string; platform: SocialPlatform; url: string } => Boolean(item.url));
 
   return (
     <footer className="border-t-2 border-line bg-[linear-gradient(180deg,#f7fbff_0%,#edf4fb_100%)]">
@@ -669,31 +689,68 @@ function LandingFooter({
           </div>
         </section>
 
-        <section className="landing-footer-column">
-          <p className="landing-kicker text-muted">Društvene mreže</p>
-          <div className="landing-footer-list mt-4">
-            {footerSocialLinks.map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
-        </section>
+        {socialLinks.length > 0 ? (
+          <section className="landing-footer-column">
+            <p className="landing-kicker text-muted">Društvene mreže</p>
+            <div className="landing-footer-social-links mt-4">
+              {socialLinks.map((item) => (
+                <a
+                  key={item.platform}
+                  className="landing-footer-social-link"
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={item.label}
+                  title={item.label}
+                >
+                  <SocialIcon platform={item.platform} />
+                </a>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
-        <section className="landing-footer-column">
-          <p className="landing-kicker text-muted">Podaci za uplatu</p>
-          <div className="landing-footer-list mt-4">
-            {bankDetails.map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
-        </section>
+        {bankDetails.length > 0 ? (
+          <section className="landing-footer-column">
+            <p className="landing-kicker text-muted">Podaci za uplatu</p>
+            <div className="landing-footer-list mt-4">
+              {bankDetails.map((item) => (
+                <div key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     </footer>
+  );
+}
+
+type SocialPlatform = "facebook" | "instagram" | "youtube";
+
+function SocialIcon({ platform }: { platform: SocialPlatform }) {
+  if (platform === "facebook") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M14.1 8.7V7.2c0-.7.5-.9.9-.9h2.2V2.6h-3.1c-3.4 0-4.2 2.5-4.2 4.2v1.9H7.2v3.8h2.7v8.9h4.2v-8.9h3l.5-3.8h-3.5Z" />
+      </svg>
+    );
+  }
+
+  if (platform === "instagram") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M7.4 2.8h9.2a4.6 4.6 0 0 1 4.6 4.6v9.2a4.6 4.6 0 0 1-4.6 4.6H7.4a4.6 4.6 0 0 1-4.6-4.6V7.4a4.6 4.6 0 0 1 4.6-4.6Zm0 3.1a1.5 1.5 0 0 0-1.5 1.5v9.2a1.5 1.5 0 0 0 1.5 1.5h9.2a1.5 1.5 0 0 0 1.5-1.5V7.4a1.5 1.5 0 0 0-1.5-1.5H7.4Zm4.6 2a4.1 4.1 0 1 1 0 8.2 4.1 4.1 0 0 1 0-8.2Zm0 2.8a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Zm4.5-3.3a1 1 0 1 1 0 2.1 1 1 0 0 1 0-2.1Z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M21.4 7.1a3 3 0 0 0-2.1-2.1C17.5 4.5 12 4.5 12 4.5S6.5 4.5 4.7 5a3 3 0 0 0-2.1 2.1A31.2 31.2 0 0 0 2.1 12c0 1.6.2 3.2.5 4.9A3 3 0 0 0 4.7 19c1.8.5 7.3.5 7.3.5s5.5 0 7.3-.5a3 3 0 0 0 2.1-2.1c.3-1.7.5-3.3.5-4.9s-.2-3.2-.5-4.9ZM10 15.2V8.8l5.7 3.2-5.7 3.2Z" />
+    </svg>
   );
 }
 
@@ -789,6 +846,7 @@ function ArticlePage() {
 
   const clubSettings = clubSettingsQuery.data;
   const clubName = clubSettings?.clubName ?? "PVK Mladost Bjelovar";
+  const clubSubtitle = clubSettings?.clubSubtitle ?? "Plivački vaterpolski klub";
   const contactEmail = clubSettings?.contactEmail ?? "info@mladostbjelovar.test";
   const contactPhone = clubSettings?.contactPhone ?? "+385911112222";
   const article = newsQuery.data?.items.find((item) => item.slug === slug) ?? null;
@@ -849,7 +907,11 @@ function ArticlePage() {
 
   return (
     <div className="landing-page bg-bg text-ink">
-      <LandingHeader clubName={clubName} logoUrl={clubSettings?.logoUrl ?? null} />
+      <LandingHeader
+        clubName={clubName}
+        clubSubtitle={clubSubtitle}
+        logoUrl={clubSettings?.logoUrl ?? null}
+      />
 
       <main>
         <section className="border-b-2 border-line bg-bg">
@@ -965,7 +1027,16 @@ function ArticlePage() {
         />
       ) : null}
 
-      <LandingFooter clubName={clubName} contactEmail={contactEmail} contactPhone={contactPhone} />
+      <LandingFooter
+        bankName={clubSettings?.bankName ?? null}
+        bankIban={clubSettings?.bankIban ?? null}
+        bankRecipient={clubSettings?.bankRecipient ?? clubName}
+        contactEmail={contactEmail}
+        contactPhone={contactPhone}
+        facebookUrl={clubSettings?.facebookUrl ?? null}
+        instagramUrl={clubSettings?.instagramUrl ?? null}
+        youtubeUrl={clubSettings?.youtubeUrl ?? null}
+      />
     </div>
   );
 }

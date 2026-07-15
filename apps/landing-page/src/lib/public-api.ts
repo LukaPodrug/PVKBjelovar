@@ -1,9 +1,16 @@
 export interface PublicClubSettings {
   id: string;
   clubName: string;
+  clubSubtitle: string | null;
   logoUrl: string | null;
   contactEmail: string;
   contactPhone: string;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  youtubeUrl: string | null;
+  bankRecipient: string | null;
+  bankIban: string | null;
+  bankName: string | null;
 }
 
 export interface PublicCategory {

@@ -11,8 +11,15 @@ interface FeedbackState {
 
 interface BrandingFormState {
   clubName: string;
+  clubSubtitle: string;
   contactEmail: string;
   contactPhone: string;
+  facebookUrl: string;
+  instagramUrl: string;
+  youtubeUrl: string;
+  bankRecipient: string;
+  bankIban: string;
+  bankName: string;
   logoFile: File | null;
 }
 
@@ -24,8 +31,15 @@ interface PasswordFormState {
 
 const emptyBrandingForm: BrandingFormState = {
   clubName: "",
+  clubSubtitle: "",
   contactEmail: "",
   contactPhone: "",
+  facebookUrl: "",
+  instagramUrl: "",
+  youtubeUrl: "",
+  bankRecipient: "",
+  bankIban: "",
+  bankName: "",
   logoFile: null,
 };
 
@@ -59,7 +73,7 @@ export function SettingsPage() {
     if (!currentSettings) {
       if (settingsMissing) {
         setBrandingForm((current) =>
-          current.clubName || current.contactEmail || current.contactPhone || current.logoFile
+          Object.values(current).some(Boolean)
             ? current
             : emptyBrandingForm,
         );
@@ -69,8 +83,15 @@ export function SettingsPage() {
 
     setBrandingForm({
       clubName: currentSettings.clubName,
+      clubSubtitle: currentSettings.clubSubtitle ?? "",
       contactEmail: currentSettings.contactEmail,
       contactPhone: currentSettings.contactPhone,
+      facebookUrl: currentSettings.facebookUrl ?? "",
+      instagramUrl: currentSettings.instagramUrl ?? "",
+      youtubeUrl: currentSettings.youtubeUrl ?? "",
+      bankRecipient: currentSettings.bankRecipient ?? "",
+      bankIban: currentSettings.bankIban ?? "",
+      bankName: currentSettings.bankName ?? "",
       logoFile: null,
     });
   }, [
@@ -121,8 +142,15 @@ export function SettingsPage() {
       });
       setBrandingForm({
         clubName: settings.clubName,
+        clubSubtitle: settings.clubSubtitle ?? "",
         contactEmail: settings.contactEmail,
         contactPhone: settings.contactPhone,
+        facebookUrl: settings.facebookUrl ?? "",
+        instagramUrl: settings.instagramUrl ?? "",
+        youtubeUrl: settings.youtubeUrl ?? "",
+        bankRecipient: settings.bankRecipient ?? "",
+        bankIban: settings.bankIban ?? "",
+        bankName: settings.bankName ?? "",
         logoFile: null,
       });
       void queryClient.invalidateQueries({ queryKey: ["club-settings"] });
@@ -247,6 +275,24 @@ export function SettingsPage() {
                       />
                     </label>
 
+                    <label className="block lg:col-span-2">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Podnaslov kluba
+                      </span>
+                      <input
+                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                        type="text"
+                        value={brandingForm.clubSubtitle}
+                        onChange={(event) =>
+                          setBrandingForm((current) => ({
+                            ...current,
+                            clubSubtitle: event.target.value,
+                          }))
+                        }
+                        placeholder="Plivački vaterpolski klub"
+                      />
+                    </label>
+
                     <label className="block">
                       <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                         Kontaktna e-pošta
@@ -282,6 +328,125 @@ export function SettingsPage() {
                         required
                       />
                     </label>
+
+                    <div className="lg:col-span-2">
+                      <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Društvene mreže
+                      </p>
+                      <div className="grid gap-4 lg:grid-cols-3">
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            Facebook URL
+                          </span>
+                          <input
+                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                            type="url"
+                            value={brandingForm.facebookUrl}
+                            onChange={(event) =>
+                              setBrandingForm((current) => ({
+                                ...current,
+                                facebookUrl: event.target.value,
+                              }))
+                            }
+                            placeholder="https://facebook.com/..."
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            Instagram URL
+                          </span>
+                          <input
+                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                            type="url"
+                            value={brandingForm.instagramUrl}
+                            onChange={(event) =>
+                              setBrandingForm((current) => ({
+                                ...current,
+                                instagramUrl: event.target.value,
+                              }))
+                            }
+                            placeholder="https://instagram.com/..."
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            YouTube URL
+                          </span>
+                          <input
+                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                            type="url"
+                            value={brandingForm.youtubeUrl}
+                            onChange={(event) =>
+                              setBrandingForm((current) => ({
+                                ...current,
+                                youtubeUrl: event.target.value,
+                              }))
+                            }
+                            placeholder="https://youtube.com/..."
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="lg:col-span-2">
+                      <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Podaci za uplatu
+                      </p>
+                      <div className="grid gap-4 lg:grid-cols-3">
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            Primatelj
+                          </span>
+                          <input
+                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                            type="text"
+                            value={brandingForm.bankRecipient}
+                            onChange={(event) =>
+                              setBrandingForm((current) => ({
+                                ...current,
+                                bankRecipient: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            IBAN
+                          </span>
+                          <input
+                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                            type="text"
+                            value={brandingForm.bankIban}
+                            onChange={(event) =>
+                              setBrandingForm((current) => ({
+                                ...current,
+                                bankIban: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            Banka
+                          </span>
+                          <input
+                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                            type="text"
+                            value={brandingForm.bankName}
+                            onChange={(event) =>
+                              setBrandingForm((current) => ({
+                                ...current,
+                                bankName: event.target.value,
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -301,8 +466,15 @@ export function SettingsPage() {
                       if (currentSettings) {
                         setBrandingForm({
                           clubName: currentSettings.clubName,
+                          clubSubtitle: currentSettings.clubSubtitle ?? "",
                           contactEmail: currentSettings.contactEmail,
                           contactPhone: currentSettings.contactPhone,
+                          facebookUrl: currentSettings.facebookUrl ?? "",
+                          instagramUrl: currentSettings.instagramUrl ?? "",
+                          youtubeUrl: currentSettings.youtubeUrl ?? "",
+                          bankRecipient: currentSettings.bankRecipient ?? "",
+                          bankIban: currentSettings.bankIban ?? "",
+                          bankName: currentSettings.bankName ?? "",
                           logoFile: null,
                         });
                         return;
@@ -430,8 +602,15 @@ export function SettingsPage() {
 function buildBrandingFormData(form: BrandingFormState) {
   const formData = new FormData();
   formData.append("clubName", form.clubName);
+  formData.append("clubSubtitle", form.clubSubtitle);
   formData.append("contactEmail", form.contactEmail);
   formData.append("contactPhone", form.contactPhone);
+  formData.append("facebookUrl", form.facebookUrl);
+  formData.append("instagramUrl", form.instagramUrl);
+  formData.append("youtubeUrl", form.youtubeUrl);
+  formData.append("bankRecipient", form.bankRecipient);
+  formData.append("bankIban", form.bankIban);
+  formData.append("bankName", form.bankName);
 
   if (form.logoFile) {
     formData.append("logo", form.logoFile);
