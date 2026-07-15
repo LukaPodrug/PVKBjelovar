@@ -3,7 +3,7 @@ import type { AxiosError } from "axios";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { api } from "../core/api";
 import { adminClubSettingsDefaults, resolveSettingValue } from "../core/club-settings-defaults";
-import type { ClubSettings } from "../core/types";
+import type { AdminCoachProfile, ClubSettings } from "../core/types";
 import { FeedbackToast } from "../ui/feedback-toast";
 
 interface FeedbackState {
@@ -59,6 +59,7 @@ export function SettingsPage() {
   const [passwordForm, setPasswordForm] = useState<PasswordFormState>(emptyPasswordForm);
   const [brandingFeedback, setBrandingFeedback] = useState<FeedbackState | null>(null);
   const [securityFeedback, setSecurityFeedback] = useState<FeedbackState | null>(null);
+  const [adminCoachFeedback, setAdminCoachFeedback] = useState<FeedbackState | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
 
   const settingsQuery = useQuery<ClubSettings, AxiosError<{ message?: string }>>({
@@ -74,6 +75,14 @@ export function SettingsPage() {
   const activeLogoUrl = brandingForm.removeLogo
     ? null
     : logoPreviewUrl ?? currentSettings?.logoUrl ?? null;
+
+  const adminCoachProfilesQuery = useQuery<AdminCoachProfile[], AxiosError<{ message?: string }>>({
+    queryKey: ["admin-coach-profiles"],
+    queryFn: async () => {
+      const response = await api.get<AdminCoachProfile[]>("/users/admin-coach-profiles");
+      return response.data;
+    },
+  });
 
   useEffect(() => {
     if (!currentSettings) {
@@ -196,13 +205,56 @@ export function SettingsPage() {
     },
   });
 
+  const enableAdminCoachMutation = useMutation({
+    mutationFn: async (adminId: string) => {
+      const response = await api.post(`/users/${adminId}/coach-profile`);
+      return response.data;
+    },
+    onSuccess: () => {
+      setAdminCoachFeedback({
+        tone: "success",
+        message: "Administrator je dodan na popis trenera.",
+      });
+      void invalidateAdminCoachWorkspace(queryClient);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setAdminCoachFeedback({
+        tone: "error",
+        message: error.response?.data?.message ?? "Dodavanje administratora među trenere nije uspjelo.",
+      });
+    },
+  });
+
+  const disableAdminCoachMutation = useMutation({
+    mutationFn: async (adminId: string) => {
+      await api.delete(`/users/${adminId}/coach-profile`);
+    },
+    onSuccess: () => {
+      setAdminCoachFeedback({
+        tone: "success",
+        message: "Administrator je uklonjen s popisa trenera.",
+      });
+      void invalidateAdminCoachWorkspace(queryClient);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setAdminCoachFeedback({
+        tone: "error",
+        message: error.response?.data?.message ?? "Uklanjanje administratorskog trenera nije uspjelo.",
+      });
+    },
+  });
+
+  const isAdminCoachMutationPending =
+    enableAdminCoachMutation.isPending || disableAdminCoachMutation.isPending;
+
   return (
     <section className="space-y-6">
       <FeedbackToast
-        feedback={securityFeedback ?? brandingFeedback}
+        feedback={securityFeedback ?? brandingFeedback ?? adminCoachFeedback}
         onClose={() => {
           setBrandingFeedback(null);
           setSecurityFeedback(null);
+          setAdminCoachFeedback(null);
         }}
       />
 
@@ -544,6 +596,89 @@ export function SettingsPage() {
         <section className="border-2 border-line bg-surface">
             <div className="border-b-2 border-line bg-panel px-4 py-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                Administratori
+              </p>
+              <h3 className="mt-2 text-xl font-bold uppercase">Administratori kao treneri</h3>
+            </div>
+
+            {adminCoachProfilesQuery.isLoading ? (
+              <div className="grid gap-3 p-4">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-24 animate-pulse rounded-[22px] border border-line bg-panel"
+                  />
+                ))}
+              </div>
+            ) : adminCoachProfilesQuery.isError ? (
+              <div className="px-4 py-5">
+                <div className="border-2 border-line bg-signal px-4 py-4 text-sm font-medium text-surface">
+                  Administratore trenutno nije moguće učitati.
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 p-4">
+                <div className="grid gap-3">
+                  {(adminCoachProfilesQuery.data ?? []).map((admin) => {
+                    const isCoach = Boolean(admin.coach);
+                    const adminName = `${admin.firstName} ${admin.lastName}`;
+                    const categoryNames =
+                      admin.coach?.categories?.map((assignment) => assignment.category.name) ?? [];
+
+                    return (
+                      <article
+                        key={admin.id}
+                        className="flex flex-col gap-4 rounded-[22px] border border-line bg-white px-4 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)] sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-base font-bold uppercase text-ink">{adminName}</p>
+                          <p className="mt-1 text-sm text-muted">
+                            {admin.email ?? "Bez e-pošte"}
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className={`ui-pill ${isCoach ? "ui-pill--success" : "ui-pill--panel"}`}>
+                              {isCoach ? "Prikazuje se kao trener" : "Samo administrator"}
+                            </span>
+                            {admin.coach?.isConditioningCoach ? (
+                              <span className="ui-pill ui-pill--panel">Kondicijski trener</span>
+                            ) : null}
+                            {categoryNames.length > 0 ? (
+                              <span className="ui-pill ui-pill--outline">
+                                {categoryNames.join(", ")}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <button
+                          className={`ui-pill ui-pill-button ${
+                            isCoach ? "ui-pill--signal" : "ui-pill--accent"
+                          }`}
+                          type="button"
+                          disabled={isAdminCoachMutationPending}
+                          onClick={() => {
+                            setAdminCoachFeedback(null);
+                            if (isCoach) {
+                              disableAdminCoachMutation.mutate(admin.id);
+                              return;
+                            }
+
+                            enableAdminCoachMutation.mutate(admin.id);
+                          }}
+                        >
+                          {isCoach ? "Ukloni iz trenera" : "Dodaj među trenere"}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+        </section>
+
+        <section className="border-2 border-line bg-surface">
+            <div className="border-b-2 border-line bg-panel px-4 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                 Sigurnost
               </p>
               <h3 className="mt-2 text-xl font-bold uppercase">Promjena lozinke</h3>
@@ -658,4 +793,14 @@ function buildBrandingFormData(form: BrandingFormState) {
   formData.append("removeLogo", String(form.removeLogo));
 
   return formData;
+}
+
+async function invalidateAdminCoachWorkspace(queryClient: ReturnType<typeof useQueryClient>) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["admin-coach-profiles"] }),
+    queryClient.invalidateQueries({ queryKey: ["coaches"] }),
+    queryClient.invalidateQueries({ queryKey: ["categories"] }),
+    queryClient.invalidateQueries({ queryKey: ["weekly-schedules"] }),
+    queryClient.invalidateQueries({ queryKey: ["schedules"] }),
+  ]);
 }

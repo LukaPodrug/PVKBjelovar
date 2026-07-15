@@ -71,6 +71,24 @@ export interface CoachRecord {
   }>;
 }
 
+export interface AdminCoachProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  profileImageUrl: string | null;
+  accountStatus: AccountStatus;
+  coach: {
+    id: string;
+    isConditioningCoach: boolean;
+    categories?: Array<{
+      categoryId: string;
+      category: CategoryOption;
+    }>;
+  } | null;
+}
+
 export interface ParentSummary {
   id: string;
   user: PersonUser;

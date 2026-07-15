@@ -18,6 +18,7 @@ import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
 import { TimePicker } from "../ui/time-picker";
 import { PracticeWeekBoard } from "../schedules/practice-week-board";
+import { DashboardScheduleLoadingBoard } from "./dashboard-schedule-loading-board";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -234,14 +235,7 @@ export function DashboardPage() {
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
 
       {schedulesQuery.isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-40 animate-pulse border-2 border-line bg-panel"
-            />
-          ))}
-        </div>
+        <DashboardScheduleLoadingBoard weekStartDate={weekStartDate} />
       ) : schedulesQuery.isError ? (
         <div className="border-2 border-line bg-signal px-5 py-4 text-sm font-medium text-surface">
           Raspored trenutno nije moguće učitati.
