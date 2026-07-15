@@ -1,0 +1,1 @@
+ALTER TABLE "schedules" ALTER COLUMN "categoryId" DROP NOT NULL;

@@ -374,7 +374,7 @@ meRouter.get(
         occurrenceId: occurrence.id,
         occurrenceDate: occurrence.occurrenceDate.toISOString().slice(0, 10),
         practiceType: occurrence.practiceType,
-        categoryName: occurrence.schedule.category.name,
+        categoryName: occurrence.schedule.category?.name ?? "Sve kategorije",
         attended: occurrence.attendanceRecords.length > 0,
       })),
     });

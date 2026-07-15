@@ -1,4 +1,5 @@
 import { AccountStatus, SignupStatus, UserRole } from "@prisma/client";
+import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { prisma } from "../lib/prisma";
 import { emailService } from "./email.service";
@@ -246,7 +247,7 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
     };
   });
 
-  const clubName = clubSettings?.clubName ?? "PVK Mladost Bjelovar";
+  const clubName = clubSettings?.clubName ?? env.defaultClubName;
 
   const emailResults = await Promise.all([
     emailService.sendCredentialsEmail({

@@ -1,10 +1,10 @@
 export interface PublicClubSettings {
   id: string;
-  clubName: string;
+  clubName: string | null;
   clubSubtitle: string | null;
   logoUrl: string | null;
-  contactEmail: string;
-  contactPhone: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
   facebookUrl: string | null;
   instagramUrl: string | null;
   youtubeUrl: string | null;
@@ -17,7 +17,8 @@ export interface PublicCategory {
   id: string;
   name: string;
   logoUrl: string | null;
-  endDateOfBirth: string;
+  startDateOfBirth: string | null;
+  endDateOfBirth: string | null;
 }
 
 export interface PublicCategoryPlayerAssignment {
@@ -64,7 +65,7 @@ export interface PublicScheduleCalendarItem {
   weeklyScheduleId: string | null;
   weeklyScheduleName: string | null;
   category: {
-    id: string;
+    id: string | null;
     name: string;
     logoUrl: string | null;
   };

@@ -1,9 +1,11 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
-import { startTransition, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../core/api";
-import type { AuthResponse } from "../core/types";
+import { applyBrowserBranding } from "../core/browser-branding";
+import { adminClubSettingsDefaults, resolveSettingValue } from "../core/club-settings-defaults";
+import type { AuthResponse, ClubSettings } from "../core/types";
 import { useAuth } from "./auth-context";
 
 export function LoginPage() {
@@ -13,6 +15,33 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLogoBroken, setIsLogoBroken] = useState(false);
+
+  const clubSettingsQuery = useQuery({
+    queryKey: ["club-settings", "login-page"],
+    queryFn: async () => {
+      const response = await api.get<ClubSettings>("/club-settings");
+      return response.data;
+    },
+  });
+  const clubSettings = clubSettingsQuery.data;
+  const clubName = resolveSettingValue(clubSettings?.clubName, adminClubSettingsDefaults.clubName);
+  const clubSubtitle = resolveSettingValue(
+    clubSettings?.clubSubtitle,
+    adminClubSettingsDefaults.clubSubtitle,
+  );
+  const clubMonogram = createClubMonogram(clubName);
+
+  useEffect(() => {
+    setIsLogoBroken(false);
+  }, [clubSettings?.logoUrl]);
+
+  useEffect(() => {
+    applyBrowserBranding({
+      title: `Prijava | ${clubName}`,
+      iconUrl: clubSettings?.logoUrl,
+    });
+  }, [clubName, clubSettings?.logoUrl]);
 
   const loginMutation = useMutation({
     mutationFn: async () => {
@@ -48,9 +77,24 @@ export function LoginPage() {
               <div className="inline-block rounded-full border border-white/25 bg-white/10 px-3 py-1 ui-kicker text-white/85">
                 Administracija kluba
               </div>
+              <div className="admin-login-club-card">
+                {clubSettings?.logoUrl && !isLogoBroken ? (
+                  <img
+                    src={clubSettings.logoUrl}
+                    alt={clubName}
+                    onError={() => setIsLogoBroken(true)}
+                  />
+                ) : (
+                  <div>{clubMonogram}</div>
+                )}
+                <span>
+                  <strong>{clubName}</strong>
+                  <small>{clubSubtitle}</small>
+                </span>
+              </div>
               <div className="max-w-2xl space-y-4">
                 <h1 className="text-4xl leading-[0.96] sm:text-5xl lg:text-6xl">
-                  Profesionalna administracija za rasporede, igrače, obitelji i stručni stožer.
+                  Administracija za rasporede, igrače, obitelji i stručni stožer.
                 </h1>
                 <p className="max-w-xl text-sm leading-7 text-white/82 sm:text-base">
                   Prijavite se za upravljanje rasporedima treninga, prijavama, evidencijom članova i postavkama kluba iz jednog modernog sučelja prilagođenog ulozi korisnika.
@@ -82,7 +126,8 @@ export function LoginPage() {
               <p className="ui-kicker text-muted">
                 Sigurna prijava
               </p>
-              <h2 className="mt-2 text-3xl leading-none">Pristup za osoblje</h2>
+              <h2 className="mt-2 text-3xl leading-none">Pristup za {clubName}</h2>
+              <p className="mt-3 text-sm leading-6 text-muted">{clubSubtitle}</p>
             </div>
 
             <form
@@ -140,4 +185,13 @@ export function LoginPage() {
       </div>
     </div>
   );
+}
+
+function createClubMonogram(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 }

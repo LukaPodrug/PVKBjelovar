@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
 import { uploadClubLogo } from "../middlewares/upload";
-import { optionalString, requireString } from "../utils/request-parsers";
+import { optionalString, parseOptionalBooleanInput } from "../utils/request-parsers";
 import { resolveUploadedImageUrl } from "../utils/upload-helpers";
 
 export const clubSettingsRouter = Router();
@@ -13,11 +13,11 @@ export const clubSettingsRouter = Router();
 const clubSettingsId = "club-settings";
 const defaultClubSettings = {
   id: clubSettingsId,
-  clubName: "PVK Bjelovar",
-  clubSubtitle: "Plivački vaterpolski klub",
+  clubName: null,
+  clubSubtitle: null,
   logoUrl: null,
-  contactEmail: "info@pvkbjelovar.com",
-  contactPhone: "+385",
+  contactEmail: null,
+  contactPhone: null,
   facebookUrl: null,
   instagramUrl: null,
   youtubeUrl: null,
@@ -62,10 +62,10 @@ clubSettingsRouter.post(
     const settings = await prisma.clubSettings.upsert({
       where: { id: clubSettingsId },
       update: {
-        clubName: requireString(request.body.clubName, "clubName"),
+        clubName: optionalString(request.body.clubName),
         clubSubtitle: optionalString(request.body.clubSubtitle),
-        contactEmail: requireString(request.body.contactEmail, "contactEmail"),
-        contactPhone: requireString(request.body.contactPhone, "contactPhone"),
+        contactEmail: optionalString(request.body.contactEmail),
+        contactPhone: optionalString(request.body.contactPhone),
         facebookUrl: optionalString(request.body.facebookUrl),
         instagramUrl: optionalString(request.body.instagramUrl),
         youtubeUrl: optionalString(request.body.youtubeUrl),
@@ -76,10 +76,10 @@ clubSettingsRouter.post(
       },
       create: {
         id: clubSettingsId,
-        clubName: requireString(request.body.clubName, "clubName"),
+        clubName: optionalString(request.body.clubName),
         clubSubtitle: optionalString(request.body.clubSubtitle),
-        contactEmail: requireString(request.body.contactEmail, "contactEmail"),
-        contactPhone: requireString(request.body.contactPhone, "contactPhone"),
+        contactEmail: optionalString(request.body.contactEmail),
+        contactPhone: optionalString(request.body.contactPhone),
         facebookUrl: optionalString(request.body.facebookUrl),
         instagramUrl: optionalString(request.body.instagramUrl),
         youtubeUrl: optionalString(request.body.youtubeUrl),
@@ -100,23 +100,20 @@ clubSettingsRouter.patch(
   authorizeRoles(UserRole.ADMIN),
   uploadClubLogo,
   asyncHandler(async (request, response) => {
-    const hasLogoInput = Boolean(request.file || request.body.logoUrl);
-    const logoUrl = hasLogoInput
+    const removeLogo = parseOptionalBooleanInput(request.body.removeLogo) ?? false;
+    const hasLogoInput = Boolean(removeLogo || request.file || request.body.logoUrl);
+    const logoUrl = removeLogo
+      ? null
+      : hasLogoInput
       ? await resolveUploadedImageUrl(request.file, "Club settings logo", request.body.logoUrl)
       : undefined;
 
     const settings = await prisma.clubSettings.upsert({
       where: { id: clubSettingsId },
       update: {
-        clubName: request.body.clubName
-          ? requireString(request.body.clubName, "clubName")
-          : undefined,
-        contactEmail: request.body.contactEmail
-          ? requireString(request.body.contactEmail, "contactEmail")
-          : undefined,
-        contactPhone: request.body.contactPhone
-          ? requireString(request.body.contactPhone, "contactPhone")
-          : undefined,
+        clubName: readOptionalBodyString(request.body, "clubName"),
+        contactEmail: readOptionalBodyString(request.body, "contactEmail"),
+        contactPhone: readOptionalBodyString(request.body, "contactPhone"),
         clubSubtitle: readOptionalBodyString(request.body, "clubSubtitle"),
         facebookUrl: readOptionalBodyString(request.body, "facebookUrl"),
         instagramUrl: readOptionalBodyString(request.body, "instagramUrl"),
@@ -128,22 +125,16 @@ clubSettingsRouter.patch(
       },
       create: {
         ...defaultClubSettings,
-        clubName: request.body.clubName
-          ? requireString(request.body.clubName, "clubName")
-          : defaultClubSettings.clubName,
-        contactEmail: request.body.contactEmail
-          ? requireString(request.body.contactEmail, "contactEmail")
-          : defaultClubSettings.contactEmail,
-        contactPhone: request.body.contactPhone
-          ? requireString(request.body.contactPhone, "contactPhone")
-          : defaultClubSettings.contactPhone,
-        clubSubtitle: readOptionalBodyString(request.body, "clubSubtitle") ?? defaultClubSettings.clubSubtitle,
-        facebookUrl: readOptionalBodyString(request.body, "facebookUrl") ?? defaultClubSettings.facebookUrl,
-        instagramUrl: readOptionalBodyString(request.body, "instagramUrl") ?? defaultClubSettings.instagramUrl,
-        youtubeUrl: readOptionalBodyString(request.body, "youtubeUrl") ?? defaultClubSettings.youtubeUrl,
-        bankRecipient: readOptionalBodyString(request.body, "bankRecipient") ?? defaultClubSettings.bankRecipient,
-        bankIban: readOptionalBodyString(request.body, "bankIban") ?? defaultClubSettings.bankIban,
-        bankName: readOptionalBodyString(request.body, "bankName") ?? defaultClubSettings.bankName,
+        clubName: readOptionalBodyString(request.body, "clubName") ?? null,
+        contactEmail: readOptionalBodyString(request.body, "contactEmail") ?? null,
+        contactPhone: readOptionalBodyString(request.body, "contactPhone") ?? null,
+        clubSubtitle: readOptionalBodyString(request.body, "clubSubtitle") ?? null,
+        facebookUrl: readOptionalBodyString(request.body, "facebookUrl") ?? null,
+        instagramUrl: readOptionalBodyString(request.body, "instagramUrl") ?? null,
+        youtubeUrl: readOptionalBodyString(request.body, "youtubeUrl") ?? null,
+        bankRecipient: readOptionalBodyString(request.body, "bankRecipient") ?? null,
+        bankIban: readOptionalBodyString(request.body, "bankIban") ?? null,
+        bankName: readOptionalBodyString(request.body, "bankName") ?? null,
         logoUrl: hasLogoInput ? (logoUrl ?? null) : defaultClubSettings.logoUrl,
       },
     });

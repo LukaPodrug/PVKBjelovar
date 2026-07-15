@@ -1,0 +1,4 @@
+ALTER TABLE "club_settings"
+ALTER COLUMN "clubName" DROP NOT NULL,
+ALTER COLUMN "contactEmail" DROP NOT NULL,
+ALTER COLUMN "contactPhone" DROP NOT NULL;

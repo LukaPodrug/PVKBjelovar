@@ -1,12 +1,23 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
-import { type ChangeEvent, useDeferredValue, useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { api } from "../core/api";
 import { formatDate } from "../core/date";
-import type { AccountStatus, PaginatedResponse, ParentRecord, PlayerRecord, PlayerSummary } from "../core/types";
+import type {
+  AccountStatus,
+  CredentialResetResult,
+  PaginatedResponse,
+  ParentRecord,
+  PlayerRecord,
+  PlayerSummary,
+} from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
+import { DatePicker } from "../ui/date-picker";
+import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
+import { TableLoadingRows } from "../ui/table-loading-rows";
+import { useDebouncedValue } from "../ui/use-debounced-value";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -18,10 +29,17 @@ interface ParentFormState {
   lastName: string;
   email: string;
   phone: string;
-  password: string;
   playerIds: string[];
-  primaryPlayerIds: string[];
   profileFile: File | null;
+  removeProfileImage: boolean;
+}
+
+interface QuickPlayerFormState {
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  oib: string;
+  gdprConsent: boolean;
 }
 
 const emptyParentForm: ParentFormState = {
@@ -29,10 +47,17 @@ const emptyParentForm: ParentFormState = {
   lastName: "",
   email: "",
   phone: "",
-  password: "",
   playerIds: [],
-  primaryPlayerIds: [],
   profileFile: null,
+  removeProfileImage: false,
+};
+
+const emptyQuickPlayerForm: QuickPlayerFormState = {
+  firstName: "",
+  lastName: "",
+  dateOfBirth: "",
+  oib: "",
+  gdprConsent: false,
 };
 
 const managementPageSize = 25;
@@ -50,18 +75,21 @@ export function ParentsPage() {
   const [parentManagementSearch, setParentManagementSearch] = useState("");
   const [playerSearch, setPlayerSearch] = useState("");
   const [selectedPlayerOptions, setSelectedPlayerOptions] = useState<PlayerSummary[]>([]);
-  const deferredParentManagementSearch = useDeferredValue(parentManagementSearch.trim());
-  const deferredPlayerSearch = useDeferredValue(playerSearch.trim());
+  const [isQuickPlayerFormOpen, setIsQuickPlayerFormOpen] = useState(false);
+  const [quickPlayerForm, setQuickPlayerForm] =
+    useState<QuickPlayerFormState>(emptyQuickPlayerForm);
+  const debouncedParentManagementSearch = useDebouncedValue(parentManagementSearch.trim());
+  const debouncedPlayerSearch = useDebouncedValue(playerSearch.trim());
 
   const parentsQuery = useQuery({
-    queryKey: ["parents", "management", parentsPage, deferredParentManagementSearch],
+    queryKey: ["parents", "management", parentsPage, debouncedParentManagementSearch],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const response = await api.get<PaginatedResponse<ParentRecord>>("/parents", {
         params: {
           page: parentsPage,
           pageSize: managementPageSize,
-          search: deferredParentManagementSearch || undefined,
+          search: debouncedParentManagementSearch || undefined,
         },
       });
       return response.data;
@@ -69,11 +97,11 @@ export function ParentsPage() {
   });
 
   const playersQuery = useQuery({
-    queryKey: ["players", "parent-options", deferredPlayerSearch],
-    enabled: deferredPlayerSearch.length > 0,
+    queryKey: ["players", "parent-options", debouncedPlayerSearch],
+    enabled: debouncedPlayerSearch.length > 0,
     queryFn: async () => {
       const response = await api.get<PaginatedResponse<PlayerRecord>>("/players", {
-        params: { page: 1, pageSize: optionPageSize, search: deferredPlayerSearch },
+        params: { page: 1, pageSize: optionPageSize, search: debouncedPlayerSearch },
       });
       return response.data.items;
     },
@@ -124,6 +152,8 @@ export function ParentsPage() {
     setForm(emptyParentForm);
     setSelectedPlayerOptions([]);
     setPlayerSearch("");
+    setIsQuickPlayerFormOpen(false);
+    setQuickPlayerForm(emptyQuickPlayerForm);
     setIsDrawerOpen(true);
   };
 
@@ -134,12 +164,14 @@ export function ParentsPage() {
     setForm(createFormFromParent(parent));
     setSelectedPlayerOptions(parent.players.map((assignment) => assignment.player));
     setPlayerSearch("");
+    setIsQuickPlayerFormOpen(false);
+    setQuickPlayerForm(emptyQuickPlayerForm);
     setIsDrawerOpen(true);
   };
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const response = await api.post<ParentRecord>("/parents", buildParentFormData(form, true), {
+      const response = await api.post<ParentRecord>("/parents", buildParentFormData(form), {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -167,6 +199,63 @@ export function ParentsPage() {
     },
   });
 
+  const quickPlayerMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedParent) {
+        throw new Error("Roditelj mora biti spremljen prije dodavanja djeteta.");
+      }
+
+      const formData = new FormData();
+      formData.append("firstName", quickPlayerForm.firstName);
+      formData.append("lastName", quickPlayerForm.lastName);
+      formData.append("phone", "");
+      formData.append("dateOfBirth", quickPlayerForm.dateOfBirth);
+      formData.append("oib", quickPlayerForm.oib);
+      formData.append("gdprConsent", String(quickPlayerForm.gdprConsent));
+      formData.append("membershipExpiresAt", "");
+      formData.append("categoryIds", JSON.stringify([]));
+      formData.append("parentIds", JSON.stringify([selectedParent.id]));
+      formData.append("primaryParentId", selectedParent.id);
+
+      const response = await api.post<PlayerRecord>("/players", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      return response.data;
+    },
+    onSuccess: (createdPlayer) => {
+      setSelectedPlayerOptions((currentOptions) =>
+        currentOptions.some((player) => player.id === createdPlayer.id)
+          ? currentOptions
+          : [...currentOptions, createdPlayer],
+      );
+      setForm((current) => ({
+        ...current,
+        playerIds: current.playerIds.includes(createdPlayer.id)
+          ? current.playerIds
+          : [...current.playerIds, createdPlayer.id],
+      }));
+      setQuickPlayerForm(emptyQuickPlayerForm);
+      setIsQuickPlayerFormOpen(false);
+      setPlayerSearch("");
+      setFeedback({
+        tone: "success",
+        message: `Dijete ${createdPlayer.user.firstName} ${createdPlayer.user.lastName} je dodano i povezano.`,
+      });
+      void invalidateParentQueries(queryClient);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message:
+          error.response?.data?.message ??
+          "Brzo dodavanje djeteta nije uspjelo.",
+      });
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!selectedParent) {
@@ -175,7 +264,7 @@ export function ParentsPage() {
 
       const response = await api.patch<ParentRecord>(
         `/parents/${selectedParent.id}`,
-        buildParentFormData(form, false),
+        buildParentFormData(form),
         {
           headers: {
             "Content-Type": "multipart/form-data",
@@ -268,19 +357,43 @@ export function ParentsPage() {
     },
   });
 
-  const activeProfileUrl = profilePreviewUrl ?? selectedParent?.user.profileImageUrl ?? null;
+  const resendCredentialsMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedParent) {
+        throw new Error("Nijedan roditelj nije odabran.");
+      }
+
+      const response = await api.post<CredentialResetResult>(
+        `/parents/${selectedParent.id}/resend-credentials`,
+      );
+
+      return response.data;
+    },
+    onSuccess: (result) => {
+      setFeedback({
+        tone: "success",
+        message: result.message,
+      });
+      void invalidateParentQueries(queryClient);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message:
+          error.response?.data?.message ??
+          "Slanje pristupnih podataka roditelju nije uspjelo.",
+      });
+    },
+  });
+
+  const activeProfileUrl = form.removeProfileImage
+    ? null
+    : profilePreviewUrl ?? selectedParent?.user.profileImageUrl ?? null;
+  const isParentsRefetching = parentsQuery.isFetching && !parentsQuery.isLoading;
 
   return (
     <section className="space-y-6">
-      {feedback ? (
-        <div
-          className={`border-2 border-line px-5 py-4 text-sm font-medium ${
-            feedback.tone === "success" ? "bg-success text-surface" : "bg-signal text-surface"
-          }`}
-        >
-          {feedback.message}
-        </div>
-      ) : null}
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
 
       {parentsQuery.isLoading ? (
         <div className="space-y-4">
@@ -322,7 +435,7 @@ export function ParentsPage() {
                     setParentManagementSearch(event.target.value);
                     setParentsPage(1);
                   }}
-                  placeholder="Ime, e-pošta, telefon ili dijete"
+                  placeholder="Ime i prezime"
                 />
               </label>
             </div>
@@ -330,19 +443,20 @@ export function ParentsPage() {
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse">
                 <thead className="bg-bg">
-                  <tr className="border-b-2 border-line text-left text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                  <tr className="border-b-2 border-line text-center text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                     <th className="px-4 py-4">Roditelj</th>
                     <th className="px-4 py-4">E-pošta</th>
-                    <th className="px-4 py-4">Djeca</th>
+                    <th className="px-4 py-4">Telefon</th>
                     <th className="px-4 py-4">Status</th>
-                    <th className="px-4 py-4">Radnje</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {parents.map((parent) => {
+                  {isParentsRefetching ? (
+                    <TableLoadingRows columns={4} />
+                  ) : (
+                  parents.map((parent) => {
                     const isSelected =
                       isDrawerOpen && selectedParentId === parent.id && formMode === "edit";
-                    const canSuspend = parent.user.accountStatus !== "SUSPENDED";
 
                     return (
                       <tr
@@ -352,41 +466,24 @@ export function ParentsPage() {
                         }`}
                         onClick={() => openEditDrawer(parent)}
                       >
-                        <td className="px-4 py-4 align-top">
+                        <td className="px-4 py-4 align-middle text-center">
                           <p className="text-sm font-bold uppercase">
                             {parent.user.firstName} {parent.user.lastName}
                           </p>
-                          <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-muted">
-                            {parent.user.phone ?? "Bez telefona"}
-                          </p>
                         </td>
-                        <td className="px-4 py-4 align-top text-sm">
+                        <td className="px-4 py-4 align-middle text-center text-sm">
                           {parent.user.email ?? "Bez e-pošte"}
                         </td>
-                        <td className="px-4 py-4 align-top text-sm">{parent.players.length}</td>
-                        <td className="px-4 py-4 align-top">
-                          <StatusChip status={parent.user.accountStatus} />
+                        <td className="px-4 py-4 align-middle text-center text-sm">
+                          {parent.user.phone ?? "Bez telefona"}
                         </td>
-                        <td className="px-4 py-4 align-top">
-                          <button
-                            className={`ui-pill ui-pill-button ${
-                              canSuspend ? "ui-pill--signal" : "ui-pill--success"
-                            }`}
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              statusMutation.mutate({
-                                userId: parent.user.id,
-                                accountStatus: canSuspend ? "SUSPENDED" : "ACTIVE",
-                              });
-                            }}
-                          >
-                            {canSuspend ? "Suspendiraj" : "Ponovno aktiviraj"}
-                          </button>
+                        <td className="px-4 py-4 align-middle text-center">
+                          <StatusChip status={parent.user.accountStatus} />
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -414,22 +511,9 @@ export function ParentsPage() {
                   : "Pregled roditelja"
             }
           >
-            <section className="border-2 border-line bg-surface">
-              <div className="border-b-2 border-line bg-panel px-4 py-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  {formMode === "create" ? "Novi roditelj" : "Uredi roditelja"}
-                </p>
-                <h3 className="mt-2 text-xl font-bold uppercase">
-                  {formMode === "create"
-                    ? "Postavljanje novog roditelja"
-                    : selectedParent
-                      ? `${selectedParent.user.firstName} ${selectedParent.user.lastName}`
-                      : "Uređivanje roditelja"}
-                </h3>
-              </div>
-
+            <section className="parent-drawer">
               <form
-                className="space-y-5 p-4"
+                className="parent-drawer-form"
                 onSubmit={(event) => {
                   event.preventDefault();
                   setFeedback(null);
@@ -442,16 +526,8 @@ export function ParentsPage() {
                   updateMutation.mutate();
                 }}
               >
-                {selectedParent && formMode === "edit" ? (
-                  <div className="flex flex-wrap gap-2">
-                    <StatusChip status={selectedParent.user.accountStatus} />
-                    <span className="ui-pill ui-pill--panel">
-                      Djeca <strong>{selectedParent.players.length}</strong>
-                    </span>
-                    <span className="ui-pill ui-pill--outline">Kontakt spreman</span>
-                  </div>
-                ) : null}
-
+                <fieldset className="parent-widget">
+                  <legend className="parent-widget-title">Osnovni podaci</legend>
                 <div className="grid gap-5 lg:grid-cols-2">
                   <label className="block">
                     <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
@@ -513,59 +589,74 @@ export function ParentsPage() {
                     />
                   </label>
                 </div>
+                </fieldset>
 
-                {formMode === "create" ? (
-                  <label className="block">
-                    <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                      Lozinka
-                    </span>
-                    <input
-                      className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                      type="password"
-                      value={form.password}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, password: event.target.value }))
-                      }
-                      required
-                    />
-                  </label>
-                ) : null}
-
-                <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-                  <div className="space-y-3">
+                <fieldset className="parent-widget parent-widget--wide">
+                  <legend className="parent-widget-title">Profil i djeca</legend>
+                <div className="parent-profile-grid">
+                  <div className="parent-profile-card">
                     <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                       Pregled profila
                     </p>
                     {activeProfileUrl ? (
                       <img
-                        className="h-44 w-full border-2 border-line object-cover"
+                        className="parent-profile-preview"
                         src={activeProfileUrl}
                         alt={form.firstName || "Pregled profila roditelja"}
                       />
                     ) : (
-                      <div className="flex h-44 items-center justify-center border-2 border-dashed border-line bg-bg px-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-muted">
+                      <div className="parent-profile-placeholder">
                         Učitaj profilnu fotografiju
                       </div>
                     )}
                     <input
-                      className="block w-full border-2 border-line bg-white px-3 py-3 text-sm"
+                      id="parent-profile-upload"
+                      className="parent-profile-input"
                       type="file"
                       accept="image/*"
                       onChange={(event: ChangeEvent<HTMLInputElement>) => {
                         const nextFile = event.target.files?.[0] ?? null;
-                        setForm((current) => ({ ...current, profileFile: nextFile }));
+                        setForm((current) => ({
+                          ...current,
+                          profileFile: nextFile,
+                          removeProfileImage: false,
+                        }));
                       }}
                     />
+                    <div className="parent-profile-actions">
+                      <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="parent-profile-upload">
+                        {activeProfileUrl ? "Promijeni fotografiju" : "Odaberi fotografiju"}
+                      </label>
+                      {activeProfileUrl || form.profileFile ? (
+                        <button
+                          className="ui-pill ui-pill-button ui-pill--outline"
+                          type="button"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              profileFile: null,
+                              removeProfileImage: Boolean(selectedParent?.user.profileImageUrl),
+                            }))
+                          }
+                        >
+                          Ukloni fotografiju
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="space-y-5">
+                  <div className="parent-assignment-stack">
                     <SearchMultiSelectPanel
                       title="Povezana djeca"
+                      className="parent-selector-panel"
                       items={playerSearchItems}
                       selectedItems={selectedPlayerItems}
                       searchValue={playerSearch}
                       isSearching={playersQuery.isFetching}
                       onSearchChange={setPlayerSearch}
+                      actionLabel={isQuickPlayerFormOpen ? "Zatvori dodavanje" : "Dodaj dijete"}
+                      actionDisabled={formMode !== "edit" || !selectedParent || quickPlayerMutation.isPending}
+                      onAction={() => setIsQuickPlayerFormOpen((isOpen) => !isOpen)}
                       searchPlaceholder="Pretraga djece"
                       noResultsLabel="Nema djece koja odgovaraju pretrazi."
                       selectedIds={form.playerIds}
@@ -588,81 +679,138 @@ export function ParentsPage() {
                           return {
                             ...current,
                             playerIds: nextPlayerIds,
-                            primaryPlayerIds: current.primaryPlayerIds.filter((playerId) =>
-                              nextPlayerIds.includes(playerId),
-                            ),
                           };
                         });
                       }}
                     />
-
-                    {form.playerIds.length > 0 ? (
-                      <div className="border-2 border-line bg-white">
-                        <div className="border-b-2 border-line bg-bg px-4 py-3">
+                    {isQuickPlayerFormOpen ? (
+                      <div className="rounded-[22px] border-2 border-line bg-white p-4">
+                        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                            Primarni kontakt za
+                            Novo dijete
+                          </p>
+                          <p className="text-sm leading-6 text-muted">
+                            Nakon kreiranja bit će odmah povezano s ovim roditeljem.
                           </p>
                         </div>
-                        <div className="space-y-3 p-4">
-                          {form.playerIds.map((playerId) => {
-                            const player =
-                              selectedPlayerOptions.find((entry) => entry.id === playerId) ??
-                              players.find((entry) => entry.id === playerId) ??
-                              selectedParent?.players.find(
-                                (assignment) => assignment.playerId === playerId,
-                              )?.player;
-
-                            if (!player) {
-                              return null;
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <label className="block">
+                            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                              Ime
+                            </span>
+                            <input
+                              className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              type="text"
+                              value={quickPlayerForm.firstName}
+                              onChange={(event) =>
+                                setQuickPlayerForm((current) => ({
+                                  ...current,
+                                  firstName: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                              Prezime
+                            </span>
+                            <input
+                              className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              type="text"
+                              value={quickPlayerForm.lastName}
+                              onChange={(event) =>
+                                setQuickPlayerForm((current) => ({
+                                  ...current,
+                                  lastName: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                              Datum rođenja
+                            </span>
+                            <DatePicker
+                              className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              value={quickPlayerForm.dateOfBirth}
+                              onChange={(value) =>
+                                setQuickPlayerForm((current) => ({
+                                  ...current,
+                                  dateOfBirth: value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                              OIB
+                            </span>
+                            <input
+                              className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              type="text"
+                              value={quickPlayerForm.oib}
+                              onChange={(event) =>
+                                setQuickPlayerForm((current) => ({
+                                  ...current,
+                                  oib: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <label className="mt-4 flex items-start gap-3 rounded-[18px] border-2 border-line bg-bg px-4 py-3">
+                          <input
+                            className="mt-1 h-4 w-4 accent-accent"
+                            type="checkbox"
+                            checked={quickPlayerForm.gdprConsent}
+                            onChange={(event) =>
+                              setQuickPlayerForm((current) => ({
+                                ...current,
+                                gdprConsent: event.target.checked,
+                              }))
                             }
-
-                            const isPrimary = form.primaryPlayerIds.includes(playerId);
-
-                            return (
-                              <label
-                                key={playerId}
-                                className={`flex cursor-pointer items-start gap-3 border-2 border-line px-3 py-3 ${
-                                  isPrimary ? "bg-panel" : "bg-white"
-                                }`}
-                              >
-                                <input
-                                  className="mt-1 h-4 w-4 accent-accent"
-                                  type="checkbox"
-                                  checked={isPrimary}
-                                  onChange={() =>
-                                    setForm((current) => ({
-                                      ...current,
-                                      primaryPlayerIds: isPrimary
-                                        ? current.primaryPlayerIds.filter((id) => id !== playerId)
-                                        : [...current.primaryPlayerIds, playerId],
-                                    }))
-                                  }
-                                />
-                                <span>
-                                  <span className="block text-sm font-bold uppercase">
-                                    {player.user.firstName} {player.user.lastName}
-                                  </span>
-                                  <span className="mt-1 block text-[11px] uppercase tracking-[0.2em] text-muted">
-                                    Datum rođenja {formatDate(player.dateOfBirth)}
-                                  </span>
-                                </span>
-                              </label>
-                            );
-                          })}
+                          />
+                          <span className="text-sm font-bold uppercase">
+                            GDPR suglasnost potvrđena
+                          </span>
+                        </label>
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <button
+                            className="ui-pill ui-pill-button ui-pill--accent"
+                            type="button"
+                            disabled={quickPlayerMutation.isPending}
+                            onClick={() => quickPlayerMutation.mutate()}
+                          >
+                            {quickPlayerMutation.isPending ? "Dodavanje..." : "Dodaj i poveži"}
+                          </button>
+                          <button
+                            className="ui-pill ui-pill-button ui-pill--panel"
+                            type="button"
+                            disabled={quickPlayerMutation.isPending}
+                            onClick={() => {
+                              setQuickPlayerForm(emptyQuickPlayerForm);
+                              setIsQuickPlayerFormOpen(false);
+                            }}
+                          >
+                            Odustani
+                          </button>
                         </div>
                       </div>
                     ) : null}
                   </div>
                 </div>
+                </fieldset>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="parent-actions">
                   <button
                     className="ui-pill ui-pill-button ui-pill--accent"
                     type="submit"
                     disabled={
                       createMutation.isPending ||
                       updateMutation.isPending ||
-                      deleteMutation.isPending
+                      deleteMutation.isPending ||
+                      statusMutation.isPending ||
+                      resendCredentialsMutation.isPending
                     }
                   >
                     {formMode === "create"
@@ -690,6 +838,58 @@ export function ParentsPage() {
                     Resetiraj obrazac
                   </button>
                   <button
+                    className={`ui-pill ui-pill-button ${
+                      selectedParent?.user.accountStatus === "SUSPENDED"
+                        ? "ui-pill--success"
+                        : "ui-pill--signal"
+                    }`}
+                    type="button"
+                    disabled={
+                      formMode !== "edit" ||
+                      !selectedParent ||
+                      createMutation.isPending ||
+                      updateMutation.isPending ||
+                      deleteMutation.isPending ||
+                      statusMutation.isPending ||
+                      resendCredentialsMutation.isPending
+                    }
+                    onClick={() => {
+                      if (!selectedParent) {
+                        return;
+                      }
+
+                      statusMutation.mutate({
+                        userId: selectedParent.user.id,
+                        accountStatus:
+                          selectedParent.user.accountStatus === "SUSPENDED"
+                            ? "ACTIVE"
+                            : "SUSPENDED",
+                      });
+                    }}
+                  >
+                    {selectedParent?.user.accountStatus === "SUSPENDED"
+                      ? "Ponovno aktiviraj"
+                      : "Suspendiraj roditelja"}
+                  </button>
+                  <button
+                    className="ui-pill ui-pill-button ui-pill--panel"
+                    type="button"
+                    disabled={
+                      formMode !== "edit" ||
+                      !selectedParent ||
+                      createMutation.isPending ||
+                      updateMutation.isPending ||
+                      deleteMutation.isPending ||
+                      statusMutation.isPending ||
+                      resendCredentialsMutation.isPending
+                    }
+                    onClick={() => resendCredentialsMutation.mutate()}
+                  >
+                    {resendCredentialsMutation.isPending
+                      ? "Slanje..."
+                      : "Pošalji pristupne podatke"}
+                  </button>
+                  <button
                     className="ui-pill ui-pill-button ui-pill--signal"
                     type="button"
                     disabled={
@@ -697,7 +897,9 @@ export function ParentsPage() {
                       !selectedParent ||
                       createMutation.isPending ||
                       updateMutation.isPending ||
-                      deleteMutation.isPending
+                      deleteMutation.isPending ||
+                      statusMutation.isPending ||
+                      resendCredentialsMutation.isPending
                     }
                     onClick={() => deleteMutation.mutate()}
                   >
@@ -719,27 +921,21 @@ function createFormFromParent(parent: ParentRecord): ParentFormState {
     lastName: parent.user.lastName,
     email: parent.user.email ?? "",
     phone: parent.user.phone ?? "",
-    password: "",
     playerIds: parent.players.map((assignment) => assignment.playerId),
-    primaryPlayerIds: parent.players
-      .filter((assignment) => assignment.isPrimaryContact)
-      .map((assignment) => assignment.playerId),
     profileFile: null,
+    removeProfileImage: false,
   };
 }
 
-function buildParentFormData(form: ParentFormState, includePassword: boolean) {
+function buildParentFormData(form: ParentFormState) {
   const formData = new FormData();
   formData.append("firstName", form.firstName);
   formData.append("lastName", form.lastName);
   formData.append("email", form.email);
   formData.append("phone", form.phone);
   formData.append("playerIds", JSON.stringify(form.playerIds));
-  formData.append("primaryPlayerIds", JSON.stringify(form.primaryPlayerIds));
-
-  if (includePassword) {
-    formData.append("password", form.password);
-  }
+  formData.append("primaryPlayerIds", JSON.stringify([]));
+  formData.append("removeProfileImage", String(form.removeProfileImage));
 
   if (form.profileFile) {
     formData.append("profileImage", form.profileFile);

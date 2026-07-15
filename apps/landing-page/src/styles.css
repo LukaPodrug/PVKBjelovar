@@ -87,6 +87,67 @@ textarea {
   color: var(--surface);
 }
 
+.feedback-toast {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 80;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  width: min(430px, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 24px;
+  color: var(--surface);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.feedback-toast--success {
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.2), transparent 36%),
+    var(--success);
+}
+
+.feedback-toast--error {
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.18), transparent 36%),
+    var(--signal);
+}
+
+.feedback-toast__content {
+  min-width: 0;
+}
+
+.feedback-toast__title {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.86;
+}
+
+.feedback-toast__message {
+  margin-top: 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.feedback-toast__close {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: currentColor;
+  cursor: pointer;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
 .landing-page h1,
 .landing-page h2,
 .landing-page h3 {
@@ -140,13 +201,180 @@ textarea {
 .landing-page input,
 .landing-page textarea,
 .landing-page select {
-  background: #fffdf8;
+  background: var(--surface);
+  color: var(--ink);
+  color-scheme: light;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .landing-page input:focus,
 .landing-page textarea:focus,
 .landing-page select:focus {
   background: var(--surface);
+}
+
+.landing-page input:-webkit-autofill,
+.landing-page input:-webkit-autofill:hover,
+.landing-page input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  box-shadow: 0 0 0 1000px var(--surface) inset !important;
+  caret-color: var(--ink);
+  transition: background-color 9999s ease-out;
+}
+
+.landing-page input[type="search"],
+.landing-page input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.landing-page input[type="search"]::-webkit-search-cancel-button,
+.landing-page input[type="search"]::-webkit-search-decoration,
+.landing-page input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
+.landing-page input[type="date"]::-webkit-date-and-time-value {
+  min-height: 1.5em;
+  text-align: left;
+}
+
+.landing-page .field-invalid {
+  border-color: var(--signal) !important;
+  background: rgba(255, 247, 247, 0.96) !important;
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.03),
+    0 0 0 3px rgba(180, 48, 48, 0.12) !important;
+}
+
+.landing-page .field-error-message {
+  margin: 0.45rem 0 0;
+  color: var(--signal);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.landing-page .date-picker {
+  position: relative;
+}
+
+.landing-page .date-picker-control {
+  position: relative;
+}
+
+.landing-page .date-picker-input {
+  padding-right: 3.4rem !important;
+}
+
+.landing-page .date-picker-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--accent);
+  transform: translateY(-50%);
+}
+
+.landing-page .date-picker-popover {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  left: 0;
+  z-index: 70;
+  width: min(330px, calc(100vw - 2rem));
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+}
+
+.landing-page .date-picker-header {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.landing-page .date-picker-header p {
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.landing-page .date-picker-nav {
+  display: inline-grid;
+  width: 1.95rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.landing-page .date-picker-nav--year {
+  width: 2.45rem;
+  font-size: 0.95rem;
+}
+
+.landing-page .date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.landing-page .date-picker-weekdays {
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.landing-page .date-picker-day {
+  display: inline-grid;
+  min-height: 2.15rem;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.landing-page .date-picker-day:hover {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+.landing-page .date-picker-day.is-outside {
+  color: rgba(100, 116, 139, 0.55);
+}
+
+.landing-page .date-picker-day.is-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .landing-kicker {
@@ -1118,8 +1346,16 @@ textarea {
   object-fit: cover;
 }
 
+.landing-page .landing-footer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 320px));
+  justify-content: center;
+  gap: 1.5rem;
+}
+
 .landing-page .landing-footer-column {
   min-width: 0;
+  text-align: center;
 }
 
 .landing-page .landing-footer-list {
@@ -1132,6 +1368,7 @@ textarea {
   border: 1px solid rgba(215, 224, 234, 0.92);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.72);
+  text-align: center;
 }
 
 .landing-page .landing-footer-list span {
@@ -1155,6 +1392,7 @@ textarea {
 .landing-page .landing-footer-social-links {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.75rem;
 }
 
@@ -2179,5 +2417,15 @@ textarea {
     align-content: start;
     border-top: 0;
     border-left: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 640px) {
+  .feedback-toast {
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    width: auto;
+    border-radius: 22px;
   }
 }

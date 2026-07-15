@@ -40,11 +40,11 @@ export interface PersonUser {
 
 export interface ClubSettings {
   id: string;
-  clubName: string;
+  clubName: string | null;
   clubSubtitle: string | null;
   logoUrl: string | null;
-  contactEmail: string;
-  contactPhone: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
   facebookUrl: string | null;
   instagramUrl: string | null;
   youtubeUrl: string | null;
@@ -57,6 +57,8 @@ export interface CategoryOption {
   id: string;
   name: string;
   logoUrl: string | null;
+  startDateOfBirth?: string | null;
+  endDateOfBirth?: string | null;
 }
 
 export interface CoachRecord {
@@ -110,13 +112,24 @@ export interface ParentRecord {
   }>;
 }
 
+export interface CredentialResetResult {
+  message: string;
+  emailSent: boolean;
+  developmentCredentials?: {
+    login: string;
+    password: string;
+    recipients: string[];
+  };
+}
+
 export interface CategoryPlayerAssignment {
   playerId: string;
   player: PlayerRecord;
 }
 
 export interface CategoryRecord extends CategoryOption {
-  endDateOfBirth: string;
+  startDateOfBirth: string | null;
+  endDateOfBirth: string | null;
   playerCount: number;
   coaches: Array<{
     coachId: string;
@@ -151,7 +164,7 @@ export interface ScheduleItem {
   notes: string | null;
   isWeeklyTemplate: boolean;
   dayOfWeek: DayKey | null;
-  category: CategoryOption;
+  category: ScheduleCategoryOption;
   coaches: ScheduleCoach[];
   occurrences: ScheduleOccurrenceSummary[];
 }
@@ -209,8 +222,14 @@ export interface ScheduleCalendarItem {
   sourceType: "WEEKLY_TEMPLATE" | "SPECIAL_PRACTICE";
   weeklyScheduleId: string | null;
   weeklyScheduleName: string | null;
-  category: CategoryOption;
+  category: ScheduleCategoryOption;
   coaches: ScheduleCoach[];
+}
+
+export interface ScheduleCategoryOption {
+  id: string | null;
+  name: string;
+  logoUrl: string | null;
 }
 
 export interface SignupRequest {
@@ -245,6 +264,7 @@ export interface LeaderboardEntry {
   playerId: string;
   firstName: string;
   lastName: string;
+  categoryNames: string[];
   profileImageUrl: string | null;
   attended: number;
   total: number;

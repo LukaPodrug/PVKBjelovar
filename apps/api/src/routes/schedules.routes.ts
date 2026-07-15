@@ -7,7 +7,7 @@ import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
 import { deriveDayOfWeek, resolveScheduleCoachIds } from "../services/category.service";
-import { notifyCategoryAudience } from "../services/notification.service";
+import { notifyAllPracticeAudience, notifyCategoryAudience } from "../services/notification.service";
 import { attendanceQrTokenPrefix, parseAttendanceQrToken } from "../services/username.service";
 import { formatDateHr, formatTimeRangeHr } from "../utils/datetime";
 import {
@@ -20,6 +20,11 @@ import {
 } from "../utils/request-parsers";
 
 const attendanceQrSessionLifetimeMs = 10 * 60 * 1000;
+const unrestrictedScheduleCategory = {
+  id: null,
+  name: "Sve kategorije",
+  logoUrl: null,
+};
 
 const scheduleCoachInclude = {
   include: {
@@ -152,7 +157,7 @@ export interface ScheduleAccessContext {
 }
 
 interface ParsedSpecialSchedulePayload {
-  categoryId: string;
+  categoryId: string | null;
   practiceType: PracticeType;
   startTime: Date;
   endTime: Date;
@@ -191,7 +196,7 @@ export interface CalendarItem {
   weeklyScheduleId: string | null;
   weeklyScheduleName: string | null;
   category: {
-    id: string;
+    id: string | null;
     name: string;
     logoUrl: string | null;
   };
@@ -292,9 +297,11 @@ schedulesRouter.post(
       throw new AppError("Ovaj trening je označen kao otkazan.", 400);
     }
 
-    const belongsToCategory = player.categories.some(
-      (assignment) => assignment.categoryId === qrSession.occurrence.schedule.categoryId,
-    );
+    const belongsToCategory =
+      qrSession.occurrence.schedule.categoryId === null ||
+      player.categories.some(
+        (assignment) => assignment.categoryId === qrSession.occurrence.schedule.categoryId,
+      );
 
     if (!belongsToCategory) {
       throw new AppError("Ovaj QR kod nije namijenjen vašoj kategoriji.", 403);
@@ -321,7 +328,7 @@ schedulesRouter.post(
       occurrenceId: qrSession.occurrence.id,
       occurrenceDate: getOccurrenceDateKey(qrSession.occurrence.occurrenceDate),
       practiceType: qrSession.occurrence.practiceType,
-      categoryName: qrSession.occurrence.schedule.category.name,
+      categoryName: qrSession.occurrence.schedule.category?.name ?? "Sve kategorije",
       startTime:
         qrSession.occurrence.startTime?.toISOString() ??
         copyTimeOfDay(
@@ -504,7 +511,7 @@ schedulesRouter.post(
       scheduleId,
       occurrenceId: qrContext.occurrence.id,
       occurrenceDate: getOccurrenceDateKey(qrContext.occurrence.occurrenceDate),
-      categoryName: schedule.category.name,
+      categoryName: schedule.category?.name ?? "Sve kategorije",
       practiceType: schedule.practiceType,
       startTime:
         qrContext.occurrence.startTime?.toISOString() ??
@@ -530,7 +537,7 @@ schedulesRouter.get(
 
     const weeklySchedules = await prisma.weeklySchedule.findMany({
       where: {
-        ...(buildAccessibleCategoryWhere(access, categoryId) ?? {}),
+        ...(buildAccessibleWeeklyScheduleWhere(access, categoryId) ?? {}),
       },
       include: weeklyScheduleInclude,
       orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
@@ -877,14 +884,17 @@ schedulesRouter.post(
 
     response.status(201).json(schedule);
 
-    void notifyCategoryAudience(schedule.categoryId, {
+    const notificationPayload = {
       type: NotificationType.PRACTICE_CREATED,
       title: "Novi trening",
-      body: `Dodan je novi trening za kategoriju ${schedule.category.name} — ${formatDateHr(
+      body: `Dodan je novi trening za ${schedule.category?.name ?? "sve kategorije"} — ${formatDateHr(
         schedule.startTime,
       )} u ${formatTimeRangeHr(schedule.startTime, schedule.endTime)}.`,
       data: { scheduleId: schedule.id, categoryId: schedule.categoryId },
-    });
+    };
+    void (schedule.categoryId
+      ? notifyCategoryAudience(schedule.categoryId, notificationPayload)
+      : notifyAllPracticeAudience(notificationPayload));
   }),
 );
 
@@ -1026,14 +1036,17 @@ schedulesRouter.patch(
 
     response.json(schedule);
 
-    void notifyCategoryAudience(schedule.categoryId, {
+    const notificationPayload = {
       type: NotificationType.PRACTICE_UPDATED,
       title: "Izmjena termina",
-      body: `Trening za kategoriju ${schedule.category.name} je izmijenjen — ${formatDateHr(
+      body: `Trening za ${schedule.category?.name ?? "sve kategorije"} je izmijenjen — ${formatDateHr(
         schedule.startTime,
       )} u ${formatTimeRangeHr(schedule.startTime, schedule.endTime)}.`,
       data: { scheduleId: schedule.id, categoryId: schedule.categoryId },
-    });
+    };
+    void (schedule.categoryId
+      ? notifyCategoryAudience(schedule.categoryId, notificationPayload)
+      : notifyAllPracticeAudience(notificationPayload));
   }),
 );
 
@@ -1096,7 +1109,7 @@ schedulesRouter.put(
       throw new AppError("Odabrani tjedni raspored nije aktiviran za taj tjedan.", 400);
     }
 
-    if (!isCancelled && presentPlayerIds.length > 0) {
+    if (schedule.categoryId && !isCancelled && presentPlayerIds.length > 0) {
       const allowedPlayers = await prisma.player.findMany({
         where: {
           id: {
@@ -1163,10 +1176,10 @@ schedulesRouter.put(
     });
 
     if (occurrence.isCancelled && !existingOccurrence?.isCancelled) {
-      void notifyCategoryAudience(schedule.categoryId, {
+      const notificationPayload = {
         type: NotificationType.PRACTICE_CANCELLED,
         title: "Trening otkazan",
-        body: `Trening za kategoriju ${schedule.category.name} dana ${formatDateHr(
+        body: `Trening za ${schedule.category?.name ?? "sve kategorije"} dana ${formatDateHr(
           occurrenceDate,
         )} je otkazan.`,
         data: {
@@ -1174,8 +1187,107 @@ schedulesRouter.put(
           occurrenceId: occurrence.id,
           occurrenceDate: getOccurrenceDateKey(occurrenceDate),
         },
-      });
+      };
+      void (schedule.categoryId
+        ? notifyCategoryAudience(schedule.categoryId, notificationPayload)
+        : notifyAllPracticeAudience(notificationPayload));
     }
+  }),
+);
+
+schedulesRouter.patch(
+  "/:id/occurrence",
+  asyncHandler(async (request, response) => {
+    const access = await getScheduleAccessContext(request);
+    const scheduleId = requireString(request.params.id, "id");
+    const schedule = await prisma.schedule.findUnique({
+      where: {
+        id: scheduleId,
+      },
+      select: {
+        id: true,
+        categoryId: true,
+        isWeeklyTemplate: true,
+        isArchived: true,
+        dayOfWeek: true,
+        practiceType: true,
+        startTime: true,
+        endTime: true,
+        notes: true,
+        coaches: {
+          select: {
+            coachId: true,
+          },
+        },
+      },
+    });
+
+    if (!schedule || schedule.isArchived) {
+      throw new AppError("Termin nije pronađen.", 404);
+    }
+
+    if (!schedule.isWeeklyTemplate) {
+      throw new AppError("Posebni termini uređuju se kroz obrazac posebnog termina.", 400);
+    }
+
+    assertCategoryAccess(access, schedule.categoryId);
+    const occurrenceDate = parseOccurrenceDateInput(request.body.occurrenceDate);
+    assertOccurrenceDateMatchesSchedule(schedule, occurrenceDate);
+
+    const startTime = parseDateInput(request.body.startTime, "startTime");
+    const endTime = parseDateInput(request.body.endTime, "endTime");
+
+    if (endTime <= startTime) {
+      throw new AppError("Vrijeme završetka mora biti nakon početka.", 400);
+    }
+
+    const coachIds = await resolveScheduleCoachIds(
+      schedule.categoryId,
+      dedupeStringArray(parseStringArrayInput(request.body.coachIds)),
+    );
+    const notes = request.body.notes ? requireString(request.body.notes, "notes") : null;
+
+    const occurrence = await prisma.scheduleOccurrence.upsert({
+      where: {
+        scheduleId_occurrenceDate: {
+          scheduleId,
+          occurrenceDate,
+        },
+      },
+      create: {
+        ...buildOccurrenceCreateData(schedule, occurrenceDate, false),
+        startTime,
+        endTime,
+        notes,
+        coaches: {
+          create: coachIds.map((coachId) => ({
+            coach: {
+              connect: {
+                id: coachId,
+              },
+            },
+          })),
+        },
+      },
+      update: {
+        startTime,
+        endTime,
+        notes,
+        coaches: {
+          deleteMany: {},
+          create: coachIds.map((coachId) => ({
+            coach: {
+              connect: {
+                id: coachId,
+              },
+            },
+          })),
+        },
+      },
+      include: weeklyOccurrenceInclude,
+    });
+
+    response.json(mapWeeklyOccurrenceToCalendarItem(occurrence));
   }),
 );
 
@@ -1258,7 +1370,11 @@ async function getScheduleAccessContext(request: Express.Request): Promise<Sched
   };
 }
 
-function assertCategoryAccess(access: ScheduleAccessContext, categoryId: string) {
+function assertCategoryAccess(access: ScheduleAccessContext, categoryId: string | null) {
+  if (categoryId === null) {
+    return;
+  }
+
   if (access.role === UserRole.ADMIN) {
     return;
   }
@@ -1289,6 +1405,24 @@ function assertPracticeAssignmentAccess(
 
 function buildAccessibleCategoryWhere(access: ScheduleAccessContext, categoryId?: string) {
   if (access.role === UserRole.ADMIN) {
+    return categoryId ? { OR: [{ categoryId }, { categoryId: null }] } : undefined;
+  }
+
+  if (!access.categoryIds || access.categoryIds.length === 0) {
+    return { categoryId: null };
+  }
+
+  if (categoryId) {
+    return { OR: [{ categoryId }, { categoryId: null }] };
+  }
+
+  return {
+    OR: [{ categoryId: { in: access.categoryIds } }, { categoryId: null }],
+  };
+}
+
+function buildAccessibleWeeklyScheduleWhere(access: ScheduleAccessContext, categoryId?: string) {
+  if (access.role === UserRole.ADMIN) {
     return categoryId ? { categoryId } : undefined;
   }
 
@@ -1300,29 +1434,30 @@ function buildAccessibleCategoryWhere(access: ScheduleAccessContext, categoryId?
     };
   }
 
-  if (categoryId) {
-    return {
-      categoryId,
-    };
-  }
-
-  return {
-    categoryId: {
-      in: access.categoryIds,
-    },
-  };
+  return categoryId
+    ? { categoryId }
+    : {
+        categoryId: {
+          in: access.categoryIds,
+        },
+      };
 }
 
 async function parseSpecialSchedulePayload(
   payload: unknown,
-  existingCategoryId?: string,
+  existingCategoryId?: string | null,
 ): Promise<ParsedSpecialSchedulePayload> {
   if (!payload || typeof payload !== "object") {
     throw new AppError("Podaci termina nisu ispravni.", 400);
   }
 
   const body = payload as Record<string, unknown>;
-  const categoryId = existingCategoryId ?? requireString(body.categoryId, "categoryId");
+  const categoryId =
+    "categoryId" in body
+      ? parseOptionalCategoryId(body.categoryId)
+      : existingCategoryId === undefined
+        ? parseOptionalCategoryId(body.categoryId)
+        : existingCategoryId;
   const startTime = parseDateInput(body.startTime, "startTime");
   const endTime = parseDateInput(body.endTime, "endTime");
 
@@ -1341,6 +1476,14 @@ async function parseSpecialSchedulePayload(
       dedupeStringArray(parseStringArrayInput(body.coachIds)),
     ),
   };
+}
+
+function parseOptionalCategoryId(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  return requireString(value, "categoryId");
 }
 
 async function parseWeeklySchedulePayload(
@@ -1607,7 +1750,7 @@ function buildScheduleWhere(
   allowConditioningFallback = false,
 ) {
   if (!access) {
-    return categoryId ? { categoryId } : undefined;
+    return categoryId ? { OR: [{ categoryId }, { categoryId: null }] } : undefined;
   }
 
   if (
@@ -1651,7 +1794,7 @@ function mapWeeklyOccurrenceToCalendarItem(
     sourceType: "WEEKLY_TEMPLATE",
     weeklyScheduleId: schedule.weeklySchedule?.id ?? null,
     weeklyScheduleName: schedule.weeklySchedule?.name ?? null,
-    category: schedule.category,
+    category: schedule.category ?? unrestrictedScheduleCategory,
     coaches,
   };
 }
@@ -1683,7 +1826,7 @@ function mapSpecialScheduleToCalendarItem(
       sourceType: "SPECIAL_PRACTICE",
       weeklyScheduleId: null,
       weeklyScheduleName: null,
-      category: schedule.category,
+      category: schedule.category ?? unrestrictedScheduleCategory,
       coaches:
         occurrence.coaches.length > 0
           ? occurrence.coaches.map((assignment) => ({
@@ -1707,7 +1850,7 @@ function mapSpecialScheduleToCalendarItem(
     sourceType: "SPECIAL_PRACTICE",
     weeklyScheduleId: null,
     weeklyScheduleName: null,
-    category: schedule.category,
+    category: schedule.category ?? unrestrictedScheduleCategory,
     coaches: schedule.coaches,
   };
 }

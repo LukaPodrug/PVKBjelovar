@@ -5,7 +5,6 @@ import { useAuth } from "../auth/auth-context";
 import { api } from "../core/api";
 import { formatDate, toDateInputValue } from "../core/date";
 import type {
-  AccountStatus,
   CategoryPlayerAssignment,
   CategoryRecord,
   CoachRecord,
@@ -14,6 +13,8 @@ import type {
   PlayerRecord,
 } from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
+import { DatePicker } from "../ui/date-picker";
+import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
 
@@ -24,9 +25,12 @@ interface FeedbackState {
 
 interface CategoryFormState {
   name: string;
+  ageRule: "YOUTH" | "SENIOR" | "VETERAN";
+  startDateOfBirth: string;
   endDateOfBirth: string;
   coachIds: string[];
   logoFile: File | null;
+  removeLogo: boolean;
 }
 
 interface StartNewSeasonResult {
@@ -37,6 +41,7 @@ interface StartNewSeasonResult {
 interface ManagedPlayerFormState {
   firstName: string;
   lastName: string;
+  email: string;
   phone: string;
   dateOfBirth: string;
   oib: string;
@@ -45,18 +50,24 @@ interface ManagedPlayerFormState {
   categoryIds: string[];
   parentIds: string[];
   primaryParentId: string;
+  profileFile: File | null;
+  removeProfileImage: boolean;
 }
 
 const emptyCategoryForm: CategoryFormState = {
   name: "",
+  ageRule: "YOUTH",
+  startDateOfBirth: "",
   endDateOfBirth: "",
   coachIds: [],
   logoFile: null,
+  removeLogo: false,
 };
 
 const emptyManagedPlayerForm: ManagedPlayerFormState = {
   firstName: "",
   lastName: "",
+  email: "",
   phone: "",
   dateOfBirth: "",
   oib: "",
@@ -65,6 +76,8 @@ const emptyManagedPlayerForm: ManagedPlayerFormState = {
   categoryIds: [],
   parentIds: [],
   primaryParentId: "",
+  profileFile: null,
+  removeProfileImage: false,
 };
 
 const optionPageSize = 100;
@@ -80,6 +93,9 @@ export function CategoriesPage() {
   const [form, setForm] = useState<CategoryFormState>(emptyCategoryForm);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [managedPlayerProfilePreviewUrl, setManagedPlayerProfilePreviewUrl] = useState<
+    string | null
+  >(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [managedPlayerId, setManagedPlayerId] = useState<string | null>(null);
   const [managedPlayerForm, setManagedPlayerForm] = useState<ManagedPlayerFormState>(
@@ -205,6 +221,20 @@ export function CategoriesPage() {
     setManagedPlayerForm(createManagedPlayerForm(managedPlayer));
   }, [managedPlayer]);
 
+  useEffect(() => {
+    if (!managedPlayerForm.profileFile) {
+      setManagedPlayerProfilePreviewUrl(null);
+      return;
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(managedPlayerForm.profileFile);
+    setManagedPlayerProfilePreviewUrl(nextPreviewUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextPreviewUrl);
+    };
+  }, [managedPlayerForm.profileFile]);
+
   const openCreateDrawer = () => {
     setFeedback(null);
     setFormMode("create");
@@ -227,6 +257,8 @@ export function CategoriesPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      ensureCategoryFormIsValid(form);
+
       const response = await api.post<CategoryRecord>("/categories", buildCategoryFormData(form), {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -250,7 +282,7 @@ export function CategoriesPage() {
     onError: (error: AxiosError<{ message?: string }>) => {
       setFeedback({
         tone: "error",
-        message: error.response?.data?.message ?? "Kreiranje kategorije nije uspjelo.",
+        message: getMutationErrorMessage(error, "Kreiranje kategorije nije uspjelo."),
       });
     },
   });
@@ -260,6 +292,8 @@ export function CategoriesPage() {
       if (!selectedCategory) {
         throw new Error("Nijedna kategorija nije odabrana.");
       }
+
+      ensureCategoryFormIsValid(form);
 
       const response = await api.patch<CategoryRecord>(
         `/categories/${selectedCategory.id}`,
@@ -287,7 +321,7 @@ export function CategoriesPage() {
     onError: (error: AxiosError<{ message?: string }>) => {
       setFeedback({
         tone: "error",
-        message: error.response?.data?.message ?? "Ažuriranje kategorije nije uspjelo.",
+        message: getMutationErrorMessage(error, "Ažuriranje kategorije nije uspjelo."),
       });
     },
   });
@@ -355,9 +389,16 @@ export function CategoriesPage() {
         throw new Error("Igrač nije pronađen.");
       }
 
+      ensureManagedPlayerHasParent(managedPlayerForm);
+
       const response = await api.patch<PlayerRecord>(
         `/players/${managedPlayer.id}`,
         buildManagedPlayerPayload(managedPlayerForm),
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        },
       );
 
       return response.data;
@@ -377,27 +418,25 @@ export function CategoriesPage() {
     onError: (error: AxiosError<{ message?: string }>) => {
       setFeedback({
         tone: "error",
-        message: error.response?.data?.message ?? "Ažuriranje igrača nije uspjelo.",
+        message: getMutationErrorMessage(error, "Ažuriranje igrača nije uspjelo."),
       });
     },
   });
 
-  const activeLogoUrl = logoPreviewUrl ?? selectedCategory?.logoUrl ?? null;
+  const activeLogoUrl = form.removeLogo
+    ? null
+    : logoPreviewUrl ?? selectedCategory?.logoUrl ?? null;
+  const activeManagedPlayerProfileUrl =
+    managedPlayerForm.removeProfileImage
+      ? null
+      : managedPlayerProfilePreviewUrl ?? managedPlayer?.user.profileImageUrl ?? null;
   const openPlayerFromCategory = (playerId: string) => {
     setManagedPlayerId(playerId);
   };
 
   return (
     <section className="space-y-6">
-      {feedback ? (
-        <div
-          className={`border-2 border-line px-5 py-4 text-sm font-medium ${
-            feedback.tone === "success" ? "bg-success text-surface" : "bg-signal text-surface"
-          }`}
-        >
-          {feedback.message}
-        </div>
-      ) : null}
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
 
       {categoriesQuery.isLoading ||
       categoryOptionsQuery.isLoading ||
@@ -459,9 +498,9 @@ export function CategoriesPage() {
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse">
                 <thead className="bg-bg">
-                  <tr className="border-b-2 border-line text-left text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                  <tr className="border-b-2 border-line text-center text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                     <th className="px-4 py-4">Kategorija</th>
-                    <th className="px-4 py-4">Godište do</th>
+                    <th className="px-4 py-4">Godište</th>
                     <th className="px-4 py-4">Treneri</th>
                     <th className="px-4 py-4">Igrači</th>
                   </tr>
@@ -479,32 +518,14 @@ export function CategoriesPage() {
                         }`}
                         onClick={() => openEditDrawer(category)}
                       >
-                        <td className="px-4 py-4 align-top">
-                          <div className="flex items-center gap-3">
-                            {category.logoUrl ? (
-                              <img
-                                className="h-12 w-12 border-2 border-line object-cover"
-                                src={category.logoUrl}
-                                alt={category.name}
-                              />
-                            ) : (
-                              <div className="flex h-12 w-12 items-center justify-center border-2 border-line bg-accent text-xs font-bold text-surface">
-                                {category.name.slice(0, 2).toUpperCase()}
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-sm font-bold uppercase">{category.name}</p>
-                              <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-muted">
-                                {category.logoUrl ? "Logo postavljen" : "Bez loga"}
-                              </p>
-                            </div>
-                          </div>
+                        <td className="px-4 py-4 align-middle text-center">
+                          <p className="text-sm font-bold uppercase">{category.name}</p>
                         </td>
-                        <td className="px-4 py-4 align-top text-sm font-medium">
-                          {formatDate(category.endDateOfBirth)}
+                        <td className="px-4 py-4 align-middle text-center text-sm font-medium">
+                          {formatCategoryAgeRule(category)}
                         </td>
-                        <td className="px-4 py-4 align-top text-sm">{category.coaches.length}</td>
-                        <td className="px-4 py-4 align-top text-sm">{category.playerCount}</td>
+                        <td className="px-4 py-4 align-middle text-center text-sm">{category.coaches.length}</td>
+                        <td className="px-4 py-4 align-middle text-center text-sm">{category.playerCount}</td>
                       </tr>
                     );
                   })}
@@ -532,20 +553,10 @@ export function CategoriesPage() {
                 : selectedCategory?.name ?? "Uređivanje kategorije"
             }
           >
-            <section className="border-2 border-line bg-surface">
-              <div className="border-b-2 border-line bg-panel px-4 py-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  {formMode === "create" ? "Nova kategorija" : "Uredi kategoriju"}
-                </p>
-                <h3 className="mt-2 text-xl font-bold uppercase">
-                  {formMode === "create"
-                    ? "Postavljanje nove kategorije"
-                    : selectedCategory?.name ?? "Uređivanje kategorije"}
-                </h3>
-              </div>
-
+            <section className="category-drawer">
               <form
-                className="space-y-5 p-4"
+                className="category-drawer-form"
+                noValidate
                 onSubmit={(event) => {
                   event.preventDefault();
                   setFeedback(null);
@@ -559,7 +570,7 @@ export function CategoriesPage() {
                 }}
               >
                 {selectedCategory && formMode === "edit" ? (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="category-drawer-stats">
                     <span className="ui-pill ui-pill--panel">
                       Treneri <strong>{selectedCategory.coaches.length}</strong>
                     </span>
@@ -567,12 +578,14 @@ export function CategoriesPage() {
                       Igrači <strong>{selectedCategoryPlayerTotal}</strong>
                     </span>
                     <span className="ui-pill ui-pill--outline">
-                      Godište do <strong>{formatDate(selectedCategory.endDateOfBirth)}</strong>
+                      Dob <strong>{formatCategoryAgeRule(selectedCategory)}</strong>
                     </span>
                   </div>
                 ) : null}
 
-                <div className="grid gap-5 lg:grid-cols-2">
+                <fieldset className="category-widget">
+                  <legend className="category-widget-title">Osnovni podaci</legend>
+                  <div className="grid gap-5 lg:grid-cols-2">
                   <label className="block">
                     <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                       Naziv kategorije
@@ -594,41 +607,89 @@ export function CategoriesPage() {
 
                   <label className="block">
                     <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                      Godište do
+                      Pravilo dobi
                     </span>
-                    <input
-                      className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                      type="date"
-                      value={form.endDateOfBirth}
+                    <select
+                      className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                      value={form.ageRule}
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
-                          endDateOfBirth: event.target.value,
+                          ageRule: event.target.value as CategoryFormState["ageRule"],
+                          startDateOfBirth:
+                            event.target.value === "VETERAN" ? current.startDateOfBirth : "",
+                          endDateOfBirth:
+                            event.target.value === "YOUTH" ? current.endDateOfBirth : "",
                         }))
                       }
-                      required
-                    />
+                    >
+                      <option value="YOUTH">Mlađa kategorija</option>
+                      <option value="SENIOR">Seniori bez dobnog ograničenja</option>
+                      <option value="VETERAN">Veterani s početnim godištem</option>
+                    </select>
                   </label>
-                </div>
 
-                <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-                  <div className="space-y-3">
+                  {form.ageRule === "YOUTH" ? (
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Godište do
+                      </span>
+                      <DatePicker
+                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                        value={form.endDateOfBirth}
+                        onChange={(value) =>
+                          setForm((current) => ({
+                            ...current,
+                            endDateOfBirth: value,
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+                  ) : null}
+
+                  {form.ageRule === "VETERAN" ? (
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Godište od
+                      </span>
+                      <DatePicker
+                        className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                        value={form.startDateOfBirth}
+                        onChange={(value) =>
+                          setForm((current) => ({
+                            ...current,
+                            startDateOfBirth: value,
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+                  ) : null}
+                  </div>
+                </fieldset>
+
+                <fieldset className="category-widget category-widget--wide">
+                  <legend className="category-widget-title">Logo i treneri</legend>
+                  <div className="category-logo-coaches-grid">
+                  <div className="category-logo-card">
                     <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                       Pregled loga
                     </p>
                     {activeLogoUrl ? (
                       <img
-                        className="h-44 w-full border-2 border-line object-cover"
+                        className="category-logo-preview"
                         src={activeLogoUrl}
                         alt={form.name || "Pregled loga kategorije"}
                       />
                     ) : (
-                      <div className="flex h-44 items-center justify-center border-2 border-dashed border-line bg-bg px-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-muted">
+                      <div className="category-logo-placeholder">
                         Učitaj logo
                       </div>
                     )}
                     <input
-                      className="block w-full border-2 border-line bg-white px-3 py-3 text-sm"
+                      id="category-logo-upload"
+                      className="category-logo-input"
                       type="file"
                       accept="image/*"
                       onChange={(event: ChangeEvent<HTMLInputElement>) => {
@@ -636,13 +697,34 @@ export function CategoriesPage() {
                         setForm((current) => ({
                           ...current,
                           logoFile: nextFile,
+                          removeLogo: false,
                         }));
                       }}
                     />
+                    <div className="category-logo-actions">
+                      <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="category-logo-upload">
+                        {activeLogoUrl ? "Promijeni logo" : "Odaberi logo"}
+                      </label>
+                      {activeLogoUrl || form.logoFile ? (
+                        <button
+                          className="ui-pill ui-pill-button ui-pill--outline"
+                          type="button"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              logoFile: null,
+                              removeLogo: Boolean(selectedCategory?.logoUrl),
+                            }))
+                          }
+                        >
+                          Ukloni logo
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="border-2 border-line bg-white">
-                    <div className="border-b-2 border-line bg-bg px-4 py-3">
+                  <div className="category-subwidget">
+                    <div className="category-subwidget-header">
                       <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                         Dodijeljeni treneri
                       </p>
@@ -654,7 +736,7 @@ export function CategoriesPage() {
                         return (
                           <label
                             key={coach.id}
-                            className={`flex cursor-pointer items-start gap-3 border-2 border-line px-3 py-3 ${
+                            className={`category-check-card ${
                               isChecked ? "bg-panel" : "bg-white"
                             }`}
                           >
@@ -684,35 +766,32 @@ export function CategoriesPage() {
                       })}
                     </div>
                   </div>
-                </div>
+                  </div>
+                </fieldset>
 
                 {selectedCategory && formMode === "edit" ? (
-                  <div className="border-2 border-line bg-white">
-                    <div className="border-b-2 border-line bg-bg px-4 py-3">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Igrači u kategoriji
-                      </p>
-                    </div>
+                  <fieldset className="category-widget category-widget--wide category-players-widget">
+                    <legend className="category-widget-title">Igrači u kategoriji</legend>
 
                     {categoryPlayersQuery.isLoading ? (
-                      <div className="px-4 py-5 text-sm text-muted">
+                      <div className="category-widget-state">
                         Učitavanje igrača u kategoriji...
                       </div>
                     ) : categoryPlayersQuery.isError ? (
-                      <div className="px-4 py-5 text-sm text-signal">
+                      <div className="category-widget-state text-signal">
                         Popis igrača trenutno nije moguće učitati.
                       </div>
                     ) : selectedCategoryPlayerTotal === 0 ? (
-                      <div className="px-4 py-5 text-sm text-muted">
+                      <div className="category-widget-state">
                         U ovoj kategoriji trenutno nema upisanih igrača.
                       </div>
                     ) : (
                       <>
-                        <div className="grid gap-3 p-4">
+                        <div className="category-player-grid">
                           {categoryPlayers.map((assignment) => (
                             <button
                               key={assignment.playerId}
-                              className="flex flex-col gap-3 border-2 border-line bg-surface px-4 py-4 text-left sm:flex-row sm:items-center sm:justify-between"
+                              className="category-player-card"
                               type="button"
                               onClick={() => openPlayerFromCategory(assignment.playerId)}
                             >
@@ -722,19 +801,7 @@ export function CategoriesPage() {
                                   {assignment.player.user.lastName}
                                 </span>
                                 <span className="mt-1 block text-[11px] uppercase tracking-[0.2em] text-muted">
-                                  Rođen {formatDate(assignment.player.dateOfBirth)}
-                                </span>
-                              </span>
-
-                              <span className="flex flex-wrap gap-2">
-                                <PlayerStatusChip status={assignment.player.user.accountStatus} />
-                                <span className="ui-pill ui-pill--outline">
-                                  Članstvo{" "}
-                                  <strong>
-                                    {assignment.player.membershipExpiresAt
-                                      ? formatDate(assignment.player.membershipExpiresAt)
-                                      : "nije postavljeno"}
-                                  </strong>
+                                  {formatNumericDate(assignment.player.dateOfBirth)}
                                 </span>
                               </span>
                             </button>
@@ -742,7 +809,7 @@ export function CategoriesPage() {
                         </div>
 
                         {categoryPlayersPageData ? (
-                          <div className="border-t-2 border-line px-4 py-4">
+                          <div className="category-widget-footer">
                             <PaginationControls
                               page={categoryPlayersPageData.page}
                               pageSize={categoryPlayersPageData.pageSize}
@@ -754,10 +821,10 @@ export function CategoriesPage() {
                         ) : null}
                       </>
                     )}
-                  </div>
+                  </fieldset>
                 ) : null}
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="category-actions">
                   <button
                     className="ui-pill ui-pill-button ui-pill--accent"
                     type="submit"
@@ -821,299 +888,289 @@ export function CategoriesPage() {
             }
           >
             {managedPlayer ? (
-              <section className="border-2 border-line bg-surface">
-                <div className="border-b-2 border-line bg-panel px-4 py-4">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                    Uredi igrača
-                  </p>
-                  <h3 className="mt-2 text-xl font-bold uppercase">
-                    {managedPlayer.user.firstName} {managedPlayer.user.lastName}
-                  </h3>
-                </div>
-
+              <section className="player-drawer">
                 <form
-                  className="space-y-5 p-4"
+                  className="player-drawer-form"
                   onSubmit={(event) => {
                     event.preventDefault();
                     setFeedback(null);
                     updateManagedPlayerMutation.mutate();
                   }}
                 >
-                  <div className="flex flex-wrap gap-2">
-                    <PlayerStatusChip status={managedPlayer.user.accountStatus} />
-                    <span
-                      className={`ui-pill ${
-                        managedPlayerForm.gdprConsent ? "ui-pill--success" : "ui-pill--warning"
-                      }`}
-                    >
-                      {managedPlayerForm.gdprConsent ? "GDPR potvrđen" : "GDPR nedostaje"}
-                    </span>
-                    <span className="ui-pill ui-pill--outline">
-                      Članstvo{" "}
-                      <strong>
-                        {managedPlayer.membershipExpiresAt
-                          ? formatDate(managedPlayer.membershipExpiresAt)
-                          : "nije postavljeno"}
-                      </strong>
-                    </span>
-                  </div>
+                  <fieldset className="player-widget">
+                    <legend className="player-widget-title">Osnovni podaci</legend>
+                    <div className="grid gap-5 lg:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Ime
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={managedPlayerForm.firstName}
+                          onChange={(event) =>
+                            setManagedPlayerForm((current) => ({
+                              ...current,
+                              firstName: event.target.value,
+                            }))
+                          }
+                          required
+                        />
+                      </label>
 
-                  <div className="grid gap-5 lg:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Ime
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="text"
-                        value={managedPlayerForm.firstName}
-                        onChange={(event) =>
-                          setManagedPlayerForm((current) => ({
-                            ...current,
-                            firstName: event.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </label>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Prezime
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={managedPlayerForm.lastName}
+                          onChange={(event) =>
+                            setManagedPlayerForm((current) => ({
+                              ...current,
+                              lastName: event.target.value,
+                            }))
+                          }
+                          required
+                        />
+                      </label>
 
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Prezime
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="text"
-                        value={managedPlayerForm.lastName}
-                        onChange={(event) =>
-                          setManagedPlayerForm((current) => ({
-                            ...current,
-                            lastName: event.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </label>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Datum rođenja
+                        </span>
+                        <DatePicker
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          value={managedPlayerForm.dateOfBirth}
+                          onChange={(value) =>
+                            setManagedPlayerForm((current) => ({
+                              ...current,
+                              dateOfBirth: value,
+                            }))
+                          }
+                          required
+                        />
+                      </label>
 
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Datum rođenja
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="date"
-                        value={managedPlayerForm.dateOfBirth}
-                        onChange={(event) =>
-                          setManagedPlayerForm((current) => ({
-                            ...current,
-                            dateOfBirth: event.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </label>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          OIB
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={managedPlayerForm.oib}
+                          onChange={(event) =>
+                            setManagedPlayerForm((current) => ({
+                              ...current,
+                              oib: event.target.value,
+                            }))
+                          }
+                          required
+                        />
+                      </label>
 
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        OIB
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="text"
-                        value={managedPlayerForm.oib}
-                        onChange={(event) =>
-                          setManagedPlayerForm((current) => ({
-                            ...current,
-                            oib: event.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </label>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Telefon
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={managedPlayerForm.phone}
+                          onChange={(event) =>
+                            setManagedPlayerForm((current) => ({
+                              ...current,
+                              phone: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
 
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Telefon
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="text"
-                        value={managedPlayerForm.phone}
-                        onChange={(event) =>
-                          setManagedPlayerForm((current) => ({
-                            ...current,
-                            phone: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          E-pošta igrača
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="email"
+                          value={managedPlayerForm.email}
+                          onChange={(event) =>
+                            setManagedPlayerForm((current) => ({
+                              ...current,
+                              email: event.target.value,
+                            }))
+                          }
+                          placeholder="Za seniore ili veterane bez roditeljskog računa"
+                        />
+                      </label>
 
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Članstvo vrijedi do
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="date"
-                        value={managedPlayerForm.membershipExpiresAt}
-                        onChange={(event) =>
-                          setManagedPlayerForm((current) => ({
-                            ...current,
-                            membershipExpiresAt: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-
-                  <label className="flex items-center gap-3 border-2 border-line bg-white px-4 py-4">
-                    <input
-                      className="h-4 w-4 accent-accent"
-                      type="checkbox"
-                      checked={managedPlayerForm.gdprConsent}
-                      onChange={(event) =>
-                        setManagedPlayerForm((current) => ({
-                          ...current,
-                          gdprConsent: event.target.checked,
-                        }))
-                      }
-                    />
-                    <span className="text-sm font-bold uppercase">GDPR suglasnost potvrđena</span>
-                  </label>
-
-                  <div className="border-2 border-line bg-white">
-                    <div className="border-b-2 border-line bg-bg px-4 py-3">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Dodjela kategorija
-                      </p>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Članstvo vrijedi do
+                        </span>
+                        <DatePicker
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          value={managedPlayerForm.membershipExpiresAt}
+                          onChange={(value) =>
+                            setManagedPlayerForm((current) => ({
+                              ...current,
+                              membershipExpiresAt: value,
+                            }))
+                          }
+                        />
+                      </label>
                     </div>
-                    <div className="grid gap-3 p-4 sm:grid-cols-2">
-                      {categoryOptions.map((category) => {
-                        const isChecked = managedPlayerForm.categoryIds.includes(category.id);
+                  </fieldset>
 
-                        return (
+                  <fieldset className="player-widget">
+                    <legend className="player-widget-title">Suglasnosti</legend>
+                    <label className="player-check-card">
+                      <input
+                        className="mt-1 h-4 w-4 accent-accent"
+                        type="checkbox"
+                        checked={managedPlayerForm.gdprConsent}
+                        onChange={(event) =>
+                          setManagedPlayerForm((current) => ({
+                            ...current,
+                            gdprConsent: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-bold uppercase">
+                          GDPR suglasnost potvrđena
+                        </span>
+                        <span className="mt-2 block text-sm leading-7 text-muted">
+                          Označite kada je obrada podataka i fotografija potvrđena.
+                        </span>
+                      </span>
+                    </label>
+                  </fieldset>
+
+                  <fieldset className="player-widget player-widget--wide">
+                    <legend className="player-widget-title">Profil i dodjele</legend>
+                    <div className="player-profile-grid">
+                      <div className="player-profile-card">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Pregled profila
+                        </p>
+                        {activeManagedPlayerProfileUrl ? (
+                          <img
+                            className="player-profile-preview"
+                            src={activeManagedPlayerProfileUrl}
+                            alt={managedPlayerForm.firstName || "Pregled profila igrača"}
+                          />
+                        ) : (
+                          <div className="player-profile-placeholder">
+                            Učitaj profilnu fotografiju
+                          </div>
+                        )}
+                        <input
+                          id="category-player-profile-upload"
+                          className="player-profile-input"
+                          type="file"
+                          accept="image/*"
+                          onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                            const nextFile = event.target.files?.[0] ?? null;
+                            setManagedPlayerForm((current) => ({
+                              ...current,
+                              profileFile: nextFile,
+                              removeProfileImage: false,
+                            }));
+                          }}
+                        />
+                        <div className="player-profile-actions">
                           <label
-                            key={category.id}
-                            className={`flex cursor-pointer items-start gap-3 border-2 border-line px-3 py-3 ${
-                              isChecked ? "bg-panel" : "bg-white"
-                            }`}
+                            className="ui-pill ui-pill-button ui-pill--accent"
+                            htmlFor="category-player-profile-upload"
                           >
-                            <input
-                              className="mt-1 h-4 w-4 accent-accent"
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() =>
+                            {activeManagedPlayerProfileUrl
+                              ? "Promijeni fotografiju"
+                              : "Odaberi fotografiju"}
+                          </label>
+                          {activeManagedPlayerProfileUrl || managedPlayerForm.profileFile ? (
+                            <button
+                              className="ui-pill ui-pill-button ui-pill--outline"
+                              type="button"
+                              onClick={() =>
                                 setManagedPlayerForm((current) => ({
                                   ...current,
-                                  categoryIds: isChecked
-                                    ? current.categoryIds.filter((categoryId) => categoryId !== category.id)
-                                    : [...current.categoryIds, category.id],
+                                  profileFile: null,
+                                  removeProfileImage: Boolean(managedPlayer?.user.profileImageUrl),
                                 }))
                               }
-                            />
-                            <span className="min-w-0">
-                              <span className="block text-sm font-bold uppercase">
-                                {category.name}
-                              </span>
-                              <span className="mt-1 block truncate text-[11px] uppercase tracking-[0.2em] text-muted">
-                                Godište do {formatDate(category.endDateOfBirth)}
-                              </span>
-                            </span>
-                          </label>
-                        );
-                      })}
+                            >
+                              Ukloni fotografiju
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="player-assignment-stack">
+                        <MultiSelectPanel
+                          title="Dodjela kategorija"
+                          items={categoryOptions.map((category) => ({
+                            id: category.id,
+                            label: category.name,
+                          }))}
+                          selectedIds={managedPlayerForm.categoryIds}
+                          onToggle={(id) => {
+                            setManagedPlayerForm((current) => ({
+                              ...current,
+                              categoryIds: current.categoryIds.includes(id)
+                                ? current.categoryIds.filter((categoryId) => categoryId !== id)
+                                : [...current.categoryIds, id],
+                            }));
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  </fieldset>
 
                   {isAdmin ? (
-                    <div className="space-y-5">
-                      <SearchMultiSelectPanel
-                        title="Povezani roditelji"
-                        items={parents.map((parent) => ({
-                          id: parent.id,
-                          label: `${parent.user.firstName} ${parent.user.lastName}`,
-                          meta: parent.user.email ?? "Bez e-pošte",
-                          keywords: [
-                            parent.user.firstName,
-                            parent.user.lastName,
-                            parent.user.email ?? "",
-                            parent.user.phone ?? "",
-                          ],
-                        }))}
-                        searchPlaceholder="Pretraga roditelja"
-                        noResultsLabel="Nema roditelja koji odgovaraju pretrazi."
-                        selectedIds={managedPlayerForm.parentIds}
-                        onToggle={(id) => {
-                          setManagedPlayerForm((current) => {
-                            const nextParentIds = current.parentIds.includes(id)
-                              ? current.parentIds.filter((parentId) => parentId !== id)
-                              : [...current.parentIds, id];
+                    <fieldset className="player-widget">
+                      <legend className="player-widget-title">Roditelji</legend>
+                      <div className="player-assignment-stack">
+                        <SearchMultiSelectPanel
+                          title="Povezani roditelji"
+                          className="player-selector-panel"
+                          items={parents.map((parent) => ({
+                            id: parent.id,
+                            label: `${parent.user.firstName} ${parent.user.lastName}`,
+                            meta: parent.user.email ?? "Bez e-pošte",
+                            keywords: [
+                              parent.user.firstName,
+                              parent.user.lastName,
+                              parent.user.email ?? "",
+                              parent.user.phone ?? "",
+                            ],
+                          }))}
+                          searchPlaceholder="Pretraga roditelja"
+                          noResultsLabel="Nema roditelja koji odgovaraju pretrazi."
+                          selectedIds={managedPlayerForm.parentIds}
+                          onToggle={(id) => {
+                            setManagedPlayerForm((current) => {
+                              const nextParentIds = current.parentIds.includes(id)
+                                ? current.parentIds.filter((parentId) => parentId !== id)
+                                : [...current.parentIds, id];
 
-                            return {
-                              ...current,
-                              parentIds: nextParentIds,
-                              primaryParentId: nextParentIds.includes(current.primaryParentId)
-                                ? current.primaryParentId
-                                : nextParentIds[0] ?? "",
-                            };
-                          });
-                        }}
-                      />
-
-                      {managedPlayerForm.parentIds.length > 0 ? (
-                        <div className="border-2 border-line bg-white">
-                          <div className="border-b-2 border-line bg-bg px-4 py-3">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                              Primarni roditelj za kontakt
-                            </p>
-                          </div>
-                          <div className="space-y-3 p-4">
-                            {managedPlayerForm.parentIds.map((parentId) => {
-                              const parent = parents.find((entry) => entry.id === parentId);
-
-                              if (!parent) {
-                                return null;
-                              }
-
-                              return (
-                                <label
-                                  key={parentId}
-                                  className={`flex cursor-pointer items-start gap-3 border-2 border-line px-3 py-3 ${
-                                    managedPlayerForm.primaryParentId === parentId
-                                      ? "bg-panel"
-                                      : "bg-white"
-                                  }`}
-                                >
-                                  <input
-                                    className="mt-1 h-4 w-4 accent-accent"
-                                    type="radio"
-                                    name="managed-primary-parent"
-                                    checked={managedPlayerForm.primaryParentId === parentId}
-                                    onChange={() =>
-                                      setManagedPlayerForm((current) => ({
-                                        ...current,
-                                        primaryParentId: parentId,
-                                      }))
-                                    }
-                                  />
-                                  <span>
-                                    <span className="block text-sm font-bold uppercase">
-                                      {parent.user.firstName} {parent.user.lastName}
-                                    </span>
-                                    <span className="mt-1 block text-[11px] uppercase tracking-[0.2em] text-muted">
-                                      {parent.user.email ?? "Bez e-pošte"}
-                                    </span>
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
+                              return {
+                                ...current,
+                                parentIds: nextParentIds,
+                                primaryParentId: nextParentIds.includes(current.primaryParentId)
+                                  ? current.primaryParentId
+                                  : nextParentIds[0] ?? "",
+                              };
+                            });
+                          }}
+                        />
+                      </div>
+                    </fieldset>
                   ) : null}
 
-                  <div className="flex flex-wrap gap-3">
+                  <div className="player-actions">
                     <button
                       className="ui-pill ui-pill-button ui-pill--accent"
                       type="submit"
@@ -1126,7 +1183,9 @@ export function CategoriesPage() {
                       type="button"
                       onClick={() =>
                         setManagedPlayerForm(
-                          managedPlayer ? createManagedPlayerForm(managedPlayer) : emptyManagedPlayerForm,
+                          managedPlayer
+                            ? createManagedPlayerForm(managedPlayer)
+                            : emptyManagedPlayerForm,
                         )
                       }
                     >
@@ -1143,7 +1202,7 @@ export function CategoriesPage() {
                 </form>
               </section>
             ) : (
-              <section className="border-2 border-line bg-surface p-6 text-sm text-muted">
+              <section className="player-widget text-sm text-muted">
                 Igrač se učitava.
               </section>
             )}
@@ -1157,29 +1216,62 @@ export function CategoriesPage() {
 function createFormFromCategory(category: CategoryRecord): CategoryFormState {
   return {
     name: category.name,
-    endDateOfBirth: toDateInputValue(category.endDateOfBirth),
+    ageRule: category.startDateOfBirth ? "VETERAN" : category.endDateOfBirth ? "YOUTH" : "SENIOR",
+    startDateOfBirth: category.startDateOfBirth ? toDateInputValue(category.startDateOfBirth) : "",
+    endDateOfBirth: category.endDateOfBirth ? toDateInputValue(category.endDateOfBirth) : "",
     coachIds: category.coaches.map((assignment) => assignment.coachId),
     logoFile: null,
+    removeLogo: false,
   };
 }
 
 function buildCategoryFormData(form: CategoryFormState) {
   const formData = new FormData();
   formData.append("name", form.name);
-  formData.append("endDateOfBirth", form.endDateOfBirth);
+  formData.append("startDateOfBirth", form.ageRule === "VETERAN" ? form.startDateOfBirth : "");
+  formData.append("endDateOfBirth", form.ageRule === "YOUTH" ? form.endDateOfBirth : "");
   formData.append("coachIds", JSON.stringify(form.coachIds));
 
   if (form.logoFile) {
     formData.append("logo", form.logoFile);
   }
 
+  formData.append("removeLogo", String(form.removeLogo));
+
   return formData;
+}
+
+function ensureCategoryFormIsValid(form: CategoryFormState) {
+  if (!form.name.trim()) {
+    throw new Error("Naziv kategorije je obavezan.");
+  }
+
+  if (form.ageRule === "YOUTH" && !form.endDateOfBirth) {
+    throw new Error("Odaberite završno godište za mlađu kategoriju.");
+  }
+
+  if (form.ageRule === "VETERAN" && !form.startDateOfBirth) {
+    throw new Error("Odaberite početno godište za veteransku kategoriju.");
+  }
+}
+
+function formatCategoryAgeRule(category: Pick<CategoryRecord, "startDateOfBirth" | "endDateOfBirth">) {
+  if (category.startDateOfBirth) {
+    return `od ${formatDate(category.startDateOfBirth)}`;
+  }
+
+  if (category.endDateOfBirth) {
+    return `do ${formatDate(category.endDateOfBirth)}`;
+  }
+
+  return "bez ograničenja";
 }
 
 function createManagedPlayerForm(player: PlayerRecord): ManagedPlayerFormState {
   return {
     firstName: player.user.firstName,
     lastName: player.user.lastName,
+    email: player.user.email ?? "",
     phone: player.user.phone ?? "",
     dateOfBirth: toDateInputValue(player.dateOfBirth),
     oib: player.oib,
@@ -1191,47 +1283,107 @@ function createManagedPlayerForm(player: PlayerRecord): ManagedPlayerFormState {
     parentIds: player.parents.map((assignment) => assignment.parentId),
     primaryParentId:
       player.parents.find((assignment) => assignment.isPrimaryContact)?.parentId ?? "",
+    profileFile: null,
+    removeProfileImage: false,
   };
 }
 
 function buildManagedPlayerPayload(form: ManagedPlayerFormState) {
-  return {
-    firstName: form.firstName,
-    lastName: form.lastName,
-    phone: form.phone,
-    dateOfBirth: form.dateOfBirth,
-    oib: form.oib,
-    gdprConsent: form.gdprConsent,
-    membershipExpiresAt: form.membershipExpiresAt,
-    categoryIds: form.categoryIds,
-    parentIds: form.parentIds,
-    primaryParentId: form.primaryParentId,
-  };
+  const formData = new FormData();
+  formData.append("firstName", form.firstName);
+  formData.append("lastName", form.lastName);
+  formData.append("email", form.email);
+  formData.append("phone", form.phone);
+  formData.append("dateOfBirth", form.dateOfBirth);
+  formData.append("oib", form.oib);
+  formData.append("gdprConsent", String(form.gdprConsent));
+  formData.append("membershipExpiresAt", form.membershipExpiresAt);
+  formData.append("categoryIds", JSON.stringify(form.categoryIds));
+  formData.append("parentIds", JSON.stringify(form.parentIds));
+  formData.append("primaryParentId", form.primaryParentId);
+  formData.append("removeProfileImage", String(form.removeProfileImage));
+
+  if (form.profileFile) {
+    formData.append("profileImage", form.profileFile);
+  }
+
+  return formData;
 }
 
-function PlayerStatusChip({ status }: { status: AccountStatus }) {
-  const tone =
-    status === "ACTIVE"
-      ? "ui-pill--success"
-      : status === "SUSPENDED"
-        ? "ui-pill--signal"
-        : "ui-pill--warning";
+function ensureManagedPlayerHasParent(form: ManagedPlayerFormState) {
+  if (form.parentIds.length === 0 && !form.email.trim()) {
+    throw new Error("Igrač mora imati povezanog barem jednog roditelja.");
+  }
+}
 
+function getMutationErrorMessage(error: unknown, fallback: string) {
+  const responseMessage = (error as AxiosError<{ message?: string }>).response?.data?.message;
+
+  if (responseMessage) {
+    return responseMessage;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+function formatNumericDate(dateIso: string) {
+  const date = new Date(dateIso);
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}.${month}.${year}.`;
+}
+
+function MultiSelectPanel({
+  title,
+  items,
+  selectedIds,
+  onToggle,
+}: {
+  title: string;
+  items: Array<{ id: string; label: string; meta?: string }>;
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+}) {
   return (
-    <span className={`ui-pill ${tone}`}>
-      {formatAccountStatus(status)}
-    </span>
+    <div className="player-selector-panel">
+      <div className="player-selector-panel-header">
+        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">{title}</p>
+      </div>
+      <div className="grid gap-3 p-4 sm:grid-cols-2">
+        {items.map((item) => {
+          const isChecked = selectedIds.includes(item.id);
+
+          return (
+            <label
+              key={item.id}
+              className={`flex cursor-pointer items-start gap-3 rounded-[18px] border-2 border-line px-3 py-3 ${
+                isChecked ? "bg-panel" : "bg-white"
+              }`}
+            >
+              <input
+                className="mt-1 h-4 w-4 accent-accent"
+                type="checkbox"
+                checked={isChecked}
+                onChange={() => onToggle(item.id)}
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-bold uppercase">{item.label}</span>
+                {item.meta ? (
+                  <span className="mt-1 block truncate text-[11px] uppercase tracking-[0.2em] text-muted">
+                    {item.meta}
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
   );
-}
-
-function formatAccountStatus(status: AccountStatus) {
-  if (status === "ACTIVE") {
-    return "Aktivan";
-  }
-
-  if (status === "SUSPENDED") {
-    return "Suspendiran";
-  }
-
-  return "Na čekanju";
 }

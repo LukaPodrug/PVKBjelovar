@@ -1,19 +1,24 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
-import { type ChangeEvent, useDeferredValue, useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { useAuth } from "../auth/auth-context";
 import { api } from "../core/api";
-import type { AccountStatus, CategoryRecord, CoachRecord, PaginatedResponse } from "../core/types";
+import type {
+  AccountStatus,
+  CategoryRecord,
+  CoachRecord,
+  CredentialResetResult,
+  PaginatedResponse,
+} from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
+import { CategoryFilterDropdown } from "../ui/category-filter-chips";
+import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
+import { TableLoadingRows } from "../ui/table-loading-rows";
+import { useDebouncedValue } from "../ui/use-debounced-value";
 
 interface FeedbackState {
   tone: "success" | "error";
-  message: string;
-}
-
-interface ToastState {
-  title: string;
   message: string;
 }
 
@@ -22,17 +27,20 @@ interface CoachFormState {
   lastName: string;
   email: string;
   phone: string;
+  isCategoryCoach: boolean;
   isConditioningCoach: boolean;
   categoryIds: string[];
   profileFile: File | null;
+  removeProfileImage: boolean;
 }
 
 interface CoachCreateResult {
   coach: CoachRecord;
   emailSent: boolean;
   developmentCredentials?: {
-    email: string;
+    login: string;
     password: string;
+    recipients: string[];
   };
 }
 
@@ -41,12 +49,15 @@ const emptyCoachForm: CoachFormState = {
   lastName: "",
   email: "",
   phone: "",
+  isCategoryCoach: true,
   isConditioningCoach: false,
   categoryIds: [],
   profileFile: null,
+  removeProfileImage: false,
 };
 
 const managementPageSize = 25;
+const conditioningCoachFilterId = "__conditioning-coach__";
 
 export function CoachesPage() {
   const { user } = useAuth();
@@ -56,22 +67,32 @@ export function CoachesPage() {
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [form, setForm] = useState<CoachFormState>(emptyCoachForm);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
-  const [toast, setToast] = useState<ToastState | null>(null);
   const [profilePreviewUrl, setProfilePreviewUrl] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [coachesPage, setCoachesPage] = useState(1);
   const [coachSearch, setCoachSearch] = useState("");
-  const deferredCoachSearch = useDeferredValue(coachSearch.trim());
+  const [selectedCategoryFilterIds, setSelectedCategoryFilterIds] = useState<string[]>([]);
+  const debouncedCoachSearch = useDebouncedValue(coachSearch.trim());
+  const selectedRealCategoryFilterIds = selectedCategoryFilterIds.filter(
+    (categoryId) => categoryId !== conditioningCoachFilterId,
+  );
+  const isConditioningCoachFilterSelected =
+    selectedCategoryFilterIds.includes(conditioningCoachFilterId);
 
   const coachesQuery = useQuery({
-    queryKey: ["coaches", "management", coachesPage, deferredCoachSearch],
+    queryKey: ["coaches", "management", coachesPage, debouncedCoachSearch, selectedCategoryFilterIds],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const response = await api.get<PaginatedResponse<CoachRecord>>("/coaches", {
         params: {
           page: coachesPage,
           pageSize: managementPageSize,
-          search: deferredCoachSearch || undefined,
+          search: debouncedCoachSearch || undefined,
+          categoryIds:
+            selectedRealCategoryFilterIds.length > 0
+              ? selectedRealCategoryFilterIds.join(",")
+              : undefined,
+          isConditioningCoach: isConditioningCoachFilterSelected ? "true" : undefined,
         },
       });
       return response.data;
@@ -115,26 +136,21 @@ export function CoachesPage() {
     };
   }, [form.profileFile]);
 
-  useEffect(() => {
-    if (!toast) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      setToast(null);
-    }, 4500);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [toast]);
-
   const openCreateDrawer = () => {
     setFeedback(null);
     setFormMode("create");
     setSelectedCoachId(null);
     setForm(emptyCoachForm);
     setIsDrawerOpen(true);
+  };
+
+  const toggleCategoryFilter = (categoryId: string) => {
+    setSelectedCategoryFilterIds((current) =>
+      current.includes(categoryId)
+        ? current.filter((selectedCategoryId) => selectedCategoryId !== categoryId)
+        : [...current, categoryId],
+    );
+    setCoachesPage(1);
   };
 
   const openEditDrawer = (coach: CoachRecord) => {
@@ -158,11 +174,7 @@ export function CoachesPage() {
     onSuccess: (result) => {
       setFeedback({
         tone: "success",
-        message: `Trener ${result.coach.user.firstName} ${result.coach.user.lastName} uspješno je kreiran.`,
-      });
-      setToast({
-        title: "Trener je kreiran",
-        message: buildCoachCreationMessage(result),
+        message: `Trener ${result.coach.user.firstName} ${result.coach.user.lastName} uspješno je kreiran. ${buildCoachCreationMessage(result)}`,
       });
       setFormMode("edit");
       setSelectedCoachId(result.coach.id);
@@ -278,30 +290,45 @@ export function CoachesPage() {
     },
   });
 
+  const resendCredentialsMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedCoach) {
+        throw new Error("Nijedan trener nije odabran.");
+      }
+
+      const response = await api.post<CredentialResetResult>(
+        `/coaches/${selectedCoach.id}/resend-credentials`,
+      );
+
+      return response.data;
+    },
+    onSuccess: (result) => {
+      setFeedback({
+        tone: "success",
+        message: result.message,
+      });
+      void invalidateCoachQueries(queryClient);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message:
+          error.response?.data?.message ??
+          "Slanje pristupnih podataka treneru nije uspjelo.",
+      });
+    },
+  });
+
   const activeCoaches = coaches.filter((coach) => coach.user.accountStatus === "ACTIVE").length;
   const mustResetPasswordCount = coaches.filter((coach) => coach.user.mustChangePassword).length;
-  const activeProfileUrl = profilePreviewUrl ?? selectedCoach?.user.profileImageUrl ?? null;
+  const activeProfileUrl = form.removeProfileImage
+    ? null
+    : profilePreviewUrl ?? selectedCoach?.user.profileImageUrl ?? null;
+  const isCoachesRefetching = coachesQuery.isFetching && !coachesQuery.isLoading;
 
   return (
     <section className="space-y-6">
-      {toast ? (
-        <div className="fixed right-4 top-4 z-40 w-full max-w-sm border-2 border-line bg-success p-4 text-surface shadow-none">
-          <p className="text-[11px] font-bold uppercase tracking-[0.3em] opacity-80">
-            {toast.title}
-          </p>
-          <p className="mt-3 text-sm leading-6">{toast.message}</p>
-        </div>
-      ) : null}
-
-      {feedback ? (
-        <div
-          className={`border-2 border-line px-5 py-4 text-sm font-medium ${
-            feedback.tone === "success" ? "bg-success text-surface" : "bg-signal text-surface"
-          }`}
-        >
-          {feedback.message}
-        </div>
-      ) : null}
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
 
       {coachesQuery.isLoading || categoriesQuery.isLoading ? (
         <div className="space-y-4">
@@ -314,7 +341,7 @@ export function CoachesPage() {
       ) : (
         <>
           <div className="space-y-4">
-            <section className="border-2 border-line bg-surface">
+            <section className="admin-table-card border-2 border-line bg-surface">
               <div className="flex flex-col gap-4 border-b-2 border-line bg-panel px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
@@ -338,43 +365,57 @@ export function CoachesPage() {
                 )}
               </div>
 
-              <div className="border-b-2 border-line bg-white px-4 py-4">
-                <label className="block max-w-xl">
+              <div className="relative z-30 grid gap-4 border-b-2 border-line bg-white px-4 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
+                <label className="block min-w-0">
                   <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.25em] text-muted">
                     Pretraga
                   </span>
                   <input
-                    className="w-full border-2 border-line bg-surface px-4 py-3 outline-none placeholder:text-muted focus:bg-bg"
+                    className="h-[52px] w-full rounded-[18px] border border-line bg-surface px-4 outline-none placeholder:text-muted focus:bg-bg"
                     type="search"
                     value={coachSearch}
                     onChange={(event) => {
                       setCoachSearch(event.target.value);
                       setCoachesPage(1);
                     }}
-                    placeholder="Ime, e-pošta, telefon ili kategorija"
+                    placeholder="Ime i prezime"
                   />
                 </label>
+                <CategoryFilterDropdown
+                  categories={categories}
+                  extraOptions={[{ id: conditioningCoachFilterId, name: "Kondicijski trener" }]}
+                  selectedIds={selectedCategoryFilterIds}
+                  onToggle={toggleCategoryFilter}
+                  onClear={() => {
+                    setSelectedCategoryFilterIds([]);
+                    setCoachesPage(1);
+                  }}
+                />
               </div>
 
               <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse">
                   <thead className="bg-bg">
-                    <tr className="border-b-2 border-line text-left text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                      <th className="px-4 py-4">Trener</th>
-                      <th className="px-4 py-4">Tip</th>
-                      <th className="px-4 py-4">E-pošta</th>
-                      <th className="px-4 py-4">Kategorije</th>
-                      <th className="px-4 py-4">Status</th>
-                      <th className="px-4 py-4">Radnje</th>
-                    </tr>
+	                    <tr className="border-b-2 border-line text-center text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+	                      <th className="px-4 py-4">Trener</th>
+	                      <th className="px-4 py-4">E-pošta</th>
+	                      <th className="px-4 py-4">Kategorije</th>
+	                      <th className="px-4 py-4">Status</th>
+	                    </tr>
                   </thead>
                   <tbody>
-                    {coaches.map((coach) => {
-                      const isSelected =
-                        isDrawerOpen && selectedCoachId === coach.id && formMode === "edit";
-                      const canSuspend = coach.user.accountStatus !== "SUSPENDED";
-                      const categoryNames =
-                        coach.categories?.map((entry) => entry.category.name) ?? [];
+                    {isCoachesRefetching ? (
+                      <TableLoadingRows columns={4} />
+                    ) : (
+                    coaches.map((coach) => {
+	                      const isSelected =
+	                        isDrawerOpen && selectedCoachId === coach.id && formMode === "edit";
+	                      const categoryNames =
+	                        coach.categories?.map((entry) => entry.category.name) ?? [];
+	                      const categoryLabels = [
+	                        ...categoryNames,
+	                        coach.isConditioningCoach ? "Kondicijski" : null,
+	                      ].filter(Boolean);
 
                       return (
                         <tr
@@ -384,56 +425,26 @@ export function CoachesPage() {
                           }`}
                           onClick={() => openEditDrawer(coach)}
                         >
-                          <td className="px-4 py-4 align-top">
-                            <p className="text-sm font-bold uppercase">
-                              {coach.user.firstName} {coach.user.lastName}
-                            </p>
-                            <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-muted">
-                              {coach.user.phone ?? "Bez telefona"}
-                            </p>
-                          </td>
-                          <td className="px-4 py-4 align-top">
-                            <CoachTypeChip isConditioningCoach={coach.isConditioningCoach} />
-                          </td>
-                          <td className="px-4 py-4 align-top text-sm">
-                            {coach.user.email ?? "Bez e-pošte"}
-                          </td>
-                          <td className="px-4 py-4 align-top text-sm">
-                            {coach.isConditioningCoach
-                              ? "Radi preko svih kategorija"
-                              : categoryNames.length > 0
-                              ? categoryNames.join(", ")
-                              : "Nije dodijeljeno"}
-                          </td>
-                          <td className="px-4 py-4 align-top">
-                            <StatusChip status={coach.user.accountStatus} />
-                          </td>
-                          <td className="px-4 py-4 align-top">
-                            {isAdmin ? (
-                              <button
-                                className={`ui-pill ui-pill-button ${
-                                  canSuspend ? "ui-pill--signal" : "ui-pill--success"
-                                }`}
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  statusMutation.mutate({
-                                    userId: coach.user.id,
-                                    accountStatus: canSuspend ? "SUSPENDED" : "ACTIVE",
-                                  });
-                                }}
-                              >
-                                {canSuspend ? "Suspendiraj" : "Ponovno aktiviraj"}
-                              </button>
-                            ) : (
-                              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
-                                Pregled
-                              </span>
-                            )}
-                          </td>
-                        </tr>
+	                          <td className="px-4 py-4 align-middle text-center">
+	                            <p className="text-sm font-bold uppercase">
+	                              {coach.user.firstName} {coach.user.lastName}
+	                            </p>
+	                          </td>
+	                          <td className="px-4 py-4 align-middle text-center text-sm">
+	                            {coach.user.email ?? "Bez e-pošte"}
+	                          </td>
+	                          <td className="px-4 py-4 align-middle text-center text-sm">
+	                            {categoryLabels.length > 0
+	                              ? categoryLabels.join(", ")
+	                              : "Nije dodijeljeno"}
+	                          </td>
+	                          <td className="px-4 py-4 align-middle text-center">
+	                            <StatusChip status={coach.user.accountStatus} />
+	                          </td>
+	                        </tr>
                       );
-                    })}
+                    })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -450,8 +461,8 @@ export function CoachesPage() {
             </section>
 
             {!isAdmin ? (
-              <section className="border-2 border-line bg-surface">
-                <div className="border-b-2 border-line bg-panel px-4 py-4">
+	              <section className="coach-drawer">
+	                <div className="coach-drawer-hero">
                   <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                     Pristup trenera
                   </p>
@@ -501,22 +512,9 @@ export function CoachesPage() {
             }
           >
             {isAdmin ? (
-              <section className="border-2 border-line bg-surface">
-                <div className="border-b-2 border-line bg-panel px-4 py-4">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                    {formMode === "create" ? "Novi trener" : "Uredi trenera"}
-                  </p>
-                  <h3 className="mt-2 text-xl font-bold uppercase">
-                    {formMode === "create"
-                      ? "Postavljanje novog trenera"
-                      : selectedCoach
-                        ? `${selectedCoach.user.firstName} ${selectedCoach.user.lastName}`
-                        : "Uređivanje trenera"}
-                  </h3>
-                </div>
-
-                <form
-                  className="space-y-5 p-4"
+	              <section className="coach-drawer">
+	                <form
+	                  className="coach-drawer-form"
                   onSubmit={(event) => {
                     event.preventDefault();
                     setFeedback(null);
@@ -529,31 +527,10 @@ export function CoachesPage() {
                     updateMutation.mutate();
                   }}
                 >
-                  {selectedCoach && formMode === "edit" ? (
-                    <div className="flex flex-wrap gap-2">
-                      <StatusChip status={selectedCoach.user.accountStatus} />
-                      <CoachTypeChip isConditioningCoach={selectedCoach.isConditioningCoach} />
-                      <span
-                        className={`ui-pill ${
-                          selectedCoach.user.mustChangePassword
-                            ? "ui-pill--warning"
-                            : "ui-pill--outline"
-                        }`}
-                      >
-                        {selectedCoach.user.mustChangePassword
-                          ? "Promjena lozinke obavezna"
-                          : "Lozinka potvrđena"}
-                      </span>
-                      {!selectedCoach.isConditioningCoach ? (
-                        <span className="ui-pill ui-pill--panel">
-                          Kategorije <strong>{selectedCoach.categories?.length ?? 0}</strong>
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  <div className="grid gap-5 lg:grid-cols-2">
-                    <label className="block">
+	                  <fieldset className="coach-widget">
+	                    <legend className="coach-widget-title">Osnovni podaci</legend>
+	                    <div className="grid gap-5 lg:grid-cols-2">
+	                    <label className="block">
                       <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                         Ime
                       </span>
@@ -610,77 +587,134 @@ export function CoachesPage() {
                           setForm((current) => ({ ...current, phone: event.target.value }))
                         }
                       />
-                    </label>
-                  </div>
+	                    </label>
+	                    </div>
+	                  </fieldset>
 
-                  <label className="flex items-start gap-3 border-2 border-line bg-white px-4 py-4">
-                    <input
-                      className="mt-1 h-4 w-4 accent-accent"
-                      type="checkbox"
-                      checked={form.isConditioningCoach}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          isConditioningCoach: event.target.checked,
-                          categoryIds: event.target.checked ? [] : current.categoryIds,
-                        }))
-                      }
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-bold uppercase">
-                        Kondicijski trener
-                      </span>
-                      <span className="mt-2 block text-sm leading-7 text-muted">
-                        Kondicijski trener nema vlastitu kategoriju, ali ga možete dodijeliti
-                        treningu bilo koje kategorije, uključujući suhi trening.
-                      </span>
-                    </span>
-                  </label>
+	                  <fieldset className="coach-widget">
+	                    <legend className="coach-widget-title">Tip trenera</legend>
+	                    <div className="coach-type-options">
+	                      <label className="coach-check-card">
+	                        <input
+	                          className="mt-1 h-4 w-4 accent-accent"
+	                          type="checkbox"
+	                          checked={form.isCategoryCoach}
+	                          disabled={form.isCategoryCoach && !form.isConditioningCoach}
+	                          onChange={(event) =>
+	                            setForm((current) => ({
+	                              ...current,
+	                              isCategoryCoach: event.target.checked,
+	                              categoryIds: event.target.checked ? current.categoryIds : [],
+	                            }))
+	                          }
+	                        />
+	                        <span className="min-w-0">
+	                          <span className="block text-sm font-bold uppercase">
+	                            Kategorijski trener
+	                          </span>
+	                          <span className="mt-2 block text-sm leading-7 text-muted">
+	                            Može biti dodijeljen jednoj ili više kategorija i prikazivati se uz
+	                            njihove treninge.
+	                          </span>
+	                        </span>
+	                      </label>
 
-                  <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-                    <div className="space-y-3">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Pregled profila
-                      </p>
-                      {activeProfileUrl ? (
-                        <img
-                          className="h-44 w-full border-2 border-line object-cover"
-                          src={activeProfileUrl}
-                          alt={form.firstName || "Pregled profila trenera"}
-                        />
-                      ) : (
-                        <div className="flex h-44 items-center justify-center border-2 border-dashed border-line bg-bg px-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-muted">
-                          Učitaj profilnu fotografiju
-                        </div>
-                      )}
-                      <input
-                        className="block w-full border-2 border-line bg-white px-3 py-3 text-sm"
-                        type="file"
+	                      <label className="coach-check-card">
+	                        <input
+	                          className="mt-1 h-4 w-4 accent-accent"
+	                          type="checkbox"
+	                          checked={form.isConditioningCoach}
+	                          disabled={!form.isCategoryCoach && form.isConditioningCoach}
+	                          onChange={(event) =>
+	                            setForm((current) => ({
+	                              ...current,
+	                              isConditioningCoach: event.target.checked,
+	                            }))
+	                          }
+	                        />
+	                        <span className="min-w-0">
+	                          <span className="block text-sm font-bold uppercase">
+	                            Kondicijski trener
+	                          </span>
+	                          <span className="mt-2 block text-sm leading-7 text-muted">
+	                            Može se dodijeliti kondicijskim ili suhim treninzima, neovisno o
+	                            kategorijskim dodjelama.
+	                          </span>
+	                        </span>
+	                      </label>
+	                    </div>
+	                  </fieldset>
+
+	                  <fieldset className="coach-widget coach-widget--wide">
+	                    <legend className="coach-widget-title">Profil i kategorije</legend>
+	                    <div className="coach-profile-grid">
+	                    <div className="coach-profile-card">
+	                      <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+	                        Pregled profila
+	                      </p>
+	                      {activeProfileUrl ? (
+	                        <img
+	                          className="coach-profile-preview"
+	                          src={activeProfileUrl}
+	                          alt={form.firstName || "Pregled profila trenera"}
+	                        />
+	                      ) : (
+	                        <div className="coach-profile-placeholder">
+	                          Učitaj profilnu fotografiju
+	                        </div>
+	                      )}
+	                      <input
+	                        id="coach-profile-upload"
+	                        className="coach-profile-input"
+	                        type="file"
                         accept="image/*"
                         onChange={(event: ChangeEvent<HTMLInputElement>) => {
                           const nextFile = event.target.files?.[0] ?? null;
-                          setForm((current) => ({ ...current, profileFile: nextFile }));
-                        }}
-                      />
-                    </div>
+	                          setForm((current) => ({
+                            ...current,
+                            profileFile: nextFile,
+                            removeProfileImage: false,
+                          }));
+	                        }}
+	                      />
+	                      <div className="coach-profile-actions">
+	                        <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="coach-profile-upload">
+	                          {activeProfileUrl ? "Promijeni fotografiju" : "Odaberi fotografiju"}
+	                        </label>
+                          {activeProfileUrl || form.profileFile ? (
+                            <button
+                              className="ui-pill ui-pill-button ui-pill--outline"
+                              type="button"
+                              onClick={() =>
+                                setForm((current) => ({
+                                  ...current,
+                                  profileFile: null,
+                                  removeProfileImage: Boolean(selectedCoach?.user.profileImageUrl),
+                                }))
+                              }
+                            >
+                              Ukloni fotografiju
+                            </button>
+                          ) : null}
+	                      </div>
+	                    </div>
 
-                    <div className="space-y-4">
-                      <MultiSelectPanel
+	                    <div className="coach-subwidget">
+	                      <MultiSelectPanel
                         title="Dodijeljene kategorije"
                         items={categories.map((category) => ({
                           id: category.id,
                           label: category.name,
-                          meta: `${category.playerCount} igrača`,
                         }))}
                         selectedIds={form.categoryIds}
-                        disabled={form.isConditioningCoach}
+                        disabled={!form.isCategoryCoach}
                         emptyStateMessage={
-                          form.isConditioningCoach
-                            ? "Kondicijski trener nije vezan uz jednu kategoriju pa su dodjele ovdje isključene."
+                          !form.isCategoryCoach
+                            ? "Kategorijski trener nije uključen pa su dodjele kategorija isključene."
                             : undefined
                         }
                         onToggle={(id) => {
-                          if (form.isConditioningCoach) {
+                          if (!form.isCategoryCoach) {
                             return;
                           }
 
@@ -691,12 +725,13 @@ export function CoachesPage() {
                               : [...current.categoryIds, id],
                           }));
                         }}
-                      />
-                    </div>
-                  </div>
+	                      />
+	                    </div>
+	                    </div>
+	                  </fieldset>
 
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <button
+	                  <div className="coach-actions">
+	                    <button
                       className="ui-pill ui-pill-button ui-pill--accent"
                       type="submit"
                       disabled={
@@ -727,9 +762,61 @@ export function CoachesPage() {
                         setForm(emptyCoachForm);
                       }}
                     >
-                      Resetiraj obrazac
+	                      Resetiraj obrazac
+	                    </button>
+	                    <button
+	                      className={`ui-pill ui-pill-button ${
+	                        selectedCoach?.user.accountStatus === "SUSPENDED"
+	                          ? "ui-pill--success"
+	                          : "ui-pill--signal"
+	                      }`}
+	                      type="button"
+	                      disabled={
+	                        formMode !== "edit" ||
+	                        !selectedCoach ||
+	                        createMutation.isPending ||
+	                        updateMutation.isPending ||
+                        deleteMutation.isPending ||
+                        statusMutation.isPending ||
+                        resendCredentialsMutation.isPending
+	                      }
+	                      onClick={() => {
+	                        if (!selectedCoach) {
+	                          return;
+	                        }
+
+	                        statusMutation.mutate({
+	                          userId: selectedCoach.user.id,
+	                          accountStatus:
+	                            selectedCoach.user.accountStatus === "SUSPENDED"
+	                              ? "ACTIVE"
+	                              : "SUSPENDED",
+	                        });
+	                      }}
+	                    >
+	                      {selectedCoach?.user.accountStatus === "SUSPENDED"
+	                        ? "Ponovno aktiviraj"
+	                        : "Suspendiraj trenera"}
+	                    </button>
+	                    <button
+                      className="ui-pill ui-pill-button ui-pill--panel"
+                      type="button"
+                      disabled={
+                        formMode !== "edit" ||
+                        !selectedCoach ||
+                        createMutation.isPending ||
+                        updateMutation.isPending ||
+                        deleteMutation.isPending ||
+                        statusMutation.isPending ||
+                        resendCredentialsMutation.isPending
+                      }
+                      onClick={() => resendCredentialsMutation.mutate()}
+                    >
+                      {resendCredentialsMutation.isPending
+                        ? "Slanje..."
+                        : "Pošalji pristupne podatke"}
                     </button>
-                    <button
+	                    <button
                       className="ui-pill ui-pill-button ui-pill--signal"
                       type="button"
                       disabled={
@@ -737,7 +824,8 @@ export function CoachesPage() {
                         !selectedCoach ||
                         createMutation.isPending ||
                         updateMutation.isPending ||
-                        deleteMutation.isPending
+                        deleteMutation.isPending ||
+                        resendCredentialsMutation.isPending
                       }
                       onClick={() => deleteMutation.mutate()}
                     >
@@ -786,13 +874,12 @@ export function CoachesPage() {
                         label="Telefon"
                         value={selectedCoach.user.phone ?? "Bez telefona"}
                       />
-                      <DetailStat
-                        label="Tip trenera"
-                        value={
-                          selectedCoach.isConditioningCoach
-                            ? "Kondicijski trener"
-                            : "Glavni trener kategorije"
-                        }
+	                    <DetailStat
+	                      label="Tip trenera"
+                        value={formatCoachTypes(
+                          getCoachIsCategoryCoach(selectedCoach),
+                          selectedCoach.isConditioningCoach,
+                        )}
                       />
                       <DetailStat
                         label="Mora promijeniti lozinku"
@@ -808,10 +895,13 @@ export function CoachesPage() {
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <StatusChip status={selectedCoach.user.accountStatus} />
-                        <CoachTypeChip isConditioningCoach={selectedCoach.isConditioningCoach} />
+                        <CoachTypeChips
+                          isCategoryCoach={getCoachIsCategoryCoach(selectedCoach)}
+                          isConditioningCoach={selectedCoach.isConditioningCoach}
+                        />
                       </div>
                     </div>
-                    {!selectedCoach.isConditioningCoach ? (
+                    {getCoachIsCategoryCoach(selectedCoach) ? (
                       <DetailStat
                         label="Dodijeljene kategorije"
                         value={String(selectedCoach.categories?.length ?? 0)}
@@ -825,20 +915,13 @@ export function CoachesPage() {
                   </div>
 
                   <div className="border-2 border-line bg-white">
-                    <div className="border-b-2 border-line bg-bg px-4 py-3">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        {selectedCoach.isConditioningCoach ? "Raspored rada" : "Pokrivene kategorije"}
-                      </p>
-                    </div>
-                    <div className="grid gap-3 p-4 sm:grid-cols-2">
-                      {selectedCoach.isConditioningCoach ? (
-                        <div className="border-2 border-line bg-panel px-4 py-4 sm:col-span-2">
-                          <p className="text-sm font-bold uppercase">Sve kategorije</p>
-                          <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-muted">
-                            Dodjeljuje se pojedinačnim terminima i suhim treninzima
-                          </p>
-                        </div>
-                      ) : (selectedCoach.categories?.length ?? 0) > 0 ? (
+	                    <div className="border-b-2 border-line bg-bg px-4 py-3">
+	                      <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+	                        Pokrivene kategorije
+	                      </p>
+	                    </div>
+	                    <div className="grid gap-3 p-4 sm:grid-cols-2">
+                      {(selectedCoach.categories?.length ?? 0) > 0 ? (
                         selectedCoach.categories?.map((assignment) => (
                           <div
                             key={assignment.categoryId}
@@ -873,21 +956,25 @@ function buildCoachCreationMessage(result: CoachCreateResult) {
   }
 
   if (result.developmentCredentials) {
-    return `Slanje e-pošte je isključeno. Razvojni pristupni podaci: ${result.developmentCredentials.email} / ${result.developmentCredentials.password}`;
+    return `Slanje e-pošte je isključeno. Razvojni pristupni podaci: ${result.developmentCredentials.login} / ${result.developmentCredentials.password}`;
   }
 
   return "Trenerski račun je kreiran.";
 }
 
 function createFormFromCoach(coach: CoachRecord): CoachFormState {
+  const categoryIds = coach.categories?.map((assignment) => assignment.categoryId) ?? [];
+
   return {
     firstName: coach.user.firstName,
     lastName: coach.user.lastName,
     email: coach.user.email ?? "",
     phone: coach.user.phone ?? "",
+    isCategoryCoach: getCoachIsCategoryCoach(coach),
     isConditioningCoach: coach.isConditioningCoach,
-    categoryIds: coach.categories?.map((assignment) => assignment.categoryId) ?? [],
+    categoryIds,
     profileFile: null,
+    removeProfileImage: false,
   };
 }
 
@@ -898,7 +985,8 @@ function buildCoachFormData(form: CoachFormState) {
   formData.append("email", form.email);
   formData.append("phone", form.phone);
   formData.append("isConditioningCoach", String(form.isConditioningCoach));
-  formData.append("categoryIds", JSON.stringify(form.categoryIds));
+  formData.append("categoryIds", JSON.stringify(form.isCategoryCoach ? form.categoryIds : []));
+  formData.append("removeProfileImage", String(form.removeProfileImage));
 
   if (form.profileFile) {
     formData.append("profileImage", form.profileFile);
@@ -921,7 +1009,7 @@ function MultiSelectPanel({
   onToggle,
 }: {
   title: string;
-  items: Array<{ id: string; label: string; meta: string }>;
+  items: Array<{ id: string; label: string; meta?: string }>;
   selectedIds: string[];
   disabled?: boolean;
   emptyStateMessage?: string;
@@ -942,7 +1030,7 @@ function MultiSelectPanel({
             return (
               <label
                 key={item.id}
-                className={`flex cursor-pointer items-start gap-3 border-2 border-line px-3 py-3 ${
+                className={`flex cursor-pointer items-start gap-3 rounded-[18px] border-2 border-line px-3 py-3 ${
                   isChecked ? "bg-panel" : "bg-white"
                 }`}
               >
@@ -955,9 +1043,11 @@ function MultiSelectPanel({
                 />
                 <span className="min-w-0">
                   <span className="block text-sm font-bold uppercase">{item.label}</span>
-                  <span className="mt-1 block truncate text-[11px] uppercase tracking-[0.2em] text-muted">
-                    {item.meta}
-                  </span>
+                  {item.meta ? (
+                    <span className="mt-1 block truncate text-[11px] uppercase tracking-[0.2em] text-muted">
+                      {item.meta}
+                    </span>
+                  ) : null}
                 </span>
               </label>
             );
@@ -992,10 +1082,42 @@ function StatusChip({ status }: { status: AccountStatus }) {
   );
 }
 
-function CoachTypeChip({ isConditioningCoach }: { isConditioningCoach: boolean }) {
+function getCoachIsCategoryCoach(coach: CoachRecord) {
+  return !coach.isConditioningCoach || (coach.categories?.length ?? 0) > 0;
+}
+
+function formatCoachTypes(isCategoryCoach: boolean, isConditioningCoach: boolean) {
+  const types = [
+    isCategoryCoach ? "Kategorijski trener" : null,
+    isConditioningCoach ? "Kondicijski trener" : null,
+  ].filter(Boolean);
+
+  return types.length > 0 ? types.join(" + ") : "Bez tipa";
+}
+
+function CoachTypeChips({
+  isCategoryCoach,
+  isConditioningCoach,
+}: {
+  isCategoryCoach: boolean;
+  isConditioningCoach: boolean;
+}) {
+  const chips = [
+    isCategoryCoach ? (
+      <span key="category" className="ui-pill ui-pill--accent">
+        Kategorijski trener
+      </span>
+    ) : null,
+    isConditioningCoach ? (
+      <span key="conditioning" className="ui-pill ui-pill--warning">
+        Kondicijski trener
+      </span>
+    ) : null,
+  ].filter(Boolean);
+
   return (
-    <span className={`ui-pill ${isConditioningCoach ? "ui-pill--warning" : "ui-pill--outline"}`}>
-      {isConditioningCoach ? "Kondicijski trener" : "Kategorijski trener"}
+    <span className="coach-type-chip-group">
+      {chips.length > 0 ? chips : <span className="ui-pill ui-pill--panel">Bez tipa</span>}
     </span>
   );
 }

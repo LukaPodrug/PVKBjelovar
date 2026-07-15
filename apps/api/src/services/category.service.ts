@@ -8,6 +8,7 @@ export async function suggestCategoryIdForDateOfBirth(dateOfBirth: Date): Promis
     },
     select: {
       id: true,
+      startDateOfBirth: true,
       endDateOfBirth: true,
     },
   });
@@ -16,17 +17,35 @@ export async function suggestCategoryIdForDateOfBirth(dateOfBirth: Date): Promis
     return null;
   }
 
-  const exactMatch = categories.find((category) => dateOfBirth <= category.endDateOfBirth);
+  const exactMatch = categories.find((category) => {
+    if (category.startDateOfBirth) {
+      return dateOfBirth >= category.startDateOfBirth;
+    }
 
-  return exactMatch?.id ?? categories[categories.length - 1]?.id ?? null;
+    if (category.endDateOfBirth) {
+      return dateOfBirth <= category.endDateOfBirth;
+    }
+
+    return false;
+  });
+
+  return (
+    exactMatch?.id ??
+    categories.find((category) => !category.startDateOfBirth && !category.endDateOfBirth)?.id ??
+    null
+  );
 }
 
 export async function resolveScheduleCoachIds(
-  categoryId: string,
+  categoryId: string | null,
   providedCoachIds: string[],
 ): Promise<string[]> {
   if (providedCoachIds.length > 0) {
     return providedCoachIds;
+  }
+
+  if (!categoryId) {
+    return [];
   }
 
   const category = await prisma.category.findUnique({

@@ -6,8 +6,12 @@ import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
 import { uploadProfileImage } from "../middlewares/upload";
-import { emailService } from "../services/email.service";
 import { generateTemporaryPassword, hashPassword } from "../services/password.service";
+import {
+  buildDevelopmentCredentials,
+  resetCoachCredentials,
+  sendCoachCredentials,
+} from "../services/credentials.service";
 import {
   buildPaginatedResponse,
   normalizeEmail,
@@ -38,21 +42,50 @@ coachesRouter.get(
   asyncHandler(async (request, response) => {
     const pagination = parsePaginationInput(request.query);
     const search = optionalString(request.query.search ?? request.query.q);
-    const where: Prisma.CoachWhereInput = search
-      ? {
-          OR: [
-            { user: { firstName: { contains: search, mode: "insensitive" } } },
-            { user: { lastName: { contains: search, mode: "insensitive" } } },
-            { user: { email: { contains: search, mode: "insensitive" } } },
-            { user: { phone: { contains: search, mode: "insensitive" } } },
-            {
-              categories: {
-                some: { category: { name: { contains: search, mode: "insensitive" } } },
-              },
-            },
-          ],
-        }
-      : {};
+    const categoryIds = parseStringArrayInput(request.query.categoryIds ?? request.query.categoryId);
+    const isConditioningCoachFilter =
+      parseOptionalBooleanInput(request.query.isConditioningCoach) ?? false;
+    const searchTerms = search?.split(/\s+/).filter(Boolean) ?? [];
+    const singleTermFilters: Prisma.CoachWhereInput[] = search
+      ? [
+          { user: { firstName: { contains: search, mode: "insensitive" } } },
+          { user: { lastName: { contains: search, mode: "insensitive" } } },
+        ]
+      : [];
+    const multiTermFilter: Prisma.CoachWhereInput | null =
+      searchTerms.length > 1
+        ? {
+            AND: searchTerms.map((term) => ({
+              OR: [
+                { user: { firstName: { contains: term, mode: "insensitive" } } },
+                { user: { lastName: { contains: term, mode: "insensitive" } } },
+              ],
+            })),
+          }
+        : null;
+    const filters: Prisma.CoachWhereInput[] = [];
+
+    if (search) {
+      filters.push({
+        OR: multiTermFilter ? [...singleTermFilters, multiTermFilter] : singleTermFilters,
+      });
+    }
+
+    if (categoryIds.length > 0 || isConditioningCoachFilter) {
+      const categoryFilters: Prisma.CoachWhereInput[] = [];
+
+      if (categoryIds.length > 0) {
+        categoryFilters.push({ categories: { some: { categoryId: { in: categoryIds } } } });
+      }
+
+      if (isConditioningCoachFilter) {
+        categoryFilters.push({ isConditioningCoach: true });
+      }
+
+      filters.push({ OR: categoryFilters });
+    }
+
+    const where: Prisma.CoachWhereInput = filters.length > 0 ? { AND: filters } : {};
     const [coaches, total] = await prisma.$transaction([
       prisma.coach.findMany({
         where,
@@ -102,61 +135,113 @@ coachesRouter.post(
       `Coach ${email} profile image`,
       request.body.profileImageUrl,
     );
+    const firstName = requireString(request.body.firstName, "firstName");
+    const lastName = requireString(request.body.lastName, "lastName");
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+      include: { coach: true },
+    });
 
-    const coach = await prisma.coach.create({
-      data: {
-        isConditioningCoach,
-        user: {
-          create: {
-            role: UserRole.COACH,
-            email,
-            passwordHash,
-            firstName: requireString(request.body.firstName, "firstName"),
-            lastName: requireString(request.body.lastName, "lastName"),
-            phone: optionalString(request.body.phone),
-            profileImageUrl,
-            accountStatus:
-              parseOptionalAccountStatusInput(request.body.accountStatus) ?? AccountStatus.ACTIVE,
-            mustChangePassword: true,
+    if (existingUser?.coach) {
+      throw new AppError("Ova e-adresa već ima trenerski profil.", 409);
+    }
+
+    if (existingUser && existingUser.role !== UserRole.ADMIN) {
+      throw new AppError("Ova e-adresa je već zauzeta.", 409);
+    }
+
+    const coach = existingUser
+      ? await prisma.$transaction(async (transaction) => {
+          await transaction.user.update({
+            where: { id: existingUser.id },
+            data: {
+              firstName,
+              lastName,
+              phone: optionalString(request.body.phone),
+              profileImageUrl,
+              accountStatus:
+                parseOptionalAccountStatusInput(request.body.accountStatus) ?? existingUser.accountStatus,
+            },
+          });
+
+          return transaction.coach.create({
+            data: {
+              isConditioningCoach,
+              user: {
+                connect: { id: existingUser.id },
+              },
+              categories:
+                categoryIds.length > 0
+                  ? {
+                      create: categoryIds.map((categoryId) => ({
+                        category: {
+                          connect: { id: categoryId },
+                        },
+                      })),
+                    }
+                  : undefined,
+            },
+            include: coachInclude,
+          });
+        })
+      : await prisma.coach.create({
+          data: {
+            isConditioningCoach,
+            user: {
+              create: {
+                role: UserRole.COACH,
+                email,
+                passwordHash,
+                firstName,
+                lastName,
+                phone: optionalString(request.body.phone),
+                profileImageUrl,
+                accountStatus:
+                  parseOptionalAccountStatusInput(request.body.accountStatus) ?? AccountStatus.ACTIVE,
+                mustChangePassword: true,
+              },
+            },
+            categories:
+              categoryIds.length > 0
+                ? {
+                    create: categoryIds.map((categoryId) => ({
+                      category: {
+                        connect: { id: categoryId },
+                      },
+                    })),
+                  }
+                : undefined,
           },
-        },
-        categories:
-          !isConditioningCoach && categoryIds.length > 0
-            ? {
-                create: categoryIds.map((categoryId) => ({
-                  category: {
-                    connect: { id: categoryId },
-                  },
-                })),
-              }
-            : undefined,
-      },
-      include: coachInclude,
-    });
+          include: coachInclude,
+        });
 
-    const clubSettings = await prisma.clubSettings.findUnique({
-      where: { id: "club-settings" },
-      select: { clubName: true },
-    });
-
-    const emailSent = await emailService.sendCredentialsEmail({
-      to: email,
-      firstName: coach.user.firstName,
-      clubName: clubSettings?.clubName ?? "PVK Mladost Bjelovar",
-      login: email,
-      password: temporaryPassword,
-    });
+    const credentialDelivery = existingUser
+      ? null
+      : await sendCoachCredentials(coach.id, temporaryPassword);
 
     response.status(201).json({
       coach,
-      emailSent,
-      developmentCredentials:
-        process.env.NODE_ENV === "production"
-          ? undefined
-          : {
-              email,
-              password: temporaryPassword,
-            },
+      emailSent: credentialDelivery?.emailSent ?? false,
+      developmentCredentials: credentialDelivery
+        ? buildDevelopmentCredentials(credentialDelivery)
+        : undefined,
+    });
+  }),
+);
+
+coachesRouter.post(
+  "/:id/resend-credentials",
+  authorizeRoles(UserRole.ADMIN),
+  asyncHandler(async (request, response) => {
+    const coachId = requireString(request.params.id, "id");
+    const credentialDelivery = await resetCoachCredentials(coachId);
+
+    response.json({
+      message: credentialDelivery.emailSent
+        ? "Pristupni podaci trenera su poslani."
+        : "Lozinka je resetirana, ali slanje e-pošte nije konfigurirano.",
+      emailSent: credentialDelivery.emailSent,
+      developmentCredentials: buildDevelopmentCredentials(credentialDelivery),
     });
   }),
 );
@@ -168,6 +253,7 @@ coachesRouter.patch(
   asyncHandler(async (request, response) => {
     const coachId = requireString(request.params.id, "id");
     const categoryIds = parseStringArrayInput(request.body.categoryIds);
+    const removeProfileImage = parseOptionalBooleanInput(request.body.removeProfileImage) ?? false;
 
     const existingCoach = await prisma.coach.findUnique({
       where: { id: coachId },
@@ -180,8 +266,6 @@ coachesRouter.patch(
     }
 
     const requestedIsConditioningCoach = parseOptionalBooleanInput(request.body.isConditioningCoach);
-    const nextIsConditioningCoach =
-      requestedIsConditioningCoach ?? existingCoach.isConditioningCoach;
 
     const coach = await prisma.coach.update({
       where: { id: coachId },
@@ -194,7 +278,9 @@ coachesRouter.patch(
             email: request.body.email ? normalizeEmail(request.body.email, "email") : undefined,
             phone: request.body.phone !== undefined ? optionalString(request.body.phone) : undefined,
             profileImageUrl:
-              request.file || request.body.profileImageUrl
+              removeProfileImage
+                ? null
+                : request.file || request.body.profileImageUrl
                 ? await resolveUploadedImageUrl(
                     request.file,
                     `Coach ${coachId} profile image`,
@@ -205,11 +291,7 @@ coachesRouter.patch(
           },
         },
         categories:
-          nextIsConditioningCoach
-            ? {
-                deleteMany: {},
-              }
-            : categoryIds.length > 0 || request.body.categoryIds
+          categoryIds.length > 0 || request.body.categoryIds
             ? {
                 deleteMany: {},
                 create: categoryIds.map((categoryId) => ({
@@ -242,11 +324,22 @@ coachesRouter.delete(
       return;
     }
 
-    await prisma.user.delete({
-      where: {
-        id: coach.userId,
-      },
+    const user = await prisma.user.findUnique({
+      where: { id: coach.userId },
+      select: { role: true },
     });
+
+    if (user?.role === UserRole.ADMIN) {
+      await prisma.coach.delete({
+        where: { id: coachId },
+      });
+    } else {
+      await prisma.user.delete({
+        where: {
+          id: coach.userId,
+        },
+      });
+    }
 
     response.status(204).send();
   }),

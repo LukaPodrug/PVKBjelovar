@@ -168,7 +168,7 @@ export function PracticeWeekBoard({
         <div className="schedule-board-toolbar border-b-2 border-line">
           <div>
             <p className="ui-kicker text-muted">Tjedni pregled</p>
-            <h3 className="mt-2 text-3xl">Raspored treninga</h3>
+            <h3 className="mt-2 text-xl font-bold uppercase">Raspored treninga</h3>
           </div>
 
           <div className="schedule-week-controls">
@@ -184,7 +184,6 @@ export function PracticeWeekBoard({
               <div className="schedule-week-nav-summary">
                 <span>{isCurrentWeek ? "Ovaj tjedan" : "Vidljivi tjedan"}</span>
                 <strong>{weekRangeLabel}</strong>
-                <em>{monthLabel}</em>
               </div>
               <button
                 className="schedule-week-nav-button"
@@ -595,14 +594,6 @@ export function PracticeWeekBoard({
                   <strong>{items.length}</strong>
                 </div>
                 <div>
-                  <span>Kategorije</span>
-                  <strong>{categoryCount}</strong>
-                </div>
-                <div>
-                  <span>Otkazani</span>
-                  <strong>{cancelledCount}</strong>
-                </div>
-                <div>
                   <span>Satnica</span>
                   <strong>
                     {formatHourLabel(timeWindow.startHour)} - {formatHourLabel(timeWindow.endHourExclusive)}
@@ -846,30 +837,23 @@ function shiftDate(date: Date, offsetDays: number) {
 }
 
 function formatDayDate(date: Date) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "numeric",
-  }).format(date);
+  return formatNumericDate(date);
 }
 
 function formatMonthLabel(date: Date) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    month: "long",
-    year: "numeric",
-  }).format(date);
+  return `${`${date.getMonth() + 1}`.padStart(2, "0")}.${date.getFullYear()}.`;
 }
 
 function formatWeekRange(startDate: Date, endDate: Date) {
-  const startLabel = new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "short",
-  }).format(startDate);
-  const endLabel = new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "short",
-  }).format(endDate);
+  return `${formatNumericDate(startDate)} - ${formatNumericDate(endDate)}`;
+}
 
-  return `${startLabel} - ${endLabel}`;
+function formatNumericDate(date: Date) {
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}.${month}.${year}.`;
 }
 
 function formatHourLabel(hour: number) {

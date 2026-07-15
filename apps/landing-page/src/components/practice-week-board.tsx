@@ -547,38 +547,29 @@ function formatTimeRange(startIso: string, endIso: string) {
 }
 
 function formatLongDate(dateIso: string) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(dateIso));
+  const date = new Date(dateIso);
+  const weekday = new Intl.DateTimeFormat("hr-HR", { weekday: "short" }).format(date);
+  return `${weekday} ${formatNumericDate(date)}`;
 }
 
 function formatDayDate(date: Date) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "numeric",
-  }).format(date);
+  return formatNumericDate(date);
 }
 
 function formatMonthLabel(date: Date) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    month: "long",
-    year: "numeric",
-  }).format(date);
+  return `${`${date.getMonth() + 1}`.padStart(2, "0")}.${date.getFullYear()}.`;
 }
 
 function formatWeekRange(startDate: Date, endDate: Date) {
-  const startLabel = new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "short",
-  }).format(startDate);
-  const endLabel = new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "short",
-  }).format(endDate);
+  return `${formatNumericDate(startDate)} - ${formatNumericDate(endDate)}`;
+}
 
-  return `${startLabel} - ${endLabel}`;
+function formatNumericDate(date: Date) {
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}.${month}.${year}.`;
 }
 
 function formatHourLabel(hour: number) {

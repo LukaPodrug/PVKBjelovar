@@ -158,6 +158,27 @@ export async function notifyCategoryAudience(
   }
 }
 
+/** Notifies every parent and every player, used for practices that apply to all categories. */
+export async function notifyAllPracticeAudience(payload: NotificationPayload): Promise<void> {
+  try {
+    const [parents, players] = await Promise.all([
+      prisma.parent.findMany({
+        select: { userId: true },
+      }),
+      prisma.player.findMany({
+        select: { userId: true },
+      }),
+    ]);
+
+    await dispatchNotificationToUsers(
+      [...parents.map((parent) => parent.userId), ...players.map((player) => player.userId)],
+      payload,
+    );
+  } catch (error) {
+    console.error("Failed to notify all practice audience", error);
+  }
+}
+
 /** Notifies every parent linked to a specific player. */
 export async function notifyPlayerParents(
   playerId: string,

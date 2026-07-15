@@ -79,6 +79,7 @@ export const env = {
   smtpPass: process.env.SMTP_PASS ?? "",
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   mailFrom: process.env.MAIL_FROM ?? "noreply@example.com",
+  defaultClubName: process.env.DEFAULT_CLUB_NAME ?? "PVK Mladost Bjelovar",
   maxUploadSizeMb: readNumber("MAX_UPLOAD_SIZE_MB", 8),
 } as const;
 

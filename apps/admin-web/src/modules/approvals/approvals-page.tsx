@@ -6,6 +6,7 @@ import { api } from "../core/api";
 import { formatDate, formatDateTime } from "../core/date";
 import type { CategoryOption, PaginatedResponse, SignupRequest } from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
+import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 
 interface ApprovalResult {
@@ -144,15 +145,7 @@ export function ApprovalsPage() {
 
   return (
     <section className="space-y-6">
-      {feedback ? (
-        <div
-          className={`border-2 border-line px-5 py-4 text-sm font-medium ${
-            feedback.tone === "success" ? "bg-success text-surface" : "bg-signal text-surface"
-          }`}
-        >
-          {feedback.message}
-        </div>
-      ) : null}
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
 
       {signupsQuery.isLoading || categoriesQuery.isLoading ? (
         <div className="space-y-4">
@@ -260,32 +253,6 @@ export function ApprovalsPage() {
       >
         {selectedSignup ? (
           <div className="approval-drawer">
-            <section className="approval-widget approval-widget--summary">
-              <div>
-                <p className="approval-widget-title">Sažetak prijave</p>
-                <h3 className="mt-3 text-2xl font-bold tracking-[-0.03em]">
-                  {selectedSignup.childFirstName} {selectedSignup.childLastName}
-                </h3>
-                <p className="mt-2 text-sm leading-7 text-muted">
-                  Zaprimljeno {formatDateTime(selectedSignup.createdAt)}. Pregledajte podatke,
-                  odaberite kategoriju i završite obradu prijave.
-                </p>
-              </div>
-
-              <div className="approval-summary-chips">
-                <StatusChip
-                  label={selectedSignup.gdprConsent ? "GDPR potvrđen" : "GDPR nedostaje"}
-                  tone={selectedSignup.gdprConsent ? "success" : "warning"}
-                />
-                <span className="ui-pill ui-pill--panel">
-                  Predloženo <strong>{selectedSignup.suggestedCategory?.name ?? "nema"}</strong>
-                </span>
-                <span className="ui-pill ui-pill--outline">
-                  OIB <strong>{selectedSignup.childOib}</strong>
-                </span>
-              </div>
-            </section>
-
             <div className="approval-drawer-grid">
               <DetailSection
                 title="Dijete"
@@ -309,7 +276,7 @@ export function ApprovalsPage() {
                       title={`${selectedSignup.parentOneFirstName} ${selectedSignup.parentOneLastName}`}
                       imageUrl={selectedSignup.parentOneProfileImageUrl}
                       lines={[
-                        `Email: ${selectedSignup.parentOneEmail}`,
+                        `E-pošta: ${selectedSignup.parentOneEmail}`,
                         `Telefon: ${selectedSignup.parentOnePhone}`,
                       ]}
                     />
@@ -318,7 +285,7 @@ export function ApprovalsPage() {
                         title={`${selectedSignup.parentTwoFirstName} ${selectedSignup.parentTwoLastName ?? ""}`.trim()}
                         imageUrl={selectedSignup.parentTwoProfileImageUrl}
                         lines={[
-                          `Email: ${selectedSignup.parentTwoEmail ?? "Bez e-pošte"}`,
+                          `E-pošta: ${selectedSignup.parentTwoEmail ?? "Bez e-pošte"}`,
                           `Telefon: ${selectedSignup.parentTwoPhone ?? "Bez telefona"}`,
                         ]}
                       />

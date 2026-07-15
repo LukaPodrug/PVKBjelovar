@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { fetchPublicCategoryDetail, type PublicCategory } from "../lib/public-api";
 
@@ -18,6 +18,7 @@ export function CategoryDetailsDrawer({
   const [playersPage, setPlayersPage] = useState(1);
   const detailQuery = useQuery({
     queryKey: ["public-category-detail", categoryId, playersPage, publicCategoryPlayersPageSize],
+    placeholderData: keepPreviousData,
     queryFn: () =>
       fetchPublicCategoryDetail(categoryId, {
         playersLimit: publicCategoryPlayersPageSize,
@@ -25,10 +26,12 @@ export function CategoryDetailsDrawer({
       }),
   });
 
-  const category = detailQuery.data ?? null;
+  const category = detailQuery.data?.id === categoryId ? detailQuery.data : null;
   const players = category?.players ?? [];
   const title = category?.name ?? categoryPreview?.name ?? "Detalji kategorije";
   const logoUrl = category?.logoUrl ?? categoryPreview?.logoUrl ?? null;
+  const startDateOfBirth =
+    category?.startDateOfBirth ?? categoryPreview?.startDateOfBirth ?? null;
   const cutoffDate = category?.endDateOfBirth ?? categoryPreview?.endDateOfBirth ?? null;
   const playerCount = category?.playerCount ?? players.length;
   const playersTotalPages = Math.max(1, Math.ceil(playerCount / publicCategoryPlayersPageSize));
@@ -38,8 +41,9 @@ export function CategoryDetailsDrawer({
     playerCount,
     (playersPage - 1) * publicCategoryPlayersPageSize + players.length,
   );
-  const isLoading = detailQuery.isLoading && category === null;
-  const isError = detailQuery.isError;
+  const isLoading = detailQuery.isFetching && category === null;
+  const isPlayersLoading = detailQuery.isFetching && category !== null;
+  const isError = detailQuery.isError && !isLoading;
   const errorMessage =
     detailQuery.error instanceof Error
       ? detailQuery.error.message
@@ -128,8 +132,8 @@ export function CategoryDetailsDrawer({
 
                 <div className="landing-drawer-summary-grid">
                   <div>
-                    <span>Godište do</span>
-                    <strong>{cutoffDate ? formatDate(cutoffDate) : "Nedostupno"}</strong>
+                    <span>Dobna granica</span>
+                    <strong>{formatCategoryAgeRule(startDateOfBirth, cutoffDate)}</strong>
                   </div>
                   <div>
                     <span>Treneri</span>
@@ -194,6 +198,36 @@ export function CategoryDetailsDrawer({
                   <div className="landing-drawer-empty-state compact">
                     <p>Ova kategorija još nema dodijeljenih igrača.</p>
                   </div>
+                ) : isPlayersLoading ? (
+                  <>
+                    <PlayerListLoadingSkeleton />
+
+                    <div className="landing-drawer-pagination">
+                      <div className="landing-drawer-load-state">
+                        <p>
+                          Stranica {playersPage} od {playersTotalPages}
+                        </p>
+                        <span>Učitavanje igrača...</span>
+                      </div>
+
+                      <div className="landing-drawer-pagination-actions">
+                        <button
+                          className="landing-pill landing-pill-button landing-pill--outline"
+                          type="button"
+                          disabled
+                        >
+                          Prethodna
+                        </button>
+                        <button
+                          className="landing-pill landing-pill-button landing-pill--accent"
+                          type="button"
+                          disabled
+                        >
+                          Sljedeća
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <>
                     <div className="landing-drawer-player-grid">
@@ -272,12 +306,29 @@ export function CategoryDetailsDrawer({
   );
 }
 
+function PlayerListLoadingSkeleton() {
+  return (
+    <div className="landing-drawer-player-grid" aria-label="Učitavanje igrača">
+      {Array.from({ length: 8 }).map((_, index) => (
+        <div
+          key={index}
+          className="landing-drawer-player-card border-2 border-line bg-bg"
+        >
+          <div className="landing-drawer-avatar subtle animate-pulse bg-panel" />
+          <div className="h-5 flex-1 animate-pulse rounded-full bg-panel" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function formatDate(dateIso: string) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(dateIso));
+  const date = new Date(dateIso);
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}.${month}.${year}.`;
 }
 
 function createMonogram(name: string) {
@@ -289,4 +340,16 @@ function createMonogram(name: string) {
       .map((part) => part[0]?.toUpperCase() ?? "")
       .join("") || "PV"
   );
+}
+
+function formatCategoryAgeRule(startDateOfBirth: string | null, cutoffDate: string | null) {
+  if (startDateOfBirth) {
+    return `Od ${formatDate(startDateOfBirth)}`;
+  }
+
+  if (cutoffDate) {
+    return formatDate(cutoffDate);
+  }
+
+  return "Bez ograničenja";
 }

@@ -21,8 +21,12 @@ import type {
   WeeklyScheduleRecord,
 } from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
+import { CategoryFilterDropdown, SingleSelectDropdown } from "../ui/category-filter-chips";
+import { DatePicker } from "../ui/date-picker";
+import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
+import { TimePicker } from "../ui/time-picker";
 import { PracticeWeekBoard } from "./practice-week-board";
 
 interface FeedbackState {
@@ -63,9 +67,9 @@ type DrawerMode =
   | "practice-create"
   | "practice-edit";
 
-const allCategoriesFallbackTab = "";
 const attendancePageSize = 30;
 const optionPageSize = 100;
+const allCategoriesOptionId = "__all_categories__";
 const practiceTypeOptions: Array<{ value: PracticeType; label: string }> = [
   { value: "WATER", label: "Trening u vodi" },
   { value: "DRYLAND", label: "Suhi trening" },
@@ -76,7 +80,7 @@ export function SchedulesPage() {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [weekStartDate, setWeekStartDate] = useState(() => getCurrentWeekStartDateKey());
-  const [activeCategoryId, setActiveCategoryId] = useState<string>(allCategoriesFallbackTab);
+  const [selectedCategoryFilterIds, setSelectedCategoryFilterIds] = useState<string[]>([]);
   const [selectedWeeklyScheduleId, setSelectedWeeklyScheduleId] = useState<string | null>(null);
   const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null);
   const [attendancePlayerIds, setAttendancePlayerIds] = useState<string[]>([]);
@@ -134,38 +138,28 @@ export function SchedulesPage() {
   }, [categories, user?.role, user?.userId]);
 
   useEffect(() => {
-    if (accessibleCategories.length === 0) {
-      if (activeCategoryId !== allCategoriesFallbackTab) {
-        setActiveCategoryId(allCategoriesFallbackTab);
-      }
-      return;
-    }
-
-    if (!accessibleCategories.some((category) => category.id === activeCategoryId)) {
-      setActiveCategoryId(accessibleCategories[0].id);
-    }
-  }, [accessibleCategories, activeCategoryId]);
+    setSelectedCategoryFilterIds((current) =>
+      current.filter((categoryId) =>
+        accessibleCategories.some((category) => category.id === categoryId),
+      ),
+    );
+  }, [accessibleCategories]);
 
   const weeklySchedulesQuery = useQuery({
-    queryKey: ["weekly-schedules", activeCategoryId],
-    enabled: Boolean(activeCategoryId),
+    queryKey: ["weekly-schedules"],
+    enabled: accessibleCategories.length > 0,
     queryFn: async () => {
-      const response = await api.get<WeeklyScheduleRecord[]>("/schedules/weekly-schedules", {
-        params: {
-          categoryId: activeCategoryId,
-        },
-      });
+      const response = await api.get<WeeklyScheduleRecord[]>("/schedules/weekly-schedules");
       return response.data;
     },
   });
 
   const calendarQuery = useQuery({
-    queryKey: ["schedules", "calendar", activeCategoryId, weekStartDate],
-    enabled: Boolean(activeCategoryId),
+    queryKey: ["schedules", "calendar", weekStartDate],
+    enabled: accessibleCategories.length > 0,
     queryFn: async () => {
       const response = await api.get<ScheduleCalendarItem[]>("/schedules/calendar", {
         params: {
-          categoryId: activeCategoryId,
           weekStart: weekStartDate,
         },
       });
@@ -173,12 +167,14 @@ export function SchedulesPage() {
     },
   });
 
-  const weeklySchedules = weeklySchedulesQuery.data ?? [];
-  const calendarItems = calendarQuery.data ?? [];
-  const currentWeekStartDateKey = getCurrentWeekStartDateKey();
-  const visibleWeekRangeLabel = formatWeekRangeLabel(weekStartDate);
-  const visibleWeekMonthLabel = formatWeekMonthLabel(weekStartDate);
-  const isCurrentVisibleWeek = weekStartDate === currentWeekStartDateKey;
+  const weeklySchedules = filterBySelectedCategories(
+    weeklySchedulesQuery.data ?? [],
+    selectedCategoryFilterIds,
+  );
+  const calendarItems = filterBySelectedCategories(
+    calendarQuery.data ?? [],
+    selectedCategoryFilterIds,
+  );
   const selectedWeeklySchedule =
     weeklySchedules.find((weeklySchedule) => weeklySchedule.id === selectedWeeklyScheduleId) ?? null;
   const selectedPractice =
@@ -196,7 +192,7 @@ export function SchedulesPage() {
         params: {
           page: attendancePlayersPage,
           pageSize: attendancePageSize,
-          categoryId: selectedPractice?.category.id,
+          ...(selectedPractice?.category.id ? { categoryId: selectedPractice.category.id } : {}),
         },
       });
       return response.data;
@@ -253,9 +249,6 @@ export function SchedulesPage() {
 
     setAttendancePlayerIds(attendanceQuery.data.presentPlayerIds);
   }, [attendanceQuery.data]);
-
-  const selectedCategory =
-    accessibleCategories.find((category) => category.id === activeCategoryId) ?? null;
 
   const createWeeklyScheduleMutation = useMutation({
     mutationFn: async () => {
@@ -410,6 +403,36 @@ export function SchedulesPage() {
     },
   });
 
+  const updateOccurrenceMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPractice) {
+        throw new Error("Termin nije odabran.");
+      }
+
+      const response = await api.patch<ScheduleCalendarItem>(
+        `/schedules/${selectedPractice.scheduleId}/occurrence`,
+        buildOccurrencePayload(practiceForm),
+      );
+
+      return response.data;
+    },
+    onSuccess: (updatedPractice) => {
+      setFeedback({
+        tone: "success",
+        message: "Detalji treninga uspješno su spremljeni.",
+      });
+      setSelectedPracticeId(updatedPractice.id);
+      setPracticeForm(createSpecialPracticeForm(updatedPractice, accessibleCategories));
+      void invalidateScheduleWorkspace(queryClient);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message: error.response?.data?.message ?? "Spremanje detalja treninga nije uspjelo.",
+      });
+    },
+  });
+
   const deletePracticeMutation = useMutation({
     mutationFn: async () => {
       if (!selectedPractice) {
@@ -483,11 +506,25 @@ export function SchedulesPage() {
     activateWeeklyScheduleMutation.isPending ||
     createPracticeMutation.isPending ||
     updatePracticeMutation.isPending ||
+    updateOccurrenceMutation.isPending ||
     deletePracticeMutation.isPending ||
     attendanceMutation.isPending;
 
+  const toggleCategoryFilter = (categoryId: string) => {
+    setSelectedCategoryFilterIds((current) =>
+      current.includes(categoryId)
+        ? current.filter((selectedCategoryId) => selectedCategoryId !== categoryId)
+        : [...current, categoryId],
+    );
+  };
+
+  const getDefaultFilteredCategoryId = () =>
+    selectedCategoryFilterIds.find((categoryId) =>
+      accessibleCategories.some((category) => category.id === categoryId),
+    ) ?? accessibleCategories[0]?.id ?? "";
+
   const openWeeklyCreateDrawer = () => {
-    const defaultCategoryId = activeCategoryId || accessibleCategories[0]?.id || "";
+    const defaultCategoryId = getDefaultFilteredCategoryId();
 
     setFeedback(null);
     setSelectedWeeklyScheduleId(null);
@@ -507,7 +544,7 @@ export function SchedulesPage() {
   };
 
   const openPracticeCreateDrawer = () => {
-    const defaultCategoryId = activeCategoryId || accessibleCategories[0]?.id || "";
+    const defaultCategoryId = getDefaultFilteredCategoryId();
 
     setFeedback(null);
     setSelectedPracticeId(null);
@@ -530,6 +567,22 @@ export function SchedulesPage() {
     id: coach.id,
     label: `${coach.user.firstName} ${coach.user.lastName}`,
     meta: getCoachSearchMeta(coach),
+  }));
+  const categorySelectOptions = accessibleCategories.map((category) => ({
+    id: category.id,
+    name: category.name,
+  }));
+  const specialPracticeCategorySelectOptions = [
+    { id: allCategoriesOptionId, name: "Sve kategorije" },
+    ...categorySelectOptions,
+  ];
+  const daySelectOptions = orderedDays.map((day) => ({
+    id: day.key,
+    name: day.label,
+  }));
+  const practiceTypeSelectOptions = practiceTypeOptions.map((option) => ({
+    id: option.value,
+    name: option.label,
   }));
 
   const toggleWeeklySlotExpanded = (index: number) => {
@@ -557,22 +610,17 @@ export function SchedulesPage() {
 
   const selectedPracticeIsWeeklyOccurrence =
     selectedPractice?.sourceType === "WEEKLY_TEMPLATE";
+  const canShowAttendanceWidget = selectedPractice
+    ? Date.now() >= new Date(selectedPractice.startTime).getTime() - 60 * 60 * 1000
+    : false;
   const attendanceSelectionDisabled =
     attendanceQuery.data?.isCancelled ||
     (!selectedPracticeIsWeeklyOccurrence &&
-      practiceForm.categoryId !== selectedPractice?.category.id);
+      getSpecialPracticePayloadCategoryId(practiceForm.categoryId) !== selectedPractice?.category.id);
 
   return (
     <section className="space-y-6">
-      {feedback ? (
-        <div
-          className={`border-2 border-line px-5 py-4 text-sm font-medium ${
-            feedback.tone === "success" ? "bg-success text-surface" : "bg-signal text-surface"
-          }`}
-        >
-          {feedback.message}
-        </div>
-      ) : null}
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
 
       {categoriesQuery.isLoading || coachesQuery.isLoading ? (
         <div className="space-y-4">
@@ -589,8 +637,8 @@ export function SchedulesPage() {
           Trenutni račun nema dodijeljenu nijednu kategoriju za upravljanje rasporedima.
         </div>
       ) : (
-        <>
-          <section className="border-2 border-line bg-surface">
+        <div className="schedule-workspace">
+          <section className="schedule-workspace-panel schedule-workspace-panel--top bg-surface">
             <div className="flex flex-col gap-4 border-b-2 border-line bg-panel px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
@@ -617,88 +665,19 @@ export function SchedulesPage() {
               </div>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto border-b-2 border-line bg-white px-4 py-3">
-              {accessibleCategories.map((category) => (
-                <button
-                  key={category.id}
-                  className={`ui-pill ui-pill-button ${
-                    activeCategoryId === category.id ? "ui-pill--accent" : "ui-pill--outline"
-                  }`}
-                  type="button"
-                  onClick={() => setActiveCategoryId(category.id)}
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="border-2 border-line bg-surface">
-            <div className="flex flex-col gap-4 bg-white px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  Vidljivi i aktivni tjedan
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <h3 className="text-xl font-bold uppercase">{visibleWeekRangeLabel}</h3>
-                  <span className="ui-pill ui-pill--panel">{visibleWeekMonthLabel}</span>
-                  {isCurrentVisibleWeek ? (
-                    <span className="ui-pill ui-pill--success">Ovaj tjedan</span>
-                  ) : null}
-                </div>
-                <p className="mt-3 text-sm text-muted">
-                  Ovaj odabir vrijedi i za aktivaciju tjednih rasporeda i za prikaz stvarnih
-                  termina.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3 lg:min-w-[420px] lg:items-end">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="ui-pill ui-pill-button ui-pill--outline"
-                    type="button"
-                    onClick={() =>
-                      setWeekStartDate((current) => shiftWeekStartDateKey(current, -7))
-                    }
-                  >
-                    Prethodni tjedan
-                  </button>
-                  <button
-                    className="ui-pill ui-pill-button ui-pill--panel"
-                    type="button"
-                    onClick={() => setWeekStartDate(currentWeekStartDateKey)}
-                  >
-                    Ovaj tjedan
-                  </button>
-                  <button
-                    className="ui-pill ui-pill-button ui-pill--outline"
-                    type="button"
-                    onClick={() =>
-                      setWeekStartDate((current) => shiftWeekStartDateKey(current, 7))
-                    }
-                  >
-                    Sljedeći tjedan
-                  </button>
-                </div>
-
-                <label className="block w-full max-w-[260px]">
-                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                    Odaberi ponedjeljak tjedna
-                  </span>
-                  <input
-                    className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                    type="date"
-                    value={weekStartDate}
-                    onChange={(event) =>
-                      setWeekStartDate(normaliseWeekStartDateKey(event.target.value))
-                    }
-                  />
-                </label>
+            <div className="relative z-30 border-b-2 border-line bg-white px-4 py-4">
+              <div className="max-w-[420px]">
+                <CategoryFilterDropdown
+                  categories={accessibleCategories}
+                  selectedIds={selectedCategoryFilterIds}
+                  onToggle={toggleCategoryFilter}
+                  onClear={() => setSelectedCategoryFilterIds([])}
+                />
               </div>
             </div>
           </section>
 
-          <section className="border-2 border-line bg-surface">
+          <section className="schedule-workspace-panel schedule-workspace-panel--middle bg-surface">
             <div className="border-b-2 border-line bg-panel px-4 py-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                 Tjedni rasporedi
@@ -710,7 +689,10 @@ export function SchedulesPage() {
               {weeklySchedulesQuery.isLoading ? (
                 <div className="grid gap-4 xl:grid-cols-2">
                   {Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className="h-52 animate-pulse border-2 border-line bg-panel" />
+                    <div
+                      key={index}
+                      className="h-52 animate-pulse rounded-[24px] border border-line bg-panel"
+                    />
                   ))}
                 </div>
               ) : weeklySchedulesQuery.isError ? (
@@ -731,7 +713,7 @@ export function SchedulesPage() {
                     return (
                       <article
                         key={weeklySchedule.id}
-                        className="cursor-pointer border-2 border-line bg-white transition hover:border-accent/35 hover:bg-bg"
+                        className="cursor-pointer rounded-[24px] border border-line bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] transition hover:border-accent/35 hover:bg-bg hover:shadow-[0_22px_55px_rgba(15,23,42,0.1)]"
                         role="button"
                         tabIndex={0}
                         onClick={() => openWeeklyEditDrawer(weeklySchedule)}
@@ -770,60 +752,29 @@ export function SchedulesPage() {
             </div>
           </section>
 
-          <section className="border-2 border-line bg-surface">
-            <div className="flex flex-col gap-4 border-b-2 border-line bg-panel px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  Stvarni termini
-                </p>
-                <h3 className="mt-2 text-xl font-bold uppercase">Aktivni tjedan</h3>
+          <section className="schedule-workspace-calendar">
+            {calendarQuery.isLoading ? (
+              <div className="h-[720px] animate-pulse rounded-b-[32px] border border-line bg-panel" />
+            ) : calendarQuery.isError ? (
+              <div className="border-2 border-line bg-signal px-5 py-4 text-sm font-medium text-surface">
+                Kalendar stvarnih termina nije moguće učitati.
               </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  className="ui-pill ui-pill-button ui-pill--accent"
-                  type="button"
-                  onClick={openPracticeCreateDrawer}
-                >
-                  Dodaj posebni termin
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4">
-              {calendarQuery.isLoading ? (
-                <div className="h-[720px] animate-pulse border-2 border-line bg-panel" />
-              ) : calendarQuery.isError ? (
-                <div className="border-2 border-line bg-signal px-5 py-4 text-sm font-medium text-surface">
-                  Kalendar stvarnih termina nije moguće učitati.
-                </div>
-              ) : (
-                <PracticeWeekBoard
-                  items={calendarItems}
-                  weekStartDate={weekStartDate}
-                  selectedItemId={selectedPracticeId}
-                  showToolbar={false}
-                  showSidebar={false}
-                  cardContentMode="coachOnly"
-                  showCategoryName={false}
-                  showScheduleName={false}
-                  showPracticeTypeText={false}
-                  showPracticeTypeLegend
-                  toneMode="practiceType"
-                  fixedStartHour={6}
-                  fixedEndHourExclusive={24}
-                  hourHeight={28}
-                  minimumCardHeight={28}
-                  emptyMessage="U odabranom tjednu nema stvarnih termina za ovu kategoriju."
-                  onWeekStartChange={(nextWeekStartDate) =>
-                    setWeekStartDate(normaliseWeekStartDateKey(nextWeekStartDate))
-                  }
-                  onSelectItem={openPracticeEditDrawer}
-                />
-              )}
-            </div>
+            ) : (
+              <PracticeWeekBoard
+                items={calendarItems}
+                weekStartDate={weekStartDate}
+                selectedItemId={selectedPracticeId}
+                showSidebar={false}
+                compactEventContent
+                emptyMessage="U odabranom tjednu nema stvarnih termina za ovu kategoriju."
+                onWeekStartChange={(nextWeekStartDate) =>
+                  setWeekStartDate(normaliseWeekStartDateKey(nextWeekStartDate))
+                }
+                onSelectItem={openPracticeEditDrawer}
+              />
+            )}
           </section>
-        </>
+        </div>
       )}
 
       <EntityDrawer
@@ -853,18 +804,9 @@ export function SchedulesPage() {
         }
       >
         {drawerMode === "weekly-create" || drawerMode === "weekly-edit" ? (
-          <section className="border-2 border-line bg-surface">
-            <div className="border-b-2 border-line bg-panel px-4 py-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                Predložak kategorije
-              </p>
-              <h3 className="mt-2 text-xl font-bold uppercase">
-                {drawerMode === "weekly-create" ? "Sastavi novi raspored" : "Uredi raspored"}
-              </h3>
-            </div>
-
+          <section className="schedule-drawer-surface">
             <form
-              className="space-y-5 p-4"
+              className="space-y-5"
               onSubmit={(event) => {
                 event.preventDefault();
                 setFeedback(null);
@@ -877,89 +819,78 @@ export function SchedulesPage() {
                 updateWeeklyScheduleMutation.mutate();
               }}
             >
-              <div className="grid gap-4 lg:grid-cols-2">
-                <label className="block">
-                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                    Kategorija
-                  </span>
-                  <select
-                    className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                    value={weeklyForm.categoryId}
+              <fieldset className="schedule-widget">
+                <legend className="schedule-widget-title">Osnovni podaci</legend>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <SingleSelectDropdown
+                    label="Kategorija"
+                    options={categorySelectOptions}
+                    selectedId={weeklyForm.categoryId}
+                    placeholder="Odaberite kategoriju"
                     disabled={drawerMode === "weekly-edit"}
-                    onChange={(event) =>
+                    onChange={(categoryId) =>
                       setWeeklyForm((current) => ({
                         ...current,
-                        categoryId: event.target.value,
+                        categoryId,
                         slots: current.slots.map((slot) => ({
                           ...slot,
-                          coachIds: getDefaultCoachIds(event.target.value, accessibleCategories),
+                          coachIds: getDefaultCoachIds(categoryId, accessibleCategories),
                         })),
                       }))
                     }
-                  >
-                    <option value="" disabled>
-                      Odaberite kategoriju
-                    </option>
-                    {accessibleCategories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                    Naziv rasporeda
-                  </span>
-                  <input
-                    className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                    type="text"
-                    value={weeklyForm.name}
-                    onChange={(event) =>
-                      setWeeklyForm((current) => ({ ...current, name: event.target.value }))
-                    }
-                    placeholder="Npr. U12 ljetni raspored"
                   />
-                </label>
 
-                <label className="block lg:col-span-2">
-                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                    Opis
-                  </span>
-                  <textarea
-                    className="min-h-24 w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                    value={weeklyForm.description}
-                    onChange={(event) =>
-                      setWeeklyForm((current) => ({
-                        ...current,
-                        description: event.target.value,
-                      }))
-                    }
-                    placeholder="Kratki opis kada i zašto koristite ovu varijantu rasporeda."
-                  />
-                </label>
-              </div>
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                      Naziv rasporeda
+                    </span>
+                    <input
+                      className="w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
+                      type="text"
+                      value={weeklyForm.name}
+                      onChange={(event) =>
+                        setWeeklyForm((current) => ({ ...current, name: event.target.value }))
+                      }
+                      placeholder="Npr. U12 ljetni raspored"
+                    />
+                  </label>
 
-              <div className="space-y-4">
+                  <label className="block lg:col-span-2">
+                    <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                      Opis
+                    </span>
+                    <textarea
+                      className="min-h-24 w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
+                      value={weeklyForm.description}
+                      onChange={(event) =>
+                        setWeeklyForm((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }))
+                      }
+                      placeholder="Kratki opis kada i zašto koristite ovu varijantu rasporeda."
+                    />
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset className="schedule-widget">
+                <legend className="schedule-widget-title">Termini</legend>
+                <div className="space-y-4">
                 {weeklyForm.slots.map((slot, index) => (
-                  <section key={slot.id ?? `${slot.dayOfWeek}-${index}`} className="border-2 border-line bg-white">
-                    <div className="flex flex-col gap-3 border-b-2 border-line bg-bg px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <button
-                        className="min-w-0 flex-1 text-left"
-                        type="button"
-                        onClick={() => toggleWeeklySlotExpanded(index)}
-                      >
+                  <section
+                    key={slot.id ?? `${slot.dayOfWeek}-${index}`}
+                    className="overflow-hidden rounded-[22px] border border-line bg-white"
+                  >
+                    <div className="flex flex-col gap-3 border-b border-line bg-bg px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                           Termin {index + 1}
                         </p>
                         <p className="mt-2 text-sm text-muted">
                           {formatPracticeType(slot.practiceType)} · {getDayLabel(slot.dayOfWeek)} · {slot.startTime} - {slot.endTime}
                         </p>
-                        <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.25em] text-muted">
-                          {expandedWeeklySlotIndexes.includes(index) ? "Sakrij detalje" : "Prikaži detalje"}
-                        </p>
-                      </button>
+                      </div>
 
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -982,72 +913,51 @@ export function SchedulesPage() {
 
                     {expandedWeeklySlotIndexes.includes(index) ? (
                       <div className="grid gap-4 p-4 lg:grid-cols-2">
-                        <label className="block">
-                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                            Dan u tjednu
-                          </span>
-                          <select
-                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            value={slot.dayOfWeek}
-                            onChange={(event) =>
-                              setWeeklyForm((current) => ({
-                                ...current,
-                                slots: current.slots.map((entry, slotIndex) =>
-                                  slotIndex === index
-                                    ? { ...entry, dayOfWeek: event.target.value as DayKey }
-                                    : entry,
-                                ),
-                              }))
-                            }
-                          >
-                            {orderedDays.map((day) => (
-                              <option key={day.key} value={day.key}>
-                                {day.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <SingleSelectDropdown
+                          label="Dan u tjednu"
+                          options={daySelectOptions}
+                          selectedId={slot.dayOfWeek}
+                          onChange={(dayOfWeek) =>
+                            setWeeklyForm((current) => ({
+                              ...current,
+                              slots: current.slots.map((entry, slotIndex) =>
+                                slotIndex === index
+                                  ? { ...entry, dayOfWeek: dayOfWeek as DayKey }
+                                  : entry,
+                              ),
+                            }))
+                          }
+                        />
 
-                        <label className="block">
-                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                            Vrsta treninga
-                          </span>
-                          <select
-                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            value={slot.practiceType}
-                            onChange={(event) =>
-                              setWeeklyForm((current) => ({
-                                ...current,
-                                slots: current.slots.map((entry, slotIndex) =>
-                                  slotIndex === index
-                                    ? { ...entry, practiceType: event.target.value as PracticeType }
-                                    : entry,
-                                ),
-                              }))
-                            }
-                          >
-                            {practiceTypeOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <SingleSelectDropdown
+                          label="Vrsta treninga"
+                          options={practiceTypeSelectOptions}
+                          selectedId={slot.practiceType}
+                          onChange={(practiceType) =>
+                            setWeeklyForm((current) => ({
+                              ...current,
+                              slots: current.slots.map((entry, slotIndex) =>
+                                slotIndex === index
+                                  ? { ...entry, practiceType: practiceType as PracticeType }
+                                  : entry,
+                              ),
+                            }))
+                          }
+                        />
 
                         <label className="block">
                           <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                             Početak
                           </span>
-                          <input
-                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            type="time"
+                          <TimePicker
+                            className="w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
                             value={slot.startTime}
-                            onChange={(event) =>
+                            onChange={(value) =>
                               setWeeklyForm((current) => ({
                                 ...current,
                                 slots: current.slots.map((entry, slotIndex) =>
                                   slotIndex === index
-                                    ? { ...entry, startTime: event.target.value }
+                                    ? { ...entry, startTime: value }
                                     : entry,
                                 ),
                               }))
@@ -1059,16 +969,15 @@ export function SchedulesPage() {
                           <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                             Kraj
                           </span>
-                          <input
-                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            type="time"
+                          <TimePicker
+                            className="w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
                             value={slot.endTime}
-                            onChange={(event) =>
+                            onChange={(value) =>
                               setWeeklyForm((current) => ({
                                 ...current,
                                 slots: current.slots.map((entry, slotIndex) =>
                                   slotIndex === index
-                                    ? { ...entry, endTime: event.target.value }
+                                    ? { ...entry, endTime: value }
                                     : entry,
                                 ),
                               }))
@@ -1081,7 +990,7 @@ export function SchedulesPage() {
                             Napomena
                           </span>
                           <textarea
-                            className="min-h-24 w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                            className="min-h-24 w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
                             value={slot.notes}
                             onChange={(event) =>
                               setWeeklyForm((current) => ({
@@ -1126,9 +1035,10 @@ export function SchedulesPage() {
                   </section>
                 ))}
               </div>
+              </fieldset>
 
-              <div className="flex flex-wrap gap-3">
-                  <button
+              <div className="schedule-actions">
+                <button
                   className="ui-pill ui-pill-button ui-pill--panel"
                   type="button"
                   onClick={() => {
@@ -1180,26 +1090,9 @@ export function SchedulesPage() {
           </section>
         ) : (
           <section className="space-y-4">
-            <section className="border-2 border-line bg-surface">
-              <div className="border-b-2 border-line bg-panel px-4 py-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  {drawerMode === "practice-create"
-                    ? "Posebni termin"
-                    : selectedPracticeIsWeeklyOccurrence
-                      ? "Stvarni trening"
-                      : "Posebni termin"}
-                </p>
-                <h3 className="mt-2 text-xl font-bold uppercase">
-                  {drawerMode === "practice-create"
-                    ? "Novi posebni termin"
-                    : selectedPracticeIsWeeklyOccurrence
-                      ? `${selectedPractice?.category.name ?? "Trening"} · stvarna instanca`
-                      : "Uredi posebni termin"}
-                </h3>
-              </div>
-
+            <section className="schedule-drawer-surface">
               <form
-                className="space-y-5 p-4"
+                className="space-y-5"
                 onSubmit={(event) => {
                   event.preventDefault();
                   setFeedback(null);
@@ -1210,6 +1103,7 @@ export function SchedulesPage() {
                   }
 
                   if (selectedPracticeIsWeeklyOccurrence) {
+                    updateOccurrenceMutation.mutate();
                     return;
                   }
 
@@ -1217,158 +1111,63 @@ export function SchedulesPage() {
                 }}
               >
                 {selectedPracticeIsWeeklyOccurrence && selectedPractice ? (
-                  <div className="space-y-4">
-                    <div className="rounded-[24px] border border-line bg-white px-4 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        <span className="ui-pill ui-pill--outline">
-                          {formatPracticeType(selectedPractice.practiceType)}
-                        </span>
-                        <span className="ui-pill ui-pill--panel">
-                          {selectedPractice.weeklyScheduleName ?? "Aktivirani raspored"}
-                        </span>
-                        <span className="ui-pill ui-pill--outline">
-                          {formatDate(selectedPractice.occurrenceDate)}
-                        </span>
-                        <span className="ui-pill ui-pill--outline">
-                          {formatTimeRange(selectedPractice.startTime, selectedPractice.endTime)}
-                        </span>
-                        {selectedPractice.isCancelled ? (
-                          <span className="ui-pill ui-pill--signal">Otkazano</span>
-                        ) : (
-                          <span className="ui-pill ui-pill--success">Aktivno</span>
-                        )}
+                  <>
+                    <fieldset className="schedule-widget">
+                      <legend className="schedule-widget-title">Detalji treninga</legend>
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            Početak
+                          </span>
+                          <TimePicker
+                            className="w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
+                            value={practiceForm.startTime}
+                            onChange={(value) =>
+                              setPracticeForm((current) => ({
+                                ...current,
+                                startTime: value,
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            Kraj
+                          </span>
+                          <TimePicker
+                            className="w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
+                            value={practiceForm.endTime}
+                            onChange={(value) =>
+                              setPracticeForm((current) => ({
+                                ...current,
+                                endTime: value,
+                              }))
+                            }
+                          />
+                        </label>
+
+                        <label className="block lg:col-span-2">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            Opis
+                          </span>
+                          <textarea
+                            className="min-h-24 w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
+                            value={practiceForm.notes}
+                            onChange={(event) =>
+                              setPracticeForm((current) => ({
+                                ...current,
+                                notes: event.target.value,
+                              }))
+                            }
+                            placeholder="Opis ili napomena za ovaj trening."
+                          />
+                        </label>
                       </div>
-                      {selectedPractice.notes ? (
-                        <p className="mt-4 text-sm leading-7 text-muted">{selectedPractice.notes}</p>
-                      ) : null}
-                      <p className="mt-4 text-sm text-muted">
-                        {selectedPractice.coaches.length > 0
-                          ? selectedPractice.coaches
-                              .map(
-                                (assignment) =>
-                                  `${assignment.coach.user.firstName} ${assignment.coach.user.lastName}`,
-                              )
-                              .join(", ")
-                          : "Trener nije dodijeljen."}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Kategorija
-                      </span>
-                      <select
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        value={practiceForm.categoryId}
-                        onChange={(event) =>
-                          setPracticeForm((current) => ({
-                            ...current,
-                            categoryId: event.target.value,
-                            coachIds: getDefaultCoachIds(event.target.value, accessibleCategories),
-                          }))
-                        }
-                      >
-                        <option value="" disabled>
-                          Odaberite kategoriju
-                        </option>
-                        {accessibleCategories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    </fieldset>
 
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Datum
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="date"
-                        value={practiceForm.date}
-                        onChange={(event) =>
-                          setPracticeForm((current) => ({ ...current, date: event.target.value }))
-                        }
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Vrsta treninga
-                      </span>
-                      <select
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        value={practiceForm.practiceType}
-                        onChange={(event) =>
-                          setPracticeForm((current) => ({
-                            ...current,
-                            practiceType: event.target.value as PracticeType,
-                          }))
-                        }
-                      >
-                        {practiceTypeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Početak
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="time"
-                        value={practiceForm.startTime}
-                        onChange={(event) =>
-                          setPracticeForm((current) => ({
-                            ...current,
-                            startTime: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Kraj
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="time"
-                        value={practiceForm.endTime}
-                        onChange={(event) =>
-                          setPracticeForm((current) => ({
-                            ...current,
-                            endTime: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-
-                    <label className="block lg:col-span-2">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Napomena
-                      </span>
-                      <textarea
-                        className="min-h-24 w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        value={practiceForm.notes}
-                        onChange={(event) =>
-                          setPracticeForm((current) => ({
-                            ...current,
-                            notes: event.target.value,
-                          }))
-                        }
-                        placeholder="Opcionalna napomena za posebni termin."
-                      />
-                    </label>
-
-                    <div className="lg:col-span-2">
+                    <fieldset className="schedule-widget">
+                      <legend className="schedule-widget-title">Treneri</legend>
                       <SearchMultiSelectPanel
                         title="Treneri termina"
                         searchPlaceholder="Pretraga trenera"
@@ -1384,51 +1183,163 @@ export function SchedulesPage() {
                           }))
                         }
                       />
-                    </div>
-                  </div>
+                    </fieldset>
+                  </>
+                ) : (
+                  <>
+                    <fieldset className="schedule-widget">
+                      <legend className="schedule-widget-title">Podaci o terminu</legend>
+                      <div className="grid gap-4 lg:grid-cols-2">
+                    <SingleSelectDropdown
+                      label="Kategorija"
+                      options={specialPracticeCategorySelectOptions}
+                      selectedId={practiceForm.categoryId}
+                      placeholder="Odaberite kategoriju"
+                      onChange={(categoryId) =>
+                        setPracticeForm((current) => ({
+                          ...current,
+                          categoryId,
+                          coachIds: getDefaultCoachIds(categoryId, accessibleCategories),
+                        }))
+                      }
+                    />
+
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Datum
+                      </span>
+                      <DatePicker
+                        className="w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
+                        value={practiceForm.date}
+                        onChange={(value) =>
+                          setPracticeForm((current) => ({ ...current, date: value }))
+                        }
+                      />
+                    </label>
+
+                    <SingleSelectDropdown
+                      label="Vrsta treninga"
+                      options={practiceTypeSelectOptions}
+                      selectedId={practiceForm.practiceType}
+                      onChange={(practiceType) =>
+                        setPracticeForm((current) => ({
+                          ...current,
+                          practiceType: practiceType as PracticeType,
+                        }))
+                      }
+                    />
+
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Početak
+                      </span>
+                      <TimePicker
+                        className="w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
+                        value={practiceForm.startTime}
+                        onChange={(value) =>
+                          setPracticeForm((current) => ({
+                            ...current,
+                            startTime: value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Kraj
+                      </span>
+                      <TimePicker
+                        className="w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
+                        value={practiceForm.endTime}
+                        onChange={(value) =>
+                          setPracticeForm((current) => ({
+                            ...current,
+                            endTime: value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <label className="block lg:col-span-2">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Napomena
+                      </span>
+                      <textarea
+                        className="min-h-24 w-full rounded-[18px] border border-line bg-surface px-4 py-3 outline-none transition focus:bg-bg"
+                        value={practiceForm.notes}
+                        onChange={(event) =>
+                          setPracticeForm((current) => ({
+                            ...current,
+                            notes: event.target.value,
+                          }))
+                        }
+                        placeholder="Opcionalna napomena za posebni termin."
+                      />
+                    </label>
+
+                      </div>
+                    </fieldset>
+
+                    <fieldset className="schedule-widget">
+                      <legend className="schedule-widget-title">Treneri</legend>
+                      <SearchMultiSelectPanel
+                        title="Treneri termina"
+                        searchPlaceholder="Pretraga trenera"
+                        noResultsLabel="Nema trenera koji odgovaraju pretrazi."
+                        items={coachSearchItems}
+                        selectedIds={practiceForm.coachIds}
+                        onToggle={(coachId) =>
+                          setPracticeForm((current) => ({
+                            ...current,
+                            coachIds: current.coachIds.includes(coachId)
+                              ? current.coachIds.filter((id) => id !== coachId)
+                              : [...current.coachIds, coachId],
+                          }))
+                        }
+                      />
+                    </fieldset>
+                  </>
                 )}
 
-                {!selectedPracticeIsWeeklyOccurrence ? (
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      className="ui-pill ui-pill-button ui-pill--accent"
-                      type="submit"
-                      disabled={isBusy}
-                    >
-                      {drawerMode === "practice-create"
-                        ? createPracticeMutation.isPending
-                          ? "Kreiranje..."
-                          : "Kreiraj termin"
+                <div className="schedule-actions">
+                  <button
+                    className="ui-pill ui-pill-button ui-pill--accent"
+                    type="submit"
+                    disabled={isBusy}
+                  >
+                    {drawerMode === "practice-create"
+                      ? createPracticeMutation.isPending
+                        ? "Kreiranje..."
+                        : "Kreiraj termin"
+                      : selectedPracticeIsWeeklyOccurrence
+                        ? updateOccurrenceMutation.isPending
+                          ? "Spremanje..."
+                          : "Spremi detalje"
                         : updatePracticeMutation.isPending
                           ? "Spremanje..."
                           : "Spremi termin"}
+                  </button>
+                  {drawerMode === "practice-edit" && !selectedPracticeIsWeeklyOccurrence ? (
+                    <button
+                      className="ui-pill ui-pill-button ui-pill--signal"
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => {
+                        setFeedback(null);
+                        deletePracticeMutation.mutate();
+                      }}
+                    >
+                      {deletePracticeMutation.isPending ? "Brisanje..." : "Obriši termin"}
                     </button>
-                    {drawerMode === "practice-edit" ? (
-                      <button
-                        className="ui-pill ui-pill-button ui-pill--signal"
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => {
-                          setFeedback(null);
-                          deletePracticeMutation.mutate();
-                        }}
-                      >
-                        {deletePracticeMutation.isPending ? "Brisanje..." : "Obriši termin"}
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </form>
             </section>
 
-            {drawerMode === "practice-edit" && selectedPractice ? (
-              <section className="border-2 border-line bg-surface">
-                <div className="border-b-2 border-line bg-panel px-4 py-4">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                    Dolazak i status
-                  </p>
-                  <h3 className="mt-2 text-xl font-bold uppercase">Prisutnost igrača</h3>
-                </div>
+            {drawerMode === "practice-edit" && selectedPractice && canShowAttendanceWidget ? (
+              <fieldset className="schedule-widget">
+                <legend className="schedule-widget-title">Prisutnost igrača</legend>
 
                 <div className="space-y-5 p-4">
                   <div className="flex flex-wrap gap-2">
@@ -1554,7 +1465,7 @@ export function SchedulesPage() {
                     </>
                   )}
                 </div>
-              </section>
+              </fieldset>
             ) : null}
           </section>
         )}
@@ -1625,7 +1536,7 @@ function createSpecialPracticeForm(
   categories: CategoryRecord[],
 ): SpecialPracticeFormState {
   return {
-    categoryId: practice.category.id,
+    categoryId: practice.category.id ?? allCategoriesOptionId,
     date: practice.startTime.slice(0, 10),
     practiceType: practice.practiceType,
     startTime: toTimeInputValue(practice.startTime),
@@ -1634,7 +1545,7 @@ function createSpecialPracticeForm(
     coachIds:
       practice.coaches.length > 0
         ? practice.coaches.map((assignment) => assignment.coachId)
-        : getDefaultCoachIds(practice.category.id, categories),
+        : getDefaultCoachIds(practice.category.id ?? allCategoriesOptionId, categories),
   };
 }
 
@@ -1657,8 +1568,22 @@ function buildWeeklySchedulePayload(form: WeeklyScheduleFormState) {
 
 function buildSpecialPracticePayload(form: SpecialPracticeFormState) {
   return {
-    categoryId: form.categoryId,
+    categoryId: getSpecialPracticePayloadCategoryId(form.categoryId),
     practiceType: form.practiceType,
+    startTime: new Date(`${form.date}T${form.startTime}`).toISOString(),
+    endTime: new Date(`${form.date}T${form.endTime}`).toISOString(),
+    notes: form.notes || undefined,
+    coachIds: form.coachIds,
+  };
+}
+
+function getSpecialPracticePayloadCategoryId(categoryId: string) {
+  return categoryId === allCategoriesOptionId ? null : categoryId;
+}
+
+function buildOccurrencePayload(form: SpecialPracticeFormState) {
+  return {
+    occurrenceDate: form.date,
     startTime: new Date(`${form.date}T${form.startTime}`).toISOString(),
     endTime: new Date(`${form.date}T${form.endTime}`).toISOString(),
     notes: form.notes || undefined,
@@ -1688,6 +1613,10 @@ function getDayOffset(dayOfWeek: DayKey) {
 }
 
 function getDefaultCoachIds(categoryId: string, categories: CategoryRecord[]) {
+  if (categoryId === allCategoriesOptionId) {
+    return [];
+  }
+
   const category = categories.find((entry) => entry.id === categoryId);
   return category?.coaches.map((assignment) => assignment.coachId) ?? [];
 }
@@ -1712,6 +1641,22 @@ function getCoachSearchMeta(coach: CoachRecord) {
   return metaParts.join(" · ") || "Trener";
 }
 
+function filterBySelectedCategories<
+  TItem extends {
+    category: {
+      id: string | null;
+    };
+  },
+>(items: TItem[], selectedCategoryIds: string[]) {
+  if (selectedCategoryIds.length === 0) {
+    return items;
+  }
+
+  return items.filter(
+    (item) => item.category.id === null || selectedCategoryIds.includes(item.category.id),
+  );
+}
+
 function formatPracticeType(practiceType: PracticeType) {
   return practiceType === "DRYLAND" ? "Suhi trening" : "Trening u vodi";
 }
@@ -1722,40 +1667,6 @@ function getCurrentWeekStartDateKey() {
       new Date().getFullYear(),
       `${new Date().getMonth() + 1}`.padStart(2, "0"),
       `${new Date().getDate()}`.padStart(2, "0"),
-    ].join("-"),
-  );
-}
-
-function formatWeekRangeLabel(dateKey: string) {
-  const start = new Date(`${dateKey}T12:00:00`);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-
-  const formatter = new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "short",
-  });
-
-  return `${formatter.format(start)} - ${formatter.format(end)}`;
-}
-
-function formatWeekMonthLabel(dateKey: string) {
-  const start = new Date(`${dateKey}T12:00:00`);
-
-  return new Intl.DateTimeFormat("hr-HR", {
-    month: "long",
-    year: "numeric",
-  }).format(start);
-}
-
-function shiftWeekStartDateKey(dateKey: string, offsetDays: number) {
-  const current = new Date(`${dateKey}T12:00:00`);
-  current.setDate(current.getDate() + offsetDays);
-  return normaliseWeekStartDateKey(
-    [
-      current.getFullYear(),
-      `${current.getMonth() + 1}`.padStart(2, "0"),
-      `${current.getDate()}`.padStart(2, "0"),
     ].join("-"),
   );
 }
@@ -1807,8 +1718,8 @@ function AttendanceRoster({
   onToggle: (playerId: string) => void;
 }) {
   return (
-    <div className={`border-2 border-line bg-white ${disabled ? "opacity-75" : ""}`}>
-      <div className="flex flex-col gap-3 border-b-2 border-line bg-bg px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className={`overflow-hidden rounded-[24px] border border-line bg-white ${disabled ? "opacity-75" : ""}`}>
+      <div className="flex flex-col gap-3 border-b border-line bg-bg px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
             Popis igrača kategorije
@@ -1861,12 +1772,12 @@ function AttendanceRoster({
                 return (
                   <label
                     key={player.id}
-                    className={`flex cursor-pointer items-start gap-3 border-2 border-line px-3 py-3 ${
+                    className={`flex cursor-pointer items-center gap-3 rounded-[20px] border border-line px-3 py-3 ${
                       isChecked ? "bg-panel" : "bg-white"
                     } ${disabled ? "cursor-not-allowed" : ""}`}
                   >
                     <input
-                      className="mt-1 h-4 w-4 accent-accent"
+                      className="h-4 w-4 accent-accent"
                       type="checkbox"
                       checked={isChecked}
                       disabled={disabled}
@@ -1875,9 +1786,6 @@ function AttendanceRoster({
                     <span className="min-w-0">
                       <span className="block text-sm font-bold uppercase">
                         {player.user.firstName} {player.user.lastName}
-                      </span>
-                      <span className="mt-1 block text-[11px] uppercase tracking-[0.2em] text-muted">
-                        {formatDate(player.dateOfBirth)} · OIB {player.oib}
                       </span>
                     </span>
                   </label>

@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
-import { type ChangeEvent, useDeferredValue, useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/auth-context";
 import { api } from "../core/api";
@@ -8,14 +8,20 @@ import { formatDate, toDateInputValue } from "../core/date";
 import type {
   AccountStatus,
   CategoryRecord,
+  CredentialResetResult,
   PaginatedResponse,
   ParentSummary,
   ParentRecord,
   PlayerRecord,
 } from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
+import { CategoryFilterDropdown } from "../ui/category-filter-chips";
+import { DatePicker } from "../ui/date-picker";
+import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
+import { TableLoadingRows } from "../ui/table-loading-rows";
+import { useDebouncedValue } from "../ui/use-debounced-value";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -25,6 +31,7 @@ interface FeedbackState {
 interface PlayerFormState {
   firstName: string;
   lastName: string;
+  email: string;
   phone: string;
   dateOfBirth: string;
   oib: string;
@@ -34,6 +41,7 @@ interface PlayerFormState {
   parentIds: string[];
   primaryParentId: string;
   profileFile: File | null;
+  removeProfileImage: boolean;
 }
 
 interface RenewalState {
@@ -41,9 +49,17 @@ interface RenewalState {
   nextDate: string;
 }
 
+interface QuickParentFormState {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+}
+
 const emptyPlayerForm: PlayerFormState = {
   firstName: "",
   lastName: "",
+  email: "",
   phone: "",
   dateOfBirth: "",
   oib: "",
@@ -53,6 +69,14 @@ const emptyPlayerForm: PlayerFormState = {
   parentIds: [],
   primaryParentId: "",
   profileFile: null,
+  removeProfileImage: false,
+};
+
+const emptyQuickParentForm: QuickParentFormState = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
 };
 
 const managementPageSize = 25;
@@ -73,19 +97,25 @@ export function PlayersPage() {
   const [playersPage, setPlayersPage] = useState(1);
   const [playerSearch, setPlayerSearch] = useState("");
   const [parentSearch, setParentSearch] = useState("");
+  const [selectedCategoryFilterIds, setSelectedCategoryFilterIds] = useState<string[]>([]);
   const [selectedParentOptions, setSelectedParentOptions] = useState<ParentSummary[]>([]);
-  const deferredPlayerSearch = useDeferredValue(playerSearch.trim());
-  const deferredParentSearch = useDeferredValue(parentSearch.trim());
+  const [isQuickParentFormOpen, setIsQuickParentFormOpen] = useState(false);
+  const [quickParentForm, setQuickParentForm] =
+    useState<QuickParentFormState>(emptyQuickParentForm);
+  const debouncedPlayerSearch = useDebouncedValue(playerSearch.trim());
+  const debouncedParentSearch = useDebouncedValue(parentSearch.trim());
 
   const playersQuery = useQuery({
-    queryKey: ["players", "management", playersPage, deferredPlayerSearch],
+    queryKey: ["players", "management", playersPage, debouncedPlayerSearch, selectedCategoryFilterIds],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const response = await api.get<PaginatedResponse<PlayerRecord>>("/players", {
         params: {
           page: playersPage,
           pageSize: managementPageSize,
-          search: deferredPlayerSearch || undefined,
+          search: debouncedPlayerSearch || undefined,
+          categoryIds:
+            selectedCategoryFilterIds.length > 0 ? selectedCategoryFilterIds.join(",") : undefined,
         },
       });
       return response.data;
@@ -103,14 +133,14 @@ export function PlayersPage() {
   });
 
   const parentsQuery = useQuery({
-    queryKey: ["parents", "player-options", deferredParentSearch],
-    enabled: isAdmin && deferredParentSearch.length > 0,
+    queryKey: ["parents", "player-options", debouncedParentSearch],
+    enabled: isAdmin && debouncedParentSearch.length > 0,
     queryFn: async () => {
       const response = await api.get<PaginatedResponse<ParentRecord>>("/parents", {
         params: {
           page: 1,
           pageSize: optionPageSize,
-          search: deferredParentSearch,
+          search: debouncedParentSearch,
         },
       });
       return response.data.items;
@@ -189,7 +219,18 @@ export function PlayersPage() {
     setForm(emptyPlayerForm);
     setSelectedParentOptions([]);
     setParentSearch("");
+    setIsQuickParentFormOpen(false);
+    setQuickParentForm(emptyQuickParentForm);
     setIsDrawerOpen(true);
+  };
+
+  const toggleCategoryFilter = (categoryId: string) => {
+    setSelectedCategoryFilterIds((current) =>
+      current.includes(categoryId)
+        ? current.filter((selectedCategoryId) => selectedCategoryId !== categoryId)
+        : [...current, categoryId],
+    );
+    setPlayersPage(1);
   };
 
   const openEditDrawer = (player: PlayerRecord) => {
@@ -199,11 +240,15 @@ export function PlayersPage() {
     setForm(createFormFromPlayer(player));
     setSelectedParentOptions(player.parents.map((assignment) => assignment.parent));
     setParentSearch("");
+    setIsQuickParentFormOpen(false);
+    setQuickParentForm(emptyQuickParentForm);
     setIsDrawerOpen(true);
   };
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      ensurePlayerFormHasParent(form);
+
       const response = await api.post<PlayerRecord>("/players", buildPlayerFormData(form), {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -227,7 +272,61 @@ export function PlayersPage() {
     onError: (error: AxiosError<{ message?: string }>) => {
       setFeedback({
         tone: "error",
-        message: error.response?.data?.message ?? "Kreiranje igrača nije uspjelo.",
+        message: getMutationErrorMessage(error, "Kreiranje igrača nije uspjelo."),
+      });
+    },
+  });
+
+  const quickParentMutation = useMutation({
+    mutationFn: async () => {
+      const formData = new FormData();
+      formData.append("firstName", quickParentForm.firstName);
+      formData.append("lastName", quickParentForm.lastName);
+      formData.append("email", quickParentForm.email);
+      formData.append("phone", quickParentForm.phone);
+      formData.append("playerIds", JSON.stringify(selectedPlayer ? [selectedPlayer.id] : []));
+      formData.append("primaryPlayerIds", JSON.stringify([]));
+
+      const response = await api.post<ParentRecord>("/parents", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      return response.data;
+    },
+    onSuccess: (createdParent) => {
+      setSelectedParentOptions((currentOptions) =>
+        currentOptions.some((parent) => parent.id === createdParent.id)
+          ? currentOptions
+          : [...currentOptions, createdParent],
+      );
+      setForm((current) => {
+        const nextParentIds = current.parentIds.includes(createdParent.id)
+          ? current.parentIds
+          : [...current.parentIds, createdParent.id];
+
+        return {
+          ...current,
+          parentIds: nextParentIds,
+          primaryParentId: current.primaryParentId || createdParent.id,
+        };
+      });
+      setQuickParentForm(emptyQuickParentForm);
+      setIsQuickParentFormOpen(false);
+      setParentSearch("");
+      setFeedback({
+        tone: "success",
+        message: `Roditelj ${createdParent.user.firstName} ${createdParent.user.lastName} je dodan i odabran.`,
+      });
+      void invalidatePlayerQueries(queryClient, isAdmin);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message:
+          error.response?.data?.message ??
+          "Brzo dodavanje roditelja nije uspjelo.",
       });
     },
   });
@@ -237,6 +336,8 @@ export function PlayersPage() {
       if (!selectedPlayer) {
         throw new Error("Nijedan igrač nije odabran.");
       }
+
+      ensurePlayerFormHasParent(form);
 
       const response = await api.patch<PlayerRecord>(
         `/players/${selectedPlayer.id}`,
@@ -264,7 +365,7 @@ export function PlayersPage() {
     onError: (error: AxiosError<{ message?: string }>) => {
       setFeedback({
         tone: "error",
-        message: error.response?.data?.message ?? "Ažuriranje igrača nije uspjelo.",
+        message: getMutationErrorMessage(error, "Ažuriranje igrača nije uspjelo."),
       });
     },
   });
@@ -357,19 +458,43 @@ export function PlayersPage() {
     },
   });
 
-  const activeProfileUrl = profilePreviewUrl ?? selectedPlayer?.user.profileImageUrl ?? null;
+  const resendCredentialsMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPlayer) {
+        throw new Error("Nijedan igrač nije odabran.");
+      }
+
+      const response = await api.post<CredentialResetResult>(
+        `/players/${selectedPlayer.id}/resend-credentials`,
+      );
+
+      return response.data;
+    },
+    onSuccess: (result) => {
+      setFeedback({
+        tone: "success",
+        message: result.message,
+      });
+      void invalidatePlayerQueries(queryClient, isAdmin);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message:
+          error.response?.data?.message ??
+          "Slanje pristupnih podataka igrača nije uspjelo.",
+      });
+    },
+  });
+
+  const activeProfileUrl = form.removeProfileImage
+    ? null
+    : profilePreviewUrl ?? selectedPlayer?.user.profileImageUrl ?? null;
+  const isPlayersRefetching = playersQuery.isFetching && !playersQuery.isLoading;
 
   return (
     <section className="space-y-6">
-      {feedback ? (
-        <div
-          className={`border-2 border-line px-5 py-4 text-sm font-medium ${
-            feedback.tone === "success" ? "bg-success text-surface" : "bg-signal text-surface"
-          }`}
-        >
-          {feedback.message}
-        </div>
-      ) : null}
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
 
       {playersQuery.isLoading || categoriesQuery.isLoading ? (
         <div className="space-y-4">
@@ -381,7 +506,7 @@ export function PlayersPage() {
         </div>
       ) : (
         <>
-          <section className="border-2 border-line bg-surface">
+          <section className="admin-table-card border-2 border-line bg-surface">
             <div className="flex flex-col gap-4 border-b-2 border-line bg-panel px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
@@ -398,40 +523,50 @@ export function PlayersPage() {
               </button>
             </div>
 
-            <div className="border-b-2 border-line bg-white px-4 py-4">
-              <label className="block max-w-xl">
+            <div className="relative z-30 grid gap-4 border-b-2 border-line bg-white px-4 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
+              <label className="block min-w-0">
                 <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.25em] text-muted">
                   Pretraga
                 </span>
                 <input
-                  className="w-full border-2 border-line bg-surface px-4 py-3 outline-none placeholder:text-muted focus:bg-bg"
+                  className="h-[52px] w-full rounded-[18px] border border-line bg-surface px-4 outline-none placeholder:text-muted focus:bg-bg"
                   type="search"
                   value={playerSearch}
                   onChange={(event) => {
                     setPlayerSearch(event.target.value);
                     setPlayersPage(1);
                   }}
-                  placeholder="Ime, OIB, korisničko ime, roditelj ili kategorija"
+                  placeholder="Ime i prezime"
                 />
               </label>
+              <CategoryFilterDropdown
+                categories={categories}
+                selectedIds={selectedCategoryFilterIds}
+                onToggle={toggleCategoryFilter}
+                onClear={() => {
+                  setSelectedCategoryFilterIds([]);
+                  setPlayersPage(1);
+                }}
+              />
             </div>
 
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse">
                 <thead className="bg-bg">
-                  <tr className="border-b-2 border-line text-left text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                  <tr className="border-b-2 border-line text-center text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                     <th className="px-4 py-4">Igrač</th>
                     <th className="px-4 py-4">Kategorije</th>
-                    <th className="px-4 py-4">Status</th>
                     <th className="px-4 py-4">Članstvo</th>
-                    <th className="px-4 py-4">Radnje</th>
+                    <th className="px-4 py-4">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {players.map((player) => {
+                  {isPlayersRefetching ? (
+                    <TableLoadingRows columns={4} />
+                  ) : (
+                  players.map((player) => {
                     const isSelected =
                       isDrawerOpen && selectedPlayerId === player.id && formMode === "edit";
-                    const canSuspend = player.user.accountStatus !== "SUSPENDED";
 
                     return (
                       <tr
@@ -441,66 +576,30 @@ export function PlayersPage() {
                         }`}
                         onClick={() => openEditDrawer(player)}
                       >
-                        <td className="px-4 py-4 align-top">
+                        <td className="px-4 py-4 align-middle text-center">
                           <p className="text-sm font-bold uppercase">
                             {player.user.firstName} {player.user.lastName}
                           </p>
-                          <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-muted">
-                            OIB {player.oib}
-                          </p>
                         </td>
-                        <td className="px-4 py-4 align-top text-sm">
+                        <td className="px-4 py-4 align-middle text-center text-sm">
                           {player.categories.length > 0
                             ? player.categories
                                 .map((assignment) => assignment.category.name)
                                 .join(", ")
                             : "Bez kategorije"}
                         </td>
-                        <td className="px-4 py-4 align-top">
-                          <StatusChip status={player.user.accountStatus} />
-                        </td>
-                        <td className="px-4 py-4 align-top text-sm">
+                        <td className="px-4 py-4 align-middle text-center text-sm">
                           {player.membershipExpiresAt
                             ? formatDate(player.membershipExpiresAt)
                             : "Nije postavljeno"}
                         </td>
-                        <td className="px-4 py-4 align-top">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              className="ui-pill ui-pill-button ui-pill--outline"
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setRenewalState({
-                                  playerId: player.id,
-                                  nextDate: calculateNextMembershipDate(
-                                    player.membershipExpiresAt,
-                                  ),
-                                });
-                              }}
-                            >
-                              Obnovi članstvo
-                            </button>
-                            <button
-                              className={`ui-pill ui-pill-button ${
-                                canSuspend ? "ui-pill--signal" : "ui-pill--success"
-                              }`}
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                statusMutation.mutate({
-                                  userId: player.user.id,
-                                  accountStatus: canSuspend ? "SUSPENDED" : "ACTIVE",
-                                });
-                              }}
-                            >
-                              {canSuspend ? "Suspendiraj" : "Ponovno aktiviraj"}
-                            </button>
-                          </div>
+                        <td className="px-4 py-4 align-middle text-center">
+                          <StatusChip status={player.user.accountStatus} />
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -528,22 +627,9 @@ export function PlayersPage() {
                   : "Pregled igrača"
             }
           >
-            <section className="border-2 border-line bg-surface">
-              <div className="border-b-2 border-line bg-panel px-4 py-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  {formMode === "create" ? "Novi igrač" : "Uredi igrača"}
-                </p>
-                <h3 className="mt-2 text-xl font-bold uppercase">
-                  {formMode === "create"
-                    ? "Postavljanje novog igrača"
-                    : selectedPlayer
-                      ? `${selectedPlayer.user.firstName} ${selectedPlayer.user.lastName}`
-                      : "Uređivanje igrača"}
-                </h3>
-              </div>
-
+            <section className="player-drawer">
               <form
-                className="space-y-5 p-4"
+                className="player-drawer-form"
                 onSubmit={(event) => {
                   event.preventDefault();
                   setFeedback(null);
@@ -556,27 +642,8 @@ export function PlayersPage() {
                   updateMutation.mutate();
                 }}
               >
-                {selectedPlayer && formMode === "edit" ? (
-                  <div className="flex flex-wrap gap-2">
-                    <StatusChip status={selectedPlayer.user.accountStatus} />
-                    <span
-                      className={`ui-pill ${
-                        selectedPlayer.gdprConsent ? "ui-pill--success" : "ui-pill--warning"
-                      }`}
-                    >
-                      {selectedPlayer.gdprConsent ? "GDPR potvrđen" : "GDPR nedostaje"}
-                    </span>
-                    <span className="ui-pill ui-pill--outline">
-                      Članstvo{" "}
-                      <strong>
-                        {selectedPlayer.membershipExpiresAt
-                          ? formatDate(selectedPlayer.membershipExpiresAt)
-                          : "nije postavljeno"}
-                      </strong>
-                    </span>
-                  </div>
-                ) : null}
-
+                <fieldset className="player-widget">
+                  <legend className="player-widget-title">Osnovni podaci</legend>
                 <div className="grid gap-5 lg:grid-cols-2">
                   <label className="block">
                     <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
@@ -612,12 +679,11 @@ export function PlayersPage() {
                     <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                       Datum rođenja
                     </span>
-                    <input
+                    <DatePicker
                       className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                      type="date"
                       value={form.dateOfBirth}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, dateOfBirth: event.target.value }))
+                      onChange={(value) =>
+                        setForm((current) => ({ ...current, dateOfBirth: value }))
                       }
                       required
                     />
@@ -654,71 +720,122 @@ export function PlayersPage() {
 
                   <label className="block">
                     <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                      Članstvo vrijedi do
+                      E-pošta igrača
                     </span>
                     <input
                       className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                      type="date"
-                      value={form.membershipExpiresAt}
+                      type="email"
+                      value={form.email}
                       onChange={(event) =>
+                        setForm((current) => ({ ...current, email: event.target.value }))
+                      }
+                      placeholder="Za seniore ili veterane bez roditeljskog računa"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                      Članstvo vrijedi do
+                    </span>
+                    <DatePicker
+                      className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                      value={form.membershipExpiresAt}
+                      onChange={(value) =>
                         setForm((current) => ({
                           ...current,
-                          membershipExpiresAt: event.target.value,
+                          membershipExpiresAt: value,
                         }))
                       }
                     />
                   </label>
                 </div>
+                </fieldset>
 
-                <label className="flex items-center gap-3 border-2 border-line bg-white px-4 py-4">
-                  <input
-                    className="h-4 w-4 accent-accent"
-                    type="checkbox"
-                    checked={form.gdprConsent}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        gdprConsent: event.target.checked,
-                      }))
-                    }
-                  />
-                  <span className="text-sm font-bold uppercase">GDPR suglasnost potvrđena</span>
-                </label>
+                <fieldset className="player-widget">
+                  <legend className="player-widget-title">Suglasnosti</legend>
+                  <label className="player-check-card">
+                    <input
+                      className="mt-1 h-4 w-4 accent-accent"
+                      type="checkbox"
+                      checked={form.gdprConsent}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          gdprConsent: event.target.checked,
+                        }))
+                      }
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold uppercase">
+                        GDPR suglasnost potvrđena
+                      </span>
+                      <span className="mt-2 block text-sm leading-7 text-muted">
+                        Označite kada je obrada podataka i fotografija potvrđena.
+                      </span>
+                    </span>
+                  </label>
+                </fieldset>
 
-                <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-                  <div className="space-y-3">
+                <fieldset className="player-widget player-widget--wide">
+                  <legend className="player-widget-title">Profil i dodjele</legend>
+                <div className="player-profile-grid">
+                  <div className="player-profile-card">
                     <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                       Pregled profila
                     </p>
                     {activeProfileUrl ? (
                       <img
-                        className="h-44 w-full border-2 border-line object-cover"
+                        className="player-profile-preview"
                         src={activeProfileUrl}
                         alt={form.firstName || "Pregled profila igrača"}
                       />
                     ) : (
-                      <div className="flex h-44 items-center justify-center border-2 border-dashed border-line bg-bg px-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-muted">
+                      <div className="player-profile-placeholder">
                         Učitaj profilnu fotografiju
                       </div>
                     )}
                     <input
-                      className="block w-full border-2 border-line bg-white px-3 py-3 text-sm"
+                      id="player-profile-upload"
+                      className="player-profile-input"
                       type="file"
                       accept="image/*"
                       onChange={(event: ChangeEvent<HTMLInputElement>) => {
                         const nextFile = event.target.files?.[0] ?? null;
-                        setForm((current) => ({ ...current, profileFile: nextFile }));
+                        setForm((current) => ({
+                          ...current,
+                          profileFile: nextFile,
+                          removeProfileImage: false,
+                        }));
                       }}
                     />
+                    <div className="player-profile-actions">
+                      <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="player-profile-upload">
+                        {activeProfileUrl ? "Promijeni fotografiju" : "Odaberi fotografiju"}
+                      </label>
+                      {activeProfileUrl || form.profileFile ? (
+                        <button
+                          className="ui-pill ui-pill-button ui-pill--outline"
+                          type="button"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              profileFile: null,
+                              removeProfileImage: Boolean(selectedPlayer?.user.profileImageUrl),
+                            }))
+                          }
+                        >
+                          Ukloni fotografiju
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="space-y-5">
+                  <div className="player-assignment-stack">
                     <MultiSelectPanel
                       title="Dodjela kategorija"
                       items={categories.map((category) => ({
                         id: category.id,
                         label: category.name,
-                        meta: formatDate(category.endDateOfBirth),
                       }))}
                       selectedIds={form.categoryIds}
                       onToggle={(id) => {
@@ -730,114 +847,167 @@ export function PlayersPage() {
                         }));
                       }}
                     />
-
-                    {isAdmin ? (
-                      <div className="space-y-5">
-                        <SearchMultiSelectPanel
-                          title="Povezani roditelji"
-                          items={parentSearchItems}
-                          selectedItems={selectedParentItems}
-                          searchValue={parentSearch}
-                          isSearching={parentsQuery.isFetching}
-                          onSearchChange={setParentSearch}
-                          searchPlaceholder="Pretraga roditelja"
-                          noResultsLabel="Nema roditelja koji odgovaraju pretrazi."
-                          selectedIds={form.parentIds}
-                          onToggle={(id) => {
-                            setForm((current) => {
-                              const nextParentIds = current.parentIds.includes(id)
-                                ? current.parentIds.filter((parentId) => parentId !== id)
-                                : [...current.parentIds, id];
-                              const selectedParent = parents.find((parent) => parent.id === id);
-
-                              setSelectedParentOptions((currentOptions) =>
-                                current.parentIds.includes(id)
-                                  ? currentOptions.filter((parent) => parent.id !== id)
-                                  : selectedParent &&
-                                      !currentOptions.some((parent) => parent.id === id)
-                                    ? [...currentOptions, selectedParent]
-                                    : currentOptions,
-                              );
-
-                              return {
-                                ...current,
-                                parentIds: nextParentIds,
-                                primaryParentId: nextParentIds.includes(current.primaryParentId)
-                                  ? current.primaryParentId
-                                  : nextParentIds[0] ?? "",
-                              };
-                            });
-                          }}
-                        />
-
-                        {form.parentIds.length > 0 ? (
-                          <div className="border-2 border-line bg-white">
-                            <div className="border-b-2 border-line bg-bg px-4 py-3">
-                              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                                Primarni roditelj za kontakt
-                              </p>
-                            </div>
-                            <div className="space-y-3 p-4">
-                              {form.parentIds.map((parentId) => {
-                                const parent =
-                                  selectedParentOptions.find((entry) => entry.id === parentId) ??
-                                  parents.find((entry) => entry.id === parentId) ??
-                                  selectedPlayer?.parents.find(
-                                    (assignment) => assignment.parentId === parentId,
-                                  )?.parent;
-
-                                if (!parent) {
-                                  return null;
-                                }
-
-                                return (
-                                  <label
-                                    key={parentId}
-                                    className={`flex cursor-pointer items-start gap-3 border-2 border-line px-3 py-3 ${
-                                      form.primaryParentId === parentId
-                                        ? "bg-panel"
-                                        : "bg-white"
-                                    }`}
-                                  >
-                                    <input
-                                      className="mt-1 h-4 w-4 accent-accent"
-                                      type="radio"
-                                      name="primary-parent"
-                                      checked={form.primaryParentId === parentId}
-                                      onChange={() =>
-                                        setForm((current) => ({
-                                          ...current,
-                                          primaryParentId: parentId,
-                                        }))
-                                      }
-                                    />
-                                    <span>
-                                      <span className="block text-sm font-bold uppercase">
-                                        {parent.user.firstName} {parent.user.lastName}
-                                      </span>
-                                      <span className="mt-1 block text-[11px] uppercase tracking-[0.2em] text-muted">
-                                        {parent.user.email ?? "Bez e-pošte"}
-                                      </span>
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
                   </div>
                 </div>
+                </fieldset>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                {isAdmin ? (
+                  <fieldset className="player-widget">
+                    <legend className="player-widget-title">Roditelji</legend>
+                    <div className="player-assignment-stack">
+                      <SearchMultiSelectPanel
+                        title="Povezani roditelji"
+                        className="player-selector-panel"
+                        items={parentSearchItems}
+                        selectedItems={selectedParentItems}
+                        searchValue={parentSearch}
+                        isSearching={parentsQuery.isFetching}
+                        onSearchChange={setParentSearch}
+                        actionLabel={isQuickParentFormOpen ? "Zatvori dodavanje" : "Dodaj roditelja"}
+                        actionDisabled={quickParentMutation.isPending}
+                        onAction={() => setIsQuickParentFormOpen((isOpen) => !isOpen)}
+                        searchPlaceholder="Pretraga roditelja"
+                        noResultsLabel="Nema roditelja koji odgovaraju pretrazi."
+                        selectedIds={form.parentIds}
+                        onToggle={(id) => {
+                          setForm((current) => {
+                            const nextParentIds = current.parentIds.includes(id)
+                              ? current.parentIds.filter((parentId) => parentId !== id)
+                              : [...current.parentIds, id];
+                            const selectedParent = parents.find((parent) => parent.id === id);
+
+                            setSelectedParentOptions((currentOptions) =>
+                              current.parentIds.includes(id)
+                                ? currentOptions.filter((parent) => parent.id !== id)
+                                : selectedParent &&
+                                    !currentOptions.some((parent) => parent.id === id)
+                                  ? [...currentOptions, selectedParent]
+                                  : currentOptions,
+                            );
+
+                            return {
+                              ...current,
+                              parentIds: nextParentIds,
+                              primaryParentId: nextParentIds.includes(current.primaryParentId)
+                                ? current.primaryParentId
+                                : nextParentIds[0] ?? "",
+                            };
+                          });
+                        }}
+                      />
+                      {isQuickParentFormOpen ? (
+                        <div className="rounded-[22px] border-2 border-line bg-white p-4">
+                          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                              Novi roditelj
+                            </p>
+                            <p className="text-sm leading-6 text-muted">
+                              Nakon kreiranja bit će automatski odabran za ovog igrača.
+                            </p>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <label className="block">
+                              <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                                Ime
+                              </span>
+                              <input
+                                className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                                type="text"
+                                value={quickParentForm.firstName}
+                                onChange={(event) =>
+                                  setQuickParentForm((current) => ({
+                                    ...current,
+                                    firstName: event.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                                Prezime
+                              </span>
+                              <input
+                                className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                                type="text"
+                                value={quickParentForm.lastName}
+                                onChange={(event) =>
+                                  setQuickParentForm((current) => ({
+                                    ...current,
+                                    lastName: event.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                                E-pošta
+                              </span>
+                              <input
+                                className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                                type="email"
+                                value={quickParentForm.email}
+                                onChange={(event) =>
+                                  setQuickParentForm((current) => ({
+                                    ...current,
+                                    email: event.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                                Telefon
+                              </span>
+                              <input
+                                className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                                type="text"
+                                value={quickParentForm.phone}
+                                onChange={(event) =>
+                                  setQuickParentForm((current) => ({
+                                    ...current,
+                                    phone: event.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-3">
+                            <button
+                              className="ui-pill ui-pill-button ui-pill--accent"
+                              type="button"
+                              disabled={quickParentMutation.isPending}
+                              onClick={() => quickParentMutation.mutate()}
+                            >
+                              {quickParentMutation.isPending ? "Dodavanje..." : "Dodaj i odaberi"}
+                            </button>
+                            <button
+                              className="ui-pill ui-pill-button ui-pill--panel"
+                              type="button"
+                              disabled={quickParentMutation.isPending}
+                              onClick={() => {
+                                setQuickParentForm(emptyQuickParentForm);
+                                setIsQuickParentFormOpen(false);
+                              }}
+                            >
+                              Odustani
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </fieldset>
+                ) : null}
+
+                <div className="player-actions">
                   <button
                     className="ui-pill ui-pill-button ui-pill--accent"
                     type="submit"
                     disabled={
                       createMutation.isPending ||
                       updateMutation.isPending ||
-                      deleteMutation.isPending
+                      deleteMutation.isPending ||
+                      statusMutation.isPending ||
+                      resendCredentialsMutation.isPending
                     }
                   >
                     {formMode === "create"
@@ -865,6 +1035,60 @@ export function PlayersPage() {
                     Resetiraj obrazac
                   </button>
                   <button
+                    className={`ui-pill ui-pill-button ${
+                      selectedPlayer?.user.accountStatus === "SUSPENDED"
+                        ? "ui-pill--success"
+                        : "ui-pill--signal"
+                    }`}
+                    type="button"
+                    disabled={
+                      formMode !== "edit" ||
+                      !selectedPlayer ||
+                      createMutation.isPending ||
+                      updateMutation.isPending ||
+                      deleteMutation.isPending ||
+                      statusMutation.isPending ||
+                      resendCredentialsMutation.isPending
+                    }
+                    onClick={() => {
+                      if (!selectedPlayer) {
+                        return;
+                      }
+
+                      statusMutation.mutate({
+                        userId: selectedPlayer.user.id,
+                        accountStatus:
+                          selectedPlayer.user.accountStatus === "SUSPENDED"
+                            ? "ACTIVE"
+                            : "SUSPENDED",
+                      });
+                    }}
+                  >
+                    {selectedPlayer?.user.accountStatus === "SUSPENDED"
+                      ? "Ponovno aktiviraj"
+                      : "Suspendiraj igrača"}
+                  </button>
+                  {isAdmin ? (
+                    <button
+                      className="ui-pill ui-pill-button ui-pill--panel"
+                      type="button"
+                      disabled={
+                        formMode !== "edit" ||
+                        !selectedPlayer ||
+                        createMutation.isPending ||
+                        updateMutation.isPending ||
+                        deleteMutation.isPending ||
+                        statusMutation.isPending ||
+                        resendCredentialsMutation.isPending
+                      }
+                      onClick={() => resendCredentialsMutation.mutate()}
+                    >
+                      {resendCredentialsMutation.isPending
+                        ? "Slanje..."
+                        : "Pošalji pristupne podatke"}
+                    </button>
+                  ) : null}
+                  <button
                     className="ui-pill ui-pill-button ui-pill--signal"
                     type="button"
                     disabled={
@@ -872,7 +1096,9 @@ export function PlayersPage() {
                       !selectedPlayer ||
                       createMutation.isPending ||
                       updateMutation.isPending ||
-                      deleteMutation.isPending
+                      deleteMutation.isPending ||
+                      statusMutation.isPending ||
+                      resendCredentialsMutation.isPending
                     }
                     onClick={() => deleteMutation.mutate()}
                   >
@@ -933,13 +1159,12 @@ export function PlayersPage() {
                   <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                     Prilagođeni datum
                   </span>
-                  <input
+                  <DatePicker
                     className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                    type="date"
                     value={renewalState.nextDate}
-                    onChange={(event) =>
+                    onChange={(value) =>
                       setRenewalState((current) =>
-                        current ? { ...current, nextDate: event.target.value } : current,
+                        current ? { ...current, nextDate: value } : current,
                       )
                     }
                   />
@@ -975,6 +1200,7 @@ function createFormFromPlayer(player: PlayerRecord): PlayerFormState {
   return {
     firstName: player.user.firstName,
     lastName: player.user.lastName,
+    email: player.user.email ?? "",
     phone: player.user.phone ?? "",
     dateOfBirth: toDateInputValue(player.dateOfBirth),
     oib: player.oib,
@@ -987,6 +1213,7 @@ function createFormFromPlayer(player: PlayerRecord): PlayerFormState {
     primaryParentId:
       player.parents.find((assignment) => assignment.isPrimaryContact)?.parentId ?? "",
     profileFile: null,
+    removeProfileImage: false,
   };
 }
 
@@ -994,6 +1221,7 @@ function buildPlayerFormData(form: PlayerFormState) {
   const formData = new FormData();
   formData.append("firstName", form.firstName);
   formData.append("lastName", form.lastName);
+  formData.append("email", form.email);
   formData.append("phone", form.phone);
   formData.append("dateOfBirth", form.dateOfBirth);
   formData.append("oib", form.oib);
@@ -1002,12 +1230,33 @@ function buildPlayerFormData(form: PlayerFormState) {
   formData.append("categoryIds", JSON.stringify(form.categoryIds));
   formData.append("parentIds", JSON.stringify(form.parentIds));
   formData.append("primaryParentId", form.primaryParentId);
+  formData.append("removeProfileImage", String(form.removeProfileImage));
 
   if (form.profileFile) {
     formData.append("profileImage", form.profileFile);
   }
 
   return formData;
+}
+
+function ensurePlayerFormHasParent(form: PlayerFormState) {
+  if (form.parentIds.length === 0 && !form.email.trim()) {
+    throw new Error("Igrač mora imati povezanog barem jednog roditelja.");
+  }
+}
+
+function getMutationErrorMessage(error: unknown, fallback: string) {
+  const responseMessage = (error as AxiosError<{ message?: string }>).response?.data?.message;
+
+  if (responseMessage) {
+    return responseMessage;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 function calculateNextMembershipDate(currentDateIso: string | null) {
@@ -1036,13 +1285,13 @@ function MultiSelectPanel({
   onToggle,
 }: {
   title: string;
-  items: Array<{ id: string; label: string; meta: string }>;
+  items: Array<{ id: string; label: string; meta?: string }>;
   selectedIds: string[];
   onToggle: (id: string) => void;
 }) {
   return (
-    <div className="border-2 border-line bg-white">
-      <div className="border-b-2 border-line bg-bg px-4 py-3">
+    <div className="player-selector-panel">
+      <div className="player-selector-panel-header">
         <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">{title}</p>
       </div>
       <div className="grid gap-3 p-4 sm:grid-cols-2">
@@ -1052,7 +1301,7 @@ function MultiSelectPanel({
           return (
             <label
               key={item.id}
-              className={`flex cursor-pointer items-start gap-3 border-2 border-line px-3 py-3 ${
+              className={`flex cursor-pointer items-start gap-3 rounded-[18px] border-2 border-line px-3 py-3 ${
                 isChecked ? "bg-panel" : "bg-white"
               }`}
             >
@@ -1064,9 +1313,11 @@ function MultiSelectPanel({
               />
               <span className="min-w-0">
                 <span className="block text-sm font-bold uppercase">{item.label}</span>
-                <span className="mt-1 block truncate text-[11px] uppercase tracking-[0.2em] text-muted">
-                  {item.meta}
-                </span>
+                {item.meta ? (
+                  <span className="mt-1 block truncate text-[11px] uppercase tracking-[0.2em] text-muted">
+                    {item.meta}
+                  </span>
+                ) : null}
               </span>
             </label>
           );

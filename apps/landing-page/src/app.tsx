@@ -2,6 +2,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { CategoryDetailsDrawer } from "./components/category-details-drawer";
+import { DatePicker } from "./components/date-picker";
+import { FeedbackToast } from "./components/feedback-toast";
+import { applyBrowserBranding } from "./lib/browser-branding";
+import { landingClubSettingsDefaults, resolveSettingValue } from "./lib/club-settings-defaults";
 import { fetchNewsFeed, type NewsItem } from "./lib/contentful";
 import {
   fetchClubSettings,
@@ -148,18 +152,30 @@ function LandingHomePage() {
   const newsFeed = newsQuery.data;
   const newsItems = newsFeed?.items ?? [];
   const categories = categoriesQuery.data ?? [];
-  const clubName = clubSettings?.clubName ?? "PVK Mladost Bjelovar";
-  const clubSubtitle = clubSettings?.clubSubtitle ?? "Plivački vaterpolski klub";
+  const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
+  const clubSubtitle = resolveSettingValue(
+    clubSettings?.clubSubtitle,
+    landingClubSettingsDefaults.clubSubtitle,
+  );
   const selectedCategoryPreview =
     categories.find((category) => category.id === selectedCategoryId) ?? null;
-  const contactEmail = clubSettings?.contactEmail ?? "info@mladostbjelovar.test";
-  const contactPhone = clubSettings?.contactPhone ?? "+385911112222";
+  const contactEmail = resolveSettingValue(
+    clubSettings?.contactEmail,
+    landingClubSettingsDefaults.contactEmail,
+  );
+  const contactPhone = resolveSettingValue(
+    clubSettings?.contactPhone,
+    landingClubSettingsDefaults.contactPhone,
+  );
   const visibleNewsItems = newsItems.slice(0, visibleNewsCount);
   const canLoadMoreNews = newsItems.length > visibleNewsCount;
 
   useEffect(() => {
-    document.title = clubName;
-  }, [clubName]);
+    applyBrowserBranding({
+      title: clubName,
+      iconUrl: clubSettings?.logoUrl,
+    });
+  }, [clubName, clubSettings?.logoUrl]);
 
   useEffect(() => {
     setVisibleNewsCount(initialVisibleNewsCount);
@@ -241,6 +257,8 @@ function LandingHomePage() {
 
   return (
     <div className="landing-page bg-bg text-ink">
+      <FeedbackToast feedback={signupFeedback} onClose={() => setSignupFeedback(null)} />
+
       <LandingHeader
         clubName={clubName}
         clubSubtitle={clubSubtitle}
@@ -309,6 +327,14 @@ function LandingHomePage() {
             ) : categoriesQuery.isError ? (
               <div className="border-2 border-line bg-signal px-5 py-4 text-sm font-medium text-surface">
                 Kategorije trenutno nije moguće učitati iz javnog API-ja.
+              </div>
+            ) : categories.length === 0 ? (
+              <div className="landing-panel border-2 border-line bg-surface p-6 text-center">
+                <p className="landing-kicker text-muted">Kategorije</p>
+                <h2 className="mt-3 text-3xl">Nema objavljenih kategorija.</h2>
+                <p className="landing-copy mx-auto mt-3 max-w-2xl text-sm">
+                  Kategorije će se prikazati ovdje čim ih administratorski tim objavi.
+                </p>
               </div>
             ) : (
               <div className="landing-category-carousel">
@@ -410,18 +436,6 @@ function LandingHomePage() {
                   </p>
                   <h3 className="mt-2 text-3xl">Pošaljite novu prijavu</h3>
                 </div>
-
-                {signupFeedback ? (
-                  <div
-                    className={`border-b-2 border-line px-5 py-4 text-sm font-medium ${
-                      signupFeedback.tone === "success"
-                        ? "bg-success text-surface"
-                        : "bg-signal text-surface"
-                    }`}
-                  >
-                    {signupFeedback.message}
-                  </div>
-                ) : null}
 
                 <form
                   className="space-y-6 p-5"
@@ -569,15 +583,19 @@ function LandingHomePage() {
                         }
                         required
                       />
-                      <InputField
-                        label="Datum rođenja"
-                        type="date"
-                        value={signupForm.childDateOfBirth}
-                        onChange={(value) =>
-                          setSignupForm((current) => ({ ...current, childDateOfBirth: value }))
-                        }
-                        required
-                      />
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Datum rođenja
+                        </span>
+                        <DatePicker
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          value={signupForm.childDateOfBirth}
+                          onChange={(value) =>
+                            setSignupForm((current) => ({ ...current, childDateOfBirth: value }))
+                          }
+                          required
+                        />
+                      </label>
                       <InputField
                         label="OIB"
                         value={signupForm.childOib}
@@ -642,14 +660,26 @@ function LandingHomePage() {
       </main>
 
       <LandingFooter
-        bankName={clubSettings?.bankName ?? null}
-        bankIban={clubSettings?.bankIban ?? null}
-        bankRecipient={clubSettings?.bankRecipient ?? clubName}
+        bankName={resolveSettingValue(clubSettings?.bankName, landingClubSettingsDefaults.bankName)}
+        bankIban={resolveSettingValue(clubSettings?.bankIban, landingClubSettingsDefaults.bankIban)}
+        bankRecipient={resolveSettingValue(
+          clubSettings?.bankRecipient,
+          landingClubSettingsDefaults.bankRecipient,
+        )}
         contactEmail={contactEmail}
         contactPhone={contactPhone}
-        facebookUrl={clubSettings?.facebookUrl ?? null}
-        instagramUrl={clubSettings?.instagramUrl ?? null}
-        youtubeUrl={clubSettings?.youtubeUrl ?? null}
+        facebookUrl={resolveSettingValue(
+          clubSettings?.facebookUrl,
+          landingClubSettingsDefaults.facebookUrl,
+        )}
+        instagramUrl={resolveSettingValue(
+          clubSettings?.instagramUrl,
+          landingClubSettingsDefaults.instagramUrl,
+        )}
+        youtubeUrl={resolveSettingValue(
+          clubSettings?.youtubeUrl,
+          landingClubSettingsDefaults.youtubeUrl,
+        )}
       />
 
       {selectedCategoryId ? (
@@ -802,7 +832,7 @@ function LandingFooter({
 
   return (
     <footer className="border-t-2 border-line bg-[linear-gradient(180deg,#f7fbff_0%,#edf4fb_100%)]">
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-3 lg:px-8 lg:py-10">
+      <div className="landing-footer-grid mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <section className="landing-footer-column">
           <p className="landing-kicker text-muted">Kontakt</p>
           <div className="landing-footer-list mt-4">
@@ -953,7 +983,7 @@ function CategoryShowcaseCard({
 
         <div className="landing-category-showcase-age">
           <span>Dobna granica</span>
-          <strong>{formatBirthYear(category.endDateOfBirth)}</strong>
+          <strong>{formatCategoryAgeRule(category)}</strong>
         </div>
       </div>
     </button>
@@ -973,10 +1003,19 @@ function ArticlePage() {
   });
 
   const clubSettings = clubSettingsQuery.data;
-  const clubName = clubSettings?.clubName ?? "PVK Mladost Bjelovar";
-  const clubSubtitle = clubSettings?.clubSubtitle ?? "Plivački vaterpolski klub";
-  const contactEmail = clubSettings?.contactEmail ?? "info@mladostbjelovar.test";
-  const contactPhone = clubSettings?.contactPhone ?? "+385911112222";
+  const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
+  const clubSubtitle = resolveSettingValue(
+    clubSettings?.clubSubtitle,
+    landingClubSettingsDefaults.clubSubtitle,
+  );
+  const contactEmail = resolveSettingValue(
+    clubSettings?.contactEmail,
+    landingClubSettingsDefaults.contactEmail,
+  );
+  const contactPhone = resolveSettingValue(
+    clubSettings?.contactPhone,
+    landingClubSettingsDefaults.contactPhone,
+  );
   const article = newsQuery.data?.items.find((item) => item.slug === slug) ?? null;
   const relatedArticles =
     newsQuery.data?.items.filter((item) => item.slug !== slug).slice(0, 2) ?? [];
@@ -989,8 +1028,11 @@ function ArticlePage() {
   }, [slug]);
 
   useEffect(() => {
-    document.title = article ? `${article.title} | ${clubName}` : `${clubName} | Novost`;
-  }, [article, clubName]);
+    applyBrowserBranding({
+      title: article ? `${article.title} | ${clubName}` : `${clubName} | Novost`,
+      iconUrl: clubSettings?.logoUrl,
+    });
+  }, [article, clubName, clubSettings?.logoUrl]);
 
   useEffect(() => {
     setActiveGalleryIndex(null);
@@ -1156,14 +1198,26 @@ function ArticlePage() {
       ) : null}
 
       <LandingFooter
-        bankName={clubSettings?.bankName ?? null}
-        bankIban={clubSettings?.bankIban ?? null}
-        bankRecipient={clubSettings?.bankRecipient ?? clubName}
+        bankName={resolveSettingValue(clubSettings?.bankName, landingClubSettingsDefaults.bankName)}
+        bankIban={resolveSettingValue(clubSettings?.bankIban, landingClubSettingsDefaults.bankIban)}
+        bankRecipient={resolveSettingValue(
+          clubSettings?.bankRecipient,
+          landingClubSettingsDefaults.bankRecipient,
+        )}
         contactEmail={contactEmail}
         contactPhone={contactPhone}
-        facebookUrl={clubSettings?.facebookUrl ?? null}
-        instagramUrl={clubSettings?.instagramUrl ?? null}
-        youtubeUrl={clubSettings?.youtubeUrl ?? null}
+        facebookUrl={resolveSettingValue(
+          clubSettings?.facebookUrl,
+          landingClubSettingsDefaults.facebookUrl,
+        )}
+        instagramUrl={resolveSettingValue(
+          clubSettings?.instagramUrl,
+          landingClubSettingsDefaults.instagramUrl,
+        )}
+        youtubeUrl={resolveSettingValue(
+          clubSettings?.youtubeUrl,
+          landingClubSettingsDefaults.youtubeUrl,
+        )}
       />
     </div>
   );
@@ -1305,19 +1359,36 @@ function GalleryCarousel({
 }
 
 function formatDate(dateIso: string) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(dateIso));
+  return formatNumericDate(new Date(dateIso));
 }
 
 function formatLongDate(dateIso: string) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(dateIso));
+  const date = new Date(dateIso);
+  const weekday = new Intl.DateTimeFormat("hr-HR", { weekday: "short" }).format(date);
+  return `${weekday} ${formatNumericDate(date)}`;
+}
+
+function formatNumericDate(date: Date) {
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}.${month}.${year}.`;
+}
+
+function formatCategoryAgeRule(category: {
+  startDateOfBirth: string | null;
+  endDateOfBirth: string | null;
+}) {
+  if (category.startDateOfBirth) {
+    return `od ${formatDate(category.startDateOfBirth)}`;
+  }
+
+  if (category.endDateOfBirth) {
+    return formatBirthYear(category.endDateOfBirth);
+  }
+
+  return "bez ograničenja";
 }
 
 function formatBirthYear(dateIso: string) {
@@ -1441,7 +1512,7 @@ function FileField({
           <div className="landing-file-actions">
             <label className="landing-parent-chip" htmlFor={inputId}>
               <span aria-hidden="true">+</span>
-              Odaberi fotografiju
+              {file ? "Odaberi novu fotografiju" : "Odaberi fotografiju"}
             </label>
             {file ? (
               <button

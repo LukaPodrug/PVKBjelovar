@@ -58,11 +58,11 @@ enum DevicePlatform {
 
 model ClubSettings {
   id           String   @id @default("club-settings")
-  clubName     String
+  clubName     String?
   clubSubtitle String?
   logoUrl      String?
-  contactEmail String
-  contactPhone String
+  contactEmail String?
+  contactPhone String?
   facebookUrl  String?
   instagramUrl String?
   youtubeUrl   String?
@@ -156,7 +156,8 @@ model Category {
   id                      String          @id @default(cuid())
   name                    String          @unique
   logoUrl                 String?
-  endDateOfBirth          DateTime
+  startDateOfBirth        DateTime?
+  endDateOfBirth          DateTime?
   players                 PlayerCategory[]
   coaches                 CoachCategory[]
   schedules               Schedule[]
@@ -209,10 +210,10 @@ model ParentPlayer {
 
 model Schedule {
   id               String          @id @default(cuid())
-  categoryId       String
+  categoryId       String?
   weeklyScheduleId String?
   practiceType     PracticeType    @default(WATER)
-  category         Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category         Category?       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   weeklySchedule   WeeklySchedule? @relation(fields: [weeklyScheduleId], references: [id], onDelete: Cascade)
   startTime        DateTime
   endTime          DateTime

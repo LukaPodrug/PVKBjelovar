@@ -96,8 +96,13 @@ textarea {
 .admin-login input,
 .admin-login select,
 .admin-login textarea {
-  background: #fffdf8;
-  transition: background-color 140ms ease;
+  background: var(--surface);
+  color: var(--ink);
+  color-scheme: light;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .admin-shell select,
@@ -117,6 +122,434 @@ textarea {
 .admin-login select:focus,
 .admin-login textarea:focus {
   background: var(--surface);
+}
+
+.admin-shell input:-webkit-autofill,
+.admin-shell input:-webkit-autofill:hover,
+.admin-shell input:-webkit-autofill:focus,
+.admin-login input:-webkit-autofill,
+.admin-login input:-webkit-autofill:hover,
+.admin-login input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  box-shadow: 0 0 0 1000px var(--surface) inset !important;
+  caret-color: var(--ink);
+  transition: background-color 9999s ease-out;
+}
+
+.admin-shell input[type="search"],
+.admin-login input[type="search"],
+.admin-shell input[type="date"],
+.admin-login input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.admin-shell input[type="search"]::-webkit-search-cancel-button,
+.admin-shell input[type="search"]::-webkit-search-decoration,
+.admin-login input[type="search"]::-webkit-search-cancel-button,
+.admin-login input[type="search"]::-webkit-search-decoration,
+.admin-shell input[type="date"]::-webkit-calendar-picker-indicator,
+.admin-login input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
+.admin-shell input[type="date"]::-webkit-date-and-time-value,
+.admin-login input[type="date"]::-webkit-date-and-time-value {
+  min-height: 1.5em;
+  text-align: left;
+}
+
+.admin-shell .field-invalid,
+.admin-login .field-invalid {
+  border-color: var(--signal) !important;
+  background: rgba(255, 247, 247, 0.96) !important;
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.03),
+    0 0 0 3px rgba(180, 48, 48, 0.12) !important;
+}
+
+.admin-shell .field-error-message,
+.admin-login .field-error-message {
+  margin: 0.45rem 0 0;
+  color: var(--signal);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.admin-shell .date-picker,
+.admin-login .date-picker {
+  position: relative;
+}
+
+.admin-shell .date-picker-control,
+.admin-login .date-picker-control {
+  position: relative;
+}
+
+.admin-shell .date-picker-input,
+.admin-login .date-picker-input {
+  padding-right: 3.4rem !important;
+}
+
+.admin-shell .date-picker-toggle,
+.admin-login .date-picker-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--accent);
+  transform: translateY(-50%);
+}
+
+.admin-shell .date-picker-popover,
+.admin-login .date-picker-popover {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  left: 0;
+  z-index: 70;
+  width: min(330px, calc(100vw - 2rem));
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+}
+
+.admin-shell .date-picker-header,
+.admin-login .date-picker-header {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-shell .date-picker-header p,
+.admin-login .date-picker-header p {
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.admin-shell .date-picker-nav,
+.admin-login .date-picker-nav {
+  display: inline-grid;
+  width: 1.95rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.admin-shell .date-picker-nav--year,
+.admin-login .date-picker-nav--year {
+  width: 2.45rem;
+  font-size: 0.95rem;
+}
+
+.admin-shell .date-picker-grid,
+.admin-login .date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.admin-shell .date-picker-weekdays,
+.admin-login .date-picker-weekdays {
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .date-picker-day,
+.admin-login .date-picker-day {
+  display: inline-grid;
+  min-height: 2.15rem;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.admin-shell .date-picker-day:hover,
+.admin-login .date-picker-day:hover {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+.admin-shell .date-picker-day.is-outside,
+.admin-login .date-picker-day.is-outside {
+  color: rgba(100, 116, 139, 0.55);
+}
+
+.admin-shell .date-picker-day.is-selected,
+.admin-login .date-picker-day.is-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .time-picker-popover,
+.admin-login .time-picker-popover {
+  max-height: min(460px, calc(100vh - 24px));
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.admin-shell .time-picker-popover::-webkit-scrollbar,
+.admin-login .time-picker-popover::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-shell .time-picker-hero,
+.admin-login .time-picker-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 138px;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: stretch;
+}
+
+.admin-shell .time-picker-preview,
+.admin-login .time-picker-preview {
+  display: grid;
+  place-items: center;
+  min-height: 98px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(34, 91, 166, 0.11), rgba(255, 255, 255, 0.92)),
+    var(--panel);
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.admin-shell .time-picker-preview span,
+.admin-login .time-picker-preview span {
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-shell .time-picker-preview strong,
+.admin-login .time-picker-preview strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 32px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.admin-shell .time-picker-step-grid,
+.admin-login .time-picker-step-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.admin-shell .time-picker-step,
+.admin-login .time-picker-step {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: white;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.admin-shell .time-picker-step:hover,
+.admin-login .time-picker-step:hover {
+  border-color: var(--accent);
+  background: var(--panel);
+}
+
+.admin-shell .time-picker-manual-hint,
+.admin-login .time-picker-manual-hint {
+  margin: -2px 0 10px;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+}
+
+.admin-shell .time-picker-presets,
+.admin-login .time-picker-presets {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.admin-shell .time-picker-presets::-webkit-scrollbar,
+.admin-login .time-picker-presets::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-shell .time-picker-preset,
+.admin-login .time-picker-preset {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: white;
+  padding: 8px 11px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+
+.admin-shell .time-picker-preset:hover,
+.admin-login .time-picker-preset:hover {
+  background: var(--bg);
+}
+
+.admin-shell .time-picker-preset.is-selected,
+.admin-login .time-picker-preset.is-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.admin-shell .time-picker-wheels,
+.admin-login .time-picker-wheels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.admin-shell .time-picker-wheel,
+.admin-login .time-picker-wheel {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: white;
+}
+
+.admin-shell .time-picker-wheel-header,
+.admin-login .time-picker-wheel-header {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  padding: 10px 12px;
+}
+
+.admin-shell .time-picker-wheel-header span,
+.admin-login .time-picker-wheel-header span {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-shell .time-picker-wheel-list,
+.admin-login .time-picker-wheel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 188px;
+  overflow-y: auto;
+  padding: 10px;
+  scroll-snap-type: y proximity;
+  scrollbar-width: none;
+}
+
+.admin-shell .time-picker-wheel-list::-webkit-scrollbar,
+.admin-login .time-picker-wheel-list::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-shell .time-picker-wheel-option,
+.admin-login .time-picker-wheel-option {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: white;
+  padding: 10px 0;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+  scroll-snap-align: center;
+}
+
+.admin-shell .time-picker-wheel-option:hover,
+.admin-login .time-picker-wheel-option:hover {
+  background: var(--bg);
+}
+
+.admin-shell .time-picker-wheel-option.is-selected,
+.admin-login .time-picker-wheel-option.is-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+  box-shadow: 0 12px 22px rgba(34, 91, 166, 0.2);
+}
+
+.admin-shell .time-picker-done,
+.admin-login .time-picker-done {
+  width: 100%;
+  margin-top: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 16px;
+  background: var(--accent);
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--surface);
+}
+
+@media (max-width: 520px) {
+  .admin-shell .time-picker-hero,
+  .admin-login .time-picker-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-shell .time-picker-step-grid,
+  .admin-login .time-picker-step-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.admin-shell .category-filter-selected-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.admin-shell .category-filter-selected-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .admin-shell button,
@@ -274,6 +707,67 @@ textarea {
   color: var(--surface);
 }
 
+.feedback-toast {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 80;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  width: min(430px, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 24px;
+  color: var(--surface);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.feedback-toast--success {
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.2), transparent 36%),
+    var(--success);
+}
+
+.feedback-toast--error {
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.18), transparent 36%),
+    var(--signal);
+}
+
+.feedback-toast__content {
+  min-width: 0;
+}
+
+.feedback-toast__title {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.86;
+}
+
+.feedback-toast__message {
+  margin-top: 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.feedback-toast__close {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: currentColor;
+  cursor: pointer;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
 .admin-shell,
 .admin-login {
   color: var(--ink);
@@ -298,6 +792,66 @@ textarea {
 .admin-shell .admin-surface,
 .admin-login .admin-surface {
   background: var(--surface);
+}
+
+.admin-login .admin-login-club-card {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 0.75rem 0.95rem;
+  box-shadow: 0 18px 42px rgba(7, 20, 42, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.admin-login .admin-login-club-card img,
+.admin-login .admin-login-club-card > div {
+  display: grid;
+  width: 3.4rem;
+  height: 3.4rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--surface);
+  font-size: 1rem;
+  font-weight: 900;
+  object-fit: cover;
+}
+
+.admin-login .admin-login-club-card span {
+  min-width: 0;
+}
+
+.admin-login .admin-login-club-card strong,
+.admin-login .admin-login-club-card small {
+  display: block;
+}
+
+.admin-login .admin-login-club-card strong {
+  color: var(--surface);
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.admin-login .admin-login-club-card small {
+  margin-top: 0.25rem;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.admin-shell .admin-table-card {
+  overflow: visible !important;
 }
 
 .admin-shell section.space-y-6 > header p:first-child {
@@ -497,6 +1051,53 @@ textarea {
   background:
     radial-gradient(circle at top right, rgba(29, 79, 145, 0.08), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(243, 247, 251, 0.92) 100%);
+}
+
+.admin-shell .schedule-workspace {
+  border: 1px solid var(--line);
+  border-radius: 32px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 251, 255, 0.96) 100%),
+    var(--surface);
+  box-shadow: var(--shadow-card);
+  overflow: visible;
+}
+
+.admin-shell .schedule-workspace-panel {
+  border-bottom: 1px solid var(--line);
+  overflow: visible;
+}
+
+.admin-shell .schedule-workspace-panel--top {
+  border-radius: 32px 32px 0 0;
+}
+
+.admin-shell .schedule-workspace-panel--top > :first-child {
+  border-radius: 32px 32px 0 0;
+}
+
+.admin-shell .schedule-workspace-panel--middle {
+  position: relative;
+}
+
+.admin-shell .schedule-workspace-panel--middle::before,
+.admin-shell .schedule-workspace-calendar::before {
+  content: "";
+  display: block;
+  width: min(16rem, 42%);
+  height: 1px;
+  margin: 0 auto;
+  background: linear-gradient(90deg, transparent, rgba(29, 79, 145, 0.28), transparent);
+}
+
+.admin-shell .schedule-workspace-calendar {
+  padding: 0;
+}
+
+.admin-shell .schedule-workspace-calendar .schedule-board-shell {
+  border: 0;
+  border-radius: 0 0 32px 32px;
+  box-shadow: none;
 }
 
 .admin-shell .schedule-board-pills {
@@ -1289,6 +1890,595 @@ textarea {
   font-weight: 800;
 }
 
+.admin-shell .category-drawer {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 247, 251, 0.96) 100%);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-shell .category-drawer-hero {
+  padding: 1.1rem;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.08), transparent 32%),
+    var(--panel);
+}
+
+.admin-shell .category-drawer-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.admin-shell .category-drawer-stats,
+.admin-shell .category-actions,
+.admin-shell .category-logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.admin-shell .category-widget {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.06), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .category-widget-title {
+  display: inline-flex;
+  width: fit-content;
+  margin-left: 0.25rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .category-widget-state {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+  background: rgba(243, 247, 251, 0.74);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.admin-shell .category-players-widget {
+  padding: 1rem 0 0;
+  overflow: hidden;
+}
+
+.admin-shell .category-players-widget .category-widget-title {
+  margin-left: 1.25rem;
+}
+
+.admin-shell .category-players-widget .category-player-grid {
+  padding: 1rem;
+}
+
+.admin-shell .category-widget-footer {
+  margin: 0;
+}
+
+.admin-shell .category-widget-footer > div {
+  border-top-width: 1px !important;
+}
+
+.admin-shell .category-logo-coaches-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-shell .category-logo-card,
+.admin-shell .category-subwidget {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .category-logo-card {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+  padding: 1rem;
+}
+
+.admin-shell .category-logo-preview,
+.admin-shell .category-logo-placeholder {
+  width: 100%;
+  min-height: 190px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.admin-shell .category-logo-preview {
+  object-fit: cover;
+}
+
+.admin-shell .category-logo-placeholder {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  background:
+    linear-gradient(135deg, rgba(232, 240, 255, 0.74), rgba(255, 255, 255, 0.92));
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .category-logo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.admin-shell .category-logo-actions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.admin-shell .category-subwidget-header {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(243, 247, 251, 0.9);
+}
+
+.admin-shell .category-check-card,
+.admin-shell .category-player-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .category-player-grid {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.admin-shell .category-check-card {
+  display: flex;
+  cursor: pointer;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.admin-shell .category-player-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: var(--surface);
+  text-align: left;
+}
+
+.admin-shell .coach-drawer {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 247, 251, 0.96) 100%);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-shell .coach-drawer-hero {
+  padding: 1.1rem;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.08), transparent 32%),
+    var(--panel);
+}
+
+.admin-shell .coach-drawer-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.admin-shell .coach-drawer-stats,
+.admin-shell .coach-actions,
+.admin-shell .coach-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.admin-shell .coach-widget {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.06), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .coach-widget-title {
+  display: inline-flex;
+  width: fit-content;
+  margin-left: 0.25rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .coach-type-options,
+.admin-shell .coach-type-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-shell .coach-type-options {
+  flex-direction: column;
+}
+
+.admin-shell .coach-type-chip-group {
+  justify-content: center;
+}
+
+.admin-shell .coach-check-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .coach-profile-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-shell .coach-profile-card,
+.admin-shell .coach-subwidget > div {
+  overflow: hidden;
+  border: 1px solid var(--line) !important;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .coach-profile-card {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+  padding: 1rem;
+}
+
+.admin-shell .coach-profile-preview,
+.admin-shell .coach-profile-placeholder {
+  width: 100%;
+  min-height: 190px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.admin-shell .coach-profile-preview {
+  object-fit: cover;
+}
+
+.admin-shell .coach-profile-placeholder {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  background:
+    linear-gradient(135deg, rgba(232, 240, 255, 0.74), rgba(255, 255, 255, 0.92));
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .coach-profile-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.admin-shell .parent-drawer {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 247, 251, 0.96) 100%);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-shell .parent-drawer-hero {
+  padding: 1.1rem;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.08), transparent 32%),
+    var(--panel);
+}
+
+.admin-shell .parent-drawer-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.admin-shell .parent-drawer-stats,
+.admin-shell .parent-actions,
+.admin-shell .parent-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.admin-shell .parent-widget {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.06), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .parent-widget-title {
+  display: inline-flex;
+  width: fit-content;
+  margin-left: 0.25rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .parent-profile-grid,
+.admin-shell .parent-assignment-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-shell .parent-profile-card,
+.admin-shell .parent-selector-panel {
+  overflow: hidden;
+  border: 1px solid var(--line) !important;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .parent-profile-card {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+  padding: 1rem;
+}
+
+.admin-shell .parent-profile-preview,
+.admin-shell .parent-profile-placeholder {
+  width: 100%;
+  min-height: 190px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.admin-shell .parent-profile-preview {
+  object-fit: cover;
+}
+
+.admin-shell .parent-profile-placeholder {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  background:
+    linear-gradient(135deg, rgba(232, 240, 255, 0.74), rgba(255, 255, 255, 0.92));
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .parent-profile-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.admin-shell .parent-selector-panel-header {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(243, 247, 251, 0.9);
+}
+
+.admin-shell .player-drawer {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 247, 251, 0.96) 100%);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-shell .player-drawer-hero {
+  padding: 1.1rem;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.08), transparent 32%),
+    var(--panel);
+}
+
+.admin-shell .player-drawer-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.admin-shell .player-drawer-stats,
+.admin-shell .player-actions,
+.admin-shell .player-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.admin-shell .player-widget {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.06), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .player-widget-title {
+  display: inline-flex;
+  width: fit-content;
+  margin-left: 0.25rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .player-check-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .player-profile-grid,
+.admin-shell .player-assignment-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-shell .player-profile-card,
+.admin-shell .player-subwidget,
+.admin-shell .player-selector-panel {
+  overflow: hidden;
+  border: 1px solid var(--line) !important;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .player-profile-card {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+  padding: 1rem;
+}
+
+.admin-shell .player-profile-preview,
+.admin-shell .player-profile-placeholder {
+  width: 100%;
+  min-height: 190px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.admin-shell .player-profile-preview {
+  object-fit: cover;
+}
+
+.admin-shell .player-profile-placeholder {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  background:
+    linear-gradient(135deg, rgba(232, 240, 255, 0.74), rgba(255, 255, 255, 0.92));
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .player-profile-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.admin-shell .player-subwidget-header {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(243, 247, 251, 0.9);
+}
+
+.admin-shell .player-selector-panel-header {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(243, 247, 251, 0.9);
+}
+
 .admin-shell .leaderboard-period-chip {
   min-height: 50px;
   padding-inline: 1rem;
@@ -1328,6 +2518,49 @@ textarea {
   text-align: left;
 }
 
+.admin-shell .schedule-drawer-surface {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.06), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .schedule-widget {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.06), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .schedule-widget-title {
+  display: inline-flex;
+  width: fit-content;
+  margin-left: 0.25rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .schedule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 @media (min-width: 640px) {
   .admin-shell .schedule-board-toolbar,
   .admin-shell .schedule-board-main,
@@ -1360,6 +2593,31 @@ textarea {
   .admin-shell .approval-profile-card-image,
   .admin-shell .approval-profile-card-placeholder {
     min-height: 100%;
+  }
+
+  .admin-shell .category-logo-coaches-grid {
+    grid-template-columns: minmax(230px, 0.34fr) minmax(0, 1fr);
+  }
+
+  .admin-shell .category-player-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-shell .category-player-card {
+    min-height: 92px;
+    justify-content: center;
+  }
+
+  .admin-shell .coach-profile-grid {
+    grid-template-columns: minmax(230px, 0.34fr) minmax(0, 1fr);
+  }
+
+  .admin-shell .parent-profile-grid {
+    grid-template-columns: minmax(230px, 0.34fr) minmax(0, 1fr);
+  }
+
+  .admin-shell .player-profile-grid {
+    grid-template-columns: minmax(230px, 0.34fr) minmax(0, 1fr);
   }
 
   .admin-shell .schedule-week-controls {
@@ -1410,5 +2668,15 @@ textarea {
     align-content: start;
     border-top: 0;
     border-left: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 640px) {
+  .feedback-toast {
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    width: auto;
+    border-radius: 22px;
   }
 }

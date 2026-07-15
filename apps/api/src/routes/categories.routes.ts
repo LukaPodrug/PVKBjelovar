@@ -6,10 +6,14 @@ import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
 import { uploadCategoryLogo } from "../middlewares/upload";
-import { computeCategoryLeaderboard } from "../services/leaderboard.service";
 import {
-  parseDateInput,
+  computeCategoriesLeaderboard,
+  computeCategoryLeaderboard,
+} from "../services/leaderboard.service";
+import {
   parseLeaderboardWindow,
+  parseOptionalBooleanInput,
+  parseOptionalDateInput,
   parsePaginationInput,
   parseStringArrayInput,
   buildPaginatedResponse,
@@ -65,9 +69,7 @@ categoriesRouter.get(
   "/public",
   asyncHandler(async (_request, response) => {
     const categories = await prisma.category.findMany({
-      orderBy: {
-        endDateOfBirth: "asc",
-      },
+      orderBy: [{ endDateOfBirth: "asc" }, { name: "asc" }],
     });
 
     response.json(categories);
@@ -172,6 +174,7 @@ categoriesRouter.get(
       id: category.id,
       name: category.name,
       logoUrl: category.logoUrl,
+      startDateOfBirth: category.startDateOfBirth,
       endDateOfBirth: category.endDateOfBirth,
       coaches,
       playerCount,
@@ -202,6 +205,44 @@ categoriesRouter.get(
     response.json(
       buildPaginatedResponse(categories.map(serializeCategory), total, pagination),
     );
+  }),
+);
+
+categoriesRouter.get(
+  "/leaderboard",
+  asyncHandler(async (request, response) => {
+    const requestedCategoryIds = [
+      ...new Set(parseStringArrayInput(request.query.categoryIds ?? request.query.categoryId)),
+    ];
+    const categories = await prisma.category.findMany({
+      where:
+        requestedCategoryIds.length > 0
+          ? { id: { in: requestedCategoryIds } }
+          : undefined,
+      orderBy: {
+        endDateOfBirth: "asc",
+      },
+      select: { id: true, name: true },
+    });
+
+    if (requestedCategoryIds.length > 0 && categories.length !== requestedCategoryIds.length) {
+      throw new AppError("Jedna ili više kategorija nije pronađena.", 404);
+    }
+
+    const window = parseLeaderboardWindow(request.query);
+    const pagination = parsePaginationInput(request.query);
+    const categoryIds = categories.map((category) => category.id);
+    const leaderboard = await computeCategoriesLeaderboard(categoryIds, window, pagination);
+
+    response.json({
+      ...leaderboard,
+      categoryName:
+        categoryIds.length === 1
+          ? categories[0]?.name
+          : categoryIds.length > 0
+            ? "Sve odabrane kategorije"
+            : "Sve kategorije",
+    });
   }),
 );
 
@@ -238,6 +279,12 @@ categoriesRouter.post(
         select: {
           id: true,
           endDateOfBirth: true,
+          startDateOfBirth: true,
+        },
+        where: {
+          endDateOfBirth: {
+            not: null,
+          },
         },
       });
 
@@ -250,7 +297,9 @@ categoriesRouter.post(
           transaction.category.update({
             where: { id: category.id },
             data: {
-              endDateOfBirth: addYears(category.endDateOfBirth, 1),
+              endDateOfBirth: category.endDateOfBirth
+                ? addYears(category.endDateOfBirth, 1)
+                : null,
             },
             select: {
               id: true,
@@ -268,7 +317,9 @@ categoriesRouter.post(
       });
 
       const orderedUpdatedCategories = [...updatedCategories].sort(
-        (left, right) => left.endDateOfBirth.getTime() - right.endDateOfBirth.getTime(),
+        (left, right) =>
+          (left.endDateOfBirth?.getTime() ?? Number.POSITIVE_INFINITY) -
+          (right.endDateOfBirth?.getTime() ?? Number.POSITIVE_INFINITY),
       );
 
       const playerAssignments = players
@@ -390,9 +441,11 @@ function addYears(date: Date, amount: number) {
 
 function findCategoryIdForDateOfBirth(
   dateOfBirth: Date,
-  categories: Array<{ id: string; endDateOfBirth: Date }>,
+  categories: Array<{ id: string; endDateOfBirth: Date | null }>,
 ) {
-  const exactMatch = categories.find((category) => dateOfBirth <= category.endDateOfBirth);
+  const exactMatch = categories.find(
+    (category) => category.endDateOfBirth && dateOfBirth <= category.endDateOfBirth,
+  );
 
   return exactMatch?.id ?? categories[categories.length - 1]?.id ?? null;
 }
@@ -440,11 +493,19 @@ categoriesRouter.post(
       request.body.logoUrl,
     );
 
+    const startDateOfBirth = parseOptionalDateInput(request.body.startDateOfBirth);
+    const endDateOfBirth = parseOptionalDateInput(request.body.endDateOfBirth);
+
+    if (startDateOfBirth && endDateOfBirth) {
+      throw new AppError("Kategorija može imati početnu ili završnu granicu datuma rođenja, ne oboje.", 400);
+    }
+
     const category = await prisma.category.create({
       data: {
         name: requireString(request.body.name, "name"),
         logoUrl,
-        endDateOfBirth: parseDateInput(request.body.endDateOfBirth, "endDateOfBirth"),
+        startDateOfBirth,
+        endDateOfBirth,
         coaches:
           coachIds.length > 0
             ? {
@@ -469,22 +530,36 @@ categoriesRouter.patch(
   asyncHandler(async (request, response) => {
     const categoryId = requireString(request.params.id, "id");
     const coachIds = parseStringArrayInput(request.body.coachIds);
+    const removeLogo = parseOptionalBooleanInput(request.body.removeLogo) ?? false;
+    const startDateOfBirth =
+      request.body.startDateOfBirth !== undefined
+        ? parseOptionalDateInput(request.body.startDateOfBirth)
+        : undefined;
+    const endDateOfBirth =
+      request.body.endDateOfBirth !== undefined
+        ? parseOptionalDateInput(request.body.endDateOfBirth)
+        : undefined;
+
+    if (startDateOfBirth && endDateOfBirth) {
+      throw new AppError("Kategorija može imati početnu ili završnu granicu datuma rođenja, ne oboje.", 400);
+    }
 
     const category = await prisma.category.update({
       where: { id: categoryId },
       data: {
         name: request.body.name ? requireString(request.body.name, "name") : undefined,
         logoUrl:
-          request.file || request.body.logoUrl
+          removeLogo
+            ? null
+            : request.file || request.body.logoUrl
             ? await resolveUploadedImageUrl(
                 request.file,
                 `Category ${categoryId} logo`,
                 request.body.logoUrl,
               )
             : undefined,
-        endDateOfBirth: request.body.endDateOfBirth
-          ? parseDateInput(request.body.endDateOfBirth, "endDateOfBirth")
-          : undefined,
+        startDateOfBirth,
+        endDateOfBirth,
         coaches:
           coachIds.length > 0 || request.body.coachIds
             ? {
@@ -520,7 +595,8 @@ function serializeCategory(category: {
   id: string;
   name: string;
   logoUrl: string | null;
-  endDateOfBirth: Date;
+  startDateOfBirth: Date | null;
+  endDateOfBirth: Date | null;
   coaches: unknown[];
   _count: {
     players: number;
@@ -530,6 +606,7 @@ function serializeCategory(category: {
     id: category.id,
     name: category.name,
     logoUrl: category.logoUrl,
+    startDateOfBirth: category.startDateOfBirth,
     endDateOfBirth: category.endDateOfBirth,
     coaches: category.coaches,
     playerCount: category._count.players,

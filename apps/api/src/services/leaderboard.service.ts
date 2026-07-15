@@ -7,6 +7,7 @@ export interface LeaderboardEntry {
   playerId: string;
   firstName: string;
   lastName: string;
+  categoryNames: string[];
   profileImageUrl: string | null;
   attended: number;
   total: number;
@@ -41,6 +42,16 @@ export async function computeCategoryLeaderboard(
   window: LeaderboardWindow = {},
   pagination?: PaginationInput,
 ): Promise<CategoryLeaderboard> {
+  return computeCategoriesLeaderboard([categoryId], window, pagination, categoryId);
+}
+
+export async function computeCategoriesLeaderboard(
+  categoryIds: string[],
+  window: LeaderboardWindow = {},
+  pagination?: PaginationInput,
+  resultCategoryId = "all",
+): Promise<CategoryLeaderboard> {
+  const uniqueCategoryIds = [...new Set(categoryIds)].filter(Boolean);
   const now = new Date();
   // Never count occurrences that have not happened yet, even inside a window that reaches into the
   // future (e.g. "this week").
@@ -52,17 +63,42 @@ export async function computeCategoryLeaderboard(
   };
 
   const page = pagination?.page ?? 1;
+
+  if (uniqueCategoryIds.length === 0) {
+    const pageSize = pagination?.pageSize ?? 1;
+
+    return {
+      categoryId: resultCategoryId,
+      from: window.from ? window.from.toISOString().slice(0, 10) : null,
+      to: upperBound.toISOString().slice(0, 10),
+      total: 0,
+      totalEntries: 0,
+      page,
+      pageSize,
+      totalPages: 1,
+      entries: [],
+    };
+  }
+
   const [total, totalEntries] = await Promise.all([
     prisma.scheduleOccurrence.count({
       where: {
         isCancelled: false,
         occurrenceDate: occurrenceDateFilter,
         schedule: {
-          categoryId,
+          categoryId: { in: uniqueCategoryIds },
         },
       },
     }),
-    prisma.playerCategory.count({ where: { categoryId } }),
+    prisma.player.count({
+      where: {
+        categories: {
+          some: {
+            categoryId: { in: uniqueCategoryIds },
+          },
+        },
+      },
+    }),
   ]);
   const pageSize = pagination?.pageSize ?? (totalEntries || 1);
   const skip = pagination?.skip ?? 0;
@@ -70,16 +106,34 @@ export async function computeCategoryLeaderboard(
   const fromClause = window.from
     ? Prisma.sql`AND so."occurrenceDate" >= ${window.from}`
     : Prisma.empty;
+  const categoryIdList = Prisma.join(uniqueCategoryIds);
   const rows = await prisma.$queryRaw<LeaderboardEntry[]>`
-    WITH attendance_counts AS (
-      SELECT sa."playerId", COUNT(sa."playerId")::int AS attended
-      FROM schedule_attendance sa
-      JOIN schedule_occurrences so ON so.id = sa."occurrenceId"
-      JOIN schedules s ON s.id = so."scheduleId"
+    WITH player_category_scope AS (
+      SELECT DISTINCT pc."playerId", pc."categoryId"
+      FROM player_categories pc
+      WHERE pc."categoryId" IN (${categoryIdList})
+    ),
+    practice_totals AS (
+      SELECT pcs."playerId", COUNT(DISTINCT so.id)::int AS total
+      FROM player_category_scope pcs
+      JOIN schedules s ON s."categoryId" = pcs."categoryId"
+      JOIN schedule_occurrences so ON so."scheduleId" = s.id
       WHERE so."isCancelled" = false
         AND so."occurrenceDate" <= ${upperBound}
         ${fromClause}
-        AND s."categoryId" = ${categoryId}
+      GROUP BY pcs."playerId"
+    ),
+    attendance_counts AS (
+      SELECT sa."playerId", COUNT(DISTINCT sa."occurrenceId")::int AS attended
+      FROM schedule_attendance sa
+      JOIN schedule_occurrences so ON so.id = sa."occurrenceId"
+      JOIN schedules s ON s.id = so."scheduleId"
+      JOIN player_category_scope pcs
+        ON pcs."playerId" = sa."playerId"
+       AND pcs."categoryId" = s."categoryId"
+      WHERE so."isCancelled" = false
+        AND so."occurrenceDate" <= ${upperBound}
+        ${fromClause}
       GROUP BY sa."playerId"
     ),
     ranked AS (
@@ -88,20 +142,29 @@ export async function computeCategoryLeaderboard(
         p.id AS "playerId",
         u."firstName",
         u."lastName",
+        COALESCE(
+          ARRAY_AGG(DISTINCT c.name ORDER BY c.name)
+            FILTER (WHERE c.name IS NOT NULL),
+          ARRAY[]::text[]
+        ) AS "categoryNames",
         u."profileImageUrl",
         COALESCE(ac.attended, 0)::int AS attended,
-        ${total}::int AS total,
+        COALESCE(pt.total, 0)::int AS total,
         CASE
-          WHEN ${total}::int > 0 THEN ROUND((COALESCE(ac.attended, 0)::numeric / ${total}::numeric) * 100)::int
+          WHEN COALESCE(pt.total, 0)::int > 0
+            THEN ROUND((COALESCE(ac.attended, 0)::numeric / COALESCE(pt.total, 0)::numeric) * 100)::int
           ELSE 0
         END AS percentage
-      FROM player_categories pc
-      JOIN players p ON p.id = pc."playerId"
+      FROM (SELECT DISTINCT "playerId" FROM player_category_scope) eligible_players
+      JOIN players p ON p.id = eligible_players."playerId"
       JOIN users u ON u.id = p."userId"
+      JOIN player_category_scope pcs ON pcs."playerId" = p.id
+      JOIN categories c ON c.id = pcs."categoryId"
       LEFT JOIN attendance_counts ac ON ac."playerId" = p.id
-      WHERE pc."categoryId" = ${categoryId}
+      LEFT JOIN practice_totals pt ON pt."playerId" = p.id
+      GROUP BY p.id, u."firstName", u."lastName", u."profileImageUrl", ac.attended, pt.total
     )
-    SELECT rank, "playerId", "firstName", "lastName", "profileImageUrl", attended, total, percentage
+    SELECT rank, "playerId", "firstName", "lastName", "categoryNames", "profileImageUrl", attended, total, percentage
     FROM ranked
     ORDER BY rank ASC, "lastName" ASC, "firstName" ASC, "playerId" ASC
     OFFSET ${skip}
@@ -109,7 +172,7 @@ export async function computeCategoryLeaderboard(
   `;
 
   return {
-    categoryId,
+    categoryId: resultCategoryId,
     from: window.from ? window.from.toISOString().slice(0, 10) : null,
     to: upperBound.toISOString().slice(0, 10),
     total,

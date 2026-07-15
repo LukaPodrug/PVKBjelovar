@@ -51,6 +51,23 @@ export function parseOptionalDateInput(value: unknown): Date | null {
   return date;
 }
 
+export function parseOptionalPositiveIntegerInput(
+  value: unknown,
+  fieldName: string,
+): number | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const numericValue = typeof value === "number" ? value : Number(String(value));
+
+  if (!Number.isInteger(numericValue) || numericValue < 1) {
+    throw new AppError(`Polje ${fieldName} mora biti pozitivan cijeli broj.`, 400);
+  }
+
+  return numericValue;
+}
+
 export function parseBooleanInput(value: unknown, fieldName: string): boolean {
   if (typeof value === "boolean") {
     return value;

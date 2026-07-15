@@ -4,6 +4,8 @@ import { clsx } from "clsx";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../core/api";
+import { adminClubSettingsDefaults, resolveSettingValue } from "../core/club-settings-defaults";
+import { applyBrowserBranding } from "../core/browser-branding";
 import type { ClubSettings } from "../core/types";
 import { useAuth } from "../auth/auth-context";
 import { navigationItems } from "./navigation";
@@ -107,7 +109,10 @@ export function AppShell() {
   const visibleNavigation = navigationItems.filter((item) =>
     user ? item.allowedRoles.includes(user.role) : false,
   );
-  const clubName = clubSettingsQuery.data?.clubName ?? "Administracija kluba";
+  const clubName = resolveSettingValue(
+    clubSettingsQuery.data?.clubName,
+    adminClubSettingsDefaults.clubName,
+  );
   const clubMonogram = createClubMonogram(clubName);
 
   useEffect(() => {
@@ -115,8 +120,11 @@ export function AppShell() {
   }, [clubSettingsQuery.data?.logoUrl]);
 
   useEffect(() => {
-    document.title = `Administracija | ${clubName}`;
-  }, [clubName]);
+    applyBrowserBranding({
+      title: `Administracija | ${clubName}`,
+      iconUrl: clubSettingsQuery.data?.logoUrl,
+    });
+  }, [clubName, clubSettingsQuery.data?.logoUrl]);
 
   return (
     <div className="admin-shell min-h-screen bg-bg text-ink">

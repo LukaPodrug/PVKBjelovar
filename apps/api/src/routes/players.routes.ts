@@ -5,7 +5,14 @@ import { asyncHandler } from "../lib/async-handler";
 import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
+import {
+  buildDevelopmentCredentials,
+  resetPlayerCredentials,
+  sendPlayerCredentials,
+  sendPlayerCredentialsToParents,
+} from "../services/credentials.service";
 import { notifyPlayerParents } from "../services/notification.service";
+import { generateTemporaryPassword, hashPassword } from "../services/password.service";
 import { buildDefaultPlayerUsername, parseUsernameInput } from "../services/username.service";
 import { formatDateHr } from "../utils/datetime";
 import { uploadProfileImage } from "../middlewares/upload";
@@ -15,6 +22,7 @@ import {
   parseBooleanInput,
   parseDateInput,
   parseOptionalAccountStatusInput,
+  parseOptionalBooleanInput,
   parseOptionalDateInput,
   parsePaginationInput,
   parseStringArrayInput,
@@ -49,42 +57,33 @@ playersRouter.get(
   asyncHandler(async (request, response) => {
     const pagination = parsePaginationInput(request.query);
     const search = optionalString(request.query.search ?? request.query.q);
-    const categoryId = optionalString(request.query.categoryId);
+    const categoryIds = parseStringArrayInput(request.query.categoryIds ?? request.query.categoryId);
+    const searchTerms = search?.split(/\s+/).filter(Boolean) ?? [];
     const filters: Prisma.PlayerWhereInput[] = [];
 
-    if (categoryId) {
-      filters.push({ categories: { some: { categoryId } } });
+    if (categoryIds.length > 0) {
+      filters.push({ categories: { some: { categoryId: { in: categoryIds } } } });
     }
 
     if (search) {
+      const singleTermFilters: Prisma.PlayerWhereInput[] = [
+        { user: { firstName: { contains: search, mode: "insensitive" } } },
+        { user: { lastName: { contains: search, mode: "insensitive" } } },
+      ];
+      const multiTermFilter: Prisma.PlayerWhereInput | null =
+        searchTerms.length > 1
+          ? {
+              AND: searchTerms.map((term) => ({
+                OR: [
+                  { user: { firstName: { contains: term, mode: "insensitive" } } },
+                  { user: { lastName: { contains: term, mode: "insensitive" } } },
+                ],
+              })),
+            }
+          : null;
+
       filters.push({
-        OR: [
-          { oib: { contains: search, mode: "insensitive" } },
-          { user: { firstName: { contains: search, mode: "insensitive" } } },
-          { user: { lastName: { contains: search, mode: "insensitive" } } },
-          { user: { username: { contains: search, mode: "insensitive" } } },
-          { user: { phone: { contains: search, mode: "insensitive" } } },
-          {
-            categories: {
-              some: { category: { name: { contains: search, mode: "insensitive" } } },
-            },
-          },
-          {
-            parents: {
-              some: {
-                parent: {
-                  user: {
-                    OR: [
-                      { firstName: { contains: search, mode: "insensitive" } },
-                      { lastName: { contains: search, mode: "insensitive" } },
-                      { email: { contains: search, mode: "insensitive" } },
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        ],
+        OR: multiTermFilter ? [...singleTermFilters, multiTermFilter] : singleTermFilters,
       });
     }
 
@@ -128,11 +127,12 @@ playersRouter.post(
   uploadProfileImage,
   asyncHandler(async (request, response) => {
     const categoryIds = parseStringArrayInput(request.body.categoryIds);
-    const parentIds = parseStringArrayInput(request.body.parentIds);
+    const parentIds = [...new Set(parseStringArrayInput(request.body.parentIds))];
     const primaryParentId = optionalString(request.body.primaryParentId);
     const firstName = requireString(request.body.firstName, "firstName");
     const lastName = requireString(request.body.lastName, "lastName");
     const oib = requireString(request.body.oib, "oib");
+    const email = normalizeOptionalEmail(request.body.email);
     const username = request.body.username
       ? parseUsernameInput(request.body.username)
       : buildDefaultPlayerUsername(firstName, lastName, oib);
@@ -155,6 +155,23 @@ playersRouter.post(
       throw new AppError("Odabrano korisničko ime igrača je zauzeto.", 409);
     }
 
+    if (email) {
+      const existingEmailUser = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+
+      if (existingEmailUser) {
+        throw new AppError("Odabrana e-adresa igrača je zauzeta.", 409);
+      }
+    }
+
+    const canSkipParent = await canPlayerSkipParentWithEmail(email, categoryIds);
+    ensurePlayerHasParent(parentIds, primaryParentId, canSkipParent);
+
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await hashPassword(temporaryPassword);
+
     const player = await prisma.player.create({
       data: {
         dateOfBirth: parseDateInput(request.body.dateOfBirth, "dateOfBirth"),
@@ -164,13 +181,16 @@ playersRouter.post(
         user: {
           create: {
             role: UserRole.PLAYER,
+            email,
             username,
+            passwordHash,
             firstName,
             lastName,
             phone: optionalString(request.body.phone),
             profileImageUrl,
             accountStatus:
               parseOptionalAccountStatusInput(request.body.accountStatus) ?? AccountStatus.ACTIVE,
+            mustChangePassword: true,
           },
         },
         categories:
@@ -198,7 +218,26 @@ playersRouter.post(
       include: playerInclude,
     });
 
+    await sendPlayerCredentials(player.id, temporaryPassword);
+
     response.status(201).json(player);
+  }),
+);
+
+playersRouter.post(
+  "/:id/resend-credentials",
+  authorizeRoles(UserRole.ADMIN),
+  asyncHandler(async (request, response) => {
+    const playerId = requireString(request.params.id, "id");
+    const credentialDelivery = await resetPlayerCredentials(playerId);
+
+    response.json({
+      message: credentialDelivery.emailSent
+        ? "Pristupni podaci igrača su poslani."
+        : "Lozinka je resetirana, ali slanje e-pošte nije konfigurirano.",
+      emailSent: credentialDelivery.emailSent,
+      developmentCredentials: buildDevelopmentCredentials(credentialDelivery),
+    });
   }),
 );
 
@@ -208,7 +247,7 @@ playersRouter.patch(
   asyncHandler(async (request, response) => {
     const playerId = requireString(request.params.id, "id");
     const categoryIds = parseStringArrayInput(request.body.categoryIds);
-    const parentIds = parseStringArrayInput(request.body.parentIds);
+    const parentIds = [...new Set(parseStringArrayInput(request.body.parentIds))];
     const primaryParentId = optionalString(request.body.primaryParentId);
     const existingPlayer = await prisma.player.findUnique({
       where: {
@@ -218,6 +257,11 @@ playersRouter.patch(
         id: true,
         userId: true,
         membershipExpiresAt: true,
+        _count: {
+          select: {
+            parents: true,
+          },
+        },
       },
     });
 
@@ -225,8 +269,11 @@ playersRouter.patch(
       throw new AppError("Igrač nije pronađen.", 404);
     }
 
+    const removeProfileImage = parseOptionalBooleanInput(request.body.removeProfileImage) ?? false;
     const username =
       request.body.username !== undefined ? parseUsernameInput(request.body.username) : undefined;
+    const email =
+      request.body.email !== undefined ? normalizeOptionalEmail(request.body.email) : undefined;
 
     if (username) {
       const conflictingUser = await prisma.user.findUnique({
@@ -241,6 +288,27 @@ playersRouter.patch(
       if (conflictingUser && conflictingUser.id !== existingPlayer.userId) {
         throw new AppError("Odabrano korisničko ime igrača je zauzeto.", 409);
       }
+    }
+
+    if (email) {
+      const conflictingEmailUser = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+
+      if (conflictingEmailUser && conflictingEmailUser.id !== existingPlayer.userId) {
+        throw new AppError("Odabrana e-adresa igrača je zauzeta.", 409);
+      }
+    }
+
+    if (request.body.parentIds !== undefined) {
+      const canSkipParent = await canPlayerSkipParentWithEmail(
+        email ?? null,
+        categoryIds,
+      );
+      ensurePlayerHasParent(parentIds, primaryParentId, canSkipParent);
+    } else if (existingPlayer._count.parents === 0) {
+      throw new AppError("Igrač mora imati povezanog barem jednog roditelja.", 400);
     }
 
     const player = await prisma.player.update({
@@ -262,10 +330,13 @@ playersRouter.patch(
           update: {
             firstName: request.body.firstName ? requireString(request.body.firstName, "firstName") : undefined,
             lastName: request.body.lastName ? requireString(request.body.lastName, "lastName") : undefined,
+            email,
             username,
             phone: request.body.phone !== undefined ? optionalString(request.body.phone) : undefined,
             profileImageUrl:
-              request.file || request.body.profileImageUrl
+              removeProfileImage
+                ? null
+                : request.file || request.body.profileImageUrl
                 ? await resolveUploadedImageUrl(
                     request.file,
                     `Player ${playerId} profile image`,
@@ -319,6 +390,47 @@ playersRouter.patch(
     }
   }),
 );
+
+function ensurePlayerHasParent(
+  parentIds: string[],
+  primaryParentId: string | null,
+  canSkipParent = false,
+) {
+  if (parentIds.length === 0 && !canSkipParent) {
+    throw new AppError("Igrač mora imati povezanog barem jednog roditelja.", 400);
+  }
+
+  if (primaryParentId && !parentIds.includes(primaryParentId)) {
+    throw new AppError("Primarni roditelj mora biti jedan od povezanih roditelja.", 400);
+  }
+}
+
+function normalizeOptionalEmail(value: unknown) {
+  return optionalString(value)?.toLowerCase() ?? null;
+}
+
+async function canPlayerSkipParentWithEmail(email: string | null, categoryIds: string[]) {
+  if (!email || categoryIds.length === 0) {
+    return false;
+  }
+
+  const categories = await prisma.category.findMany({
+    where: { id: { in: categoryIds } },
+    select: {
+      id: true,
+      startDateOfBirth: true,
+      endDateOfBirth: true,
+    },
+  });
+
+  if (categories.length !== categoryIds.length) {
+    throw new AppError("Jedna ili više odabranih kategorija nije pronađena.", 404);
+  }
+
+  return categories.every(
+    (category) => category.endDateOfBirth === null || category.startDateOfBirth !== null,
+  );
+}
 
 playersRouter.delete(
   "/:id",

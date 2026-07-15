@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { api } from "../core/api";
+import { adminClubSettingsDefaults, resolveSettingValue } from "../core/club-settings-defaults";
 import type { ClubSettings } from "../core/types";
+import { FeedbackToast } from "../ui/feedback-toast";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -21,6 +23,7 @@ interface BrandingFormState {
   bankIban: string;
   bankName: string;
   logoFile: File | null;
+  removeLogo: boolean;
 }
 
 interface PasswordFormState {
@@ -41,6 +44,7 @@ const emptyBrandingForm: BrandingFormState = {
   bankIban: "",
   bankName: "",
   logoFile: null,
+  removeLogo: false,
 };
 
 const emptyPasswordForm: PasswordFormState = {
@@ -67,7 +71,9 @@ export function SettingsPage() {
 
   const currentSettings = settingsQuery.data ?? null;
   const settingsMissing = settingsQuery.error?.response?.status === 404;
-  const activeLogoUrl = logoPreviewUrl ?? currentSettings?.logoUrl ?? null;
+  const activeLogoUrl = brandingForm.removeLogo
+    ? null
+    : logoPreviewUrl ?? currentSettings?.logoUrl ?? null;
 
   useEffect(() => {
     if (!currentSettings) {
@@ -82,10 +88,10 @@ export function SettingsPage() {
     }
 
     setBrandingForm({
-      clubName: currentSettings.clubName,
+      clubName: currentSettings.clubName ?? "",
       clubSubtitle: currentSettings.clubSubtitle ?? "",
-      contactEmail: currentSettings.contactEmail,
-      contactPhone: currentSettings.contactPhone,
+      contactEmail: currentSettings.contactEmail ?? "",
+      contactPhone: currentSettings.contactPhone ?? "",
       facebookUrl: currentSettings.facebookUrl ?? "",
       instagramUrl: currentSettings.instagramUrl ?? "",
       youtubeUrl: currentSettings.youtubeUrl ?? "",
@@ -93,6 +99,7 @@ export function SettingsPage() {
       bankIban: currentSettings.bankIban ?? "",
       bankName: currentSettings.bankName ?? "",
       logoFile: null,
+      removeLogo: false,
     });
   }, [
     currentSettings,
@@ -136,15 +143,20 @@ export function SettingsPage() {
       return response.data;
     },
     onSuccess: (settings) => {
+      const savedClubName = resolveSettingValue(
+        settings.clubName,
+        adminClubSettingsDefaults.clubName,
+      );
+
       setBrandingFeedback({
         tone: "success",
-        message: `Postavke kluba ${settings.clubName} uspješno su spremljene.`,
+        message: `Postavke kluba ${savedClubName} uspješno su spremljene.`,
       });
       setBrandingForm({
-        clubName: settings.clubName,
+        clubName: settings.clubName ?? "",
         clubSubtitle: settings.clubSubtitle ?? "",
-        contactEmail: settings.contactEmail,
-        contactPhone: settings.contactPhone,
+        contactEmail: settings.contactEmail ?? "",
+        contactPhone: settings.contactPhone ?? "",
         facebookUrl: settings.facebookUrl ?? "",
         instagramUrl: settings.instagramUrl ?? "",
         youtubeUrl: settings.youtubeUrl ?? "",
@@ -152,6 +164,7 @@ export function SettingsPage() {
         bankIban: settings.bankIban ?? "",
         bankName: settings.bankName ?? "",
         logoFile: null,
+        removeLogo: false,
       });
       void queryClient.invalidateQueries({ queryKey: ["club-settings"] });
     },
@@ -185,6 +198,14 @@ export function SettingsPage() {
 
   return (
     <section className="space-y-6">
+      <FeedbackToast
+        feedback={securityFeedback ?? brandingFeedback}
+        onClose={() => {
+          setBrandingFeedback(null);
+          setSecurityFeedback(null);
+        }}
+      />
+
       <div className="space-y-4">
         <section className="border-2 border-line bg-surface">
             <div className="border-b-2 border-line bg-panel px-4 py-4">
@@ -193,18 +214,6 @@ export function SettingsPage() {
               </p>
               <h3 className="mt-2 text-xl font-bold uppercase">Identitet kluba</h3>
             </div>
-
-            {brandingFeedback ? (
-              <div
-                className={`border-b-2 border-line px-4 py-4 text-sm font-medium ${
-                  brandingFeedback.tone === "success"
-                    ? "bg-success text-surface"
-                    : "bg-signal text-surface"
-                }`}
-              >
-                {brandingFeedback.message}
-              </div>
-            ) : null}
 
             {settingsQuery.isLoading ? (
               <div className="h-[460px] animate-pulse bg-panel" />
@@ -232,7 +241,7 @@ export function SettingsPage() {
                 <div className="grid gap-5 xl:grid-cols-2">
                   <fieldset className="admin-settings-widget admin-settings-widget--club">
                     <legend className="admin-settings-widget-title">
-                      Club info
+                      Podaci o klubu
                     </legend>
                     <div className="admin-settings-club-grid">
                       <div className="admin-settings-logo-card">
@@ -255,21 +264,33 @@ export function SettingsPage() {
                           accept="image/*"
                           onChange={(event: ChangeEvent<HTMLInputElement>) => {
                             const nextFile = event.target.files?.[0] ?? null;
-                            setBrandingForm((current) => ({ ...current, logoFile: nextFile }));
+                            setBrandingForm((current) => ({
+                              ...current,
+                              logoFile: nextFile,
+                              removeLogo: false,
+                            }));
                           }}
                         />
 
                         <div className="admin-settings-logo-actions">
                           <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="club-logo-upload">
-                            Odaberi logo
+                            {activeLogoUrl ? "Promijeni logo" : "Odaberi logo"}
                           </label>
-                          <p>
-                            {brandingForm.logoFile
-                              ? brandingForm.logoFile.name
-                              : activeLogoUrl
-                                ? "Trenutni logo je aktivan."
-                                : "Nijedan logo nije odabran."}
-                          </p>
+                          {activeLogoUrl || brandingForm.logoFile ? (
+                            <button
+                              className="ui-pill ui-pill-button ui-pill--outline"
+                              type="button"
+                              onClick={() =>
+                                setBrandingForm((current) => ({
+                                  ...current,
+                                  logoFile: null,
+                                  removeLogo: Boolean(currentSettings?.logoUrl),
+                                }))
+                              }
+                            >
+                              Ukloni logo
+                            </button>
+                          ) : null}
                         </div>
                       </div>
 
@@ -288,7 +309,7 @@ export function SettingsPage() {
                                 clubName: event.target.value,
                               }))
                             }
-                            required
+                            placeholder={adminClubSettingsDefaults.clubName}
                           />
                         </label>
 
@@ -306,7 +327,7 @@ export function SettingsPage() {
                                 clubSubtitle: event.target.value,
                               }))
                             }
-                            placeholder="Plivački vaterpolski klub"
+                            placeholder={adminClubSettingsDefaults.clubSubtitle}
                           />
                         </label>
                       </div>
@@ -332,7 +353,7 @@ export function SettingsPage() {
                               contactEmail: event.target.value,
                             }))
                           }
-                          required
+                          placeholder={adminClubSettingsDefaults.contactEmail}
                         />
                       </label>
 
@@ -350,7 +371,7 @@ export function SettingsPage() {
                               contactPhone: event.target.value,
                             }))
                           }
-                          required
+                          placeholder={adminClubSettingsDefaults.contactPhone}
                         />
                       </label>
                     </div>
@@ -358,12 +379,12 @@ export function SettingsPage() {
 
                   <fieldset className="admin-settings-widget">
                     <legend className="admin-settings-widget-title">
-                      Social media
+                      Društvene mreže
                     </legend>
                     <div className="grid gap-5">
                       <label className="block">
                         <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                          Facebook URL
+                          Facebook poveznica
                         </span>
                         <input
                           className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
@@ -375,13 +396,13 @@ export function SettingsPage() {
                               facebookUrl: event.target.value,
                             }))
                           }
-                          placeholder="https://facebook.com/..."
+                          placeholder={adminClubSettingsDefaults.facebookUrl || "https://facebook.com/..."}
                         />
                       </label>
 
                       <label className="block">
                         <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                          Instagram URL
+                          Instagram poveznica
                         </span>
                         <input
                           className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
@@ -393,13 +414,13 @@ export function SettingsPage() {
                               instagramUrl: event.target.value,
                             }))
                           }
-                          placeholder="https://instagram.com/..."
+                          placeholder={adminClubSettingsDefaults.instagramUrl || "https://instagram.com/..."}
                         />
                       </label>
 
                       <label className="block">
                         <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                          YouTube URL
+                          YouTube poveznica
                         </span>
                         <input
                           className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
@@ -411,7 +432,7 @@ export function SettingsPage() {
                               youtubeUrl: event.target.value,
                             }))
                           }
-                          placeholder="https://youtube.com/..."
+                          placeholder={adminClubSettingsDefaults.youtubeUrl || "https://youtube.com/..."}
                         />
                       </label>
                     </div>
@@ -419,7 +440,7 @@ export function SettingsPage() {
 
                   <fieldset className="admin-settings-widget">
                     <legend className="admin-settings-widget-title">
-                      Bank
+                      Bankovni podaci
                     </legend>
                     <div className="grid gap-5">
                       <label className="block">
@@ -436,6 +457,7 @@ export function SettingsPage() {
                               bankRecipient: event.target.value,
                             }))
                           }
+                          placeholder={adminClubSettingsDefaults.bankRecipient}
                         />
                       </label>
 
@@ -453,6 +475,7 @@ export function SettingsPage() {
                               bankIban: event.target.value,
                             }))
                           }
+                          placeholder={adminClubSettingsDefaults.bankIban}
                         />
                       </label>
 
@@ -470,6 +493,7 @@ export function SettingsPage() {
                               bankName: event.target.value,
                             }))
                           }
+                          placeholder={adminClubSettingsDefaults.bankName}
                         />
                       </label>
                     </div>
@@ -484,10 +508,10 @@ export function SettingsPage() {
                       setBrandingFeedback(null);
                       if (currentSettings) {
                         setBrandingForm({
-                          clubName: currentSettings.clubName,
+                          clubName: currentSettings.clubName ?? "",
                           clubSubtitle: currentSettings.clubSubtitle ?? "",
-                          contactEmail: currentSettings.contactEmail,
-                          contactPhone: currentSettings.contactPhone,
+                          contactEmail: currentSettings.contactEmail ?? "",
+                          contactPhone: currentSettings.contactPhone ?? "",
                           facebookUrl: currentSettings.facebookUrl ?? "",
                           instagramUrl: currentSettings.instagramUrl ?? "",
                           youtubeUrl: currentSettings.youtubeUrl ?? "",
@@ -495,6 +519,7 @@ export function SettingsPage() {
                           bankIban: currentSettings.bankIban ?? "",
                           bankName: currentSettings.bankName ?? "",
                           logoFile: null,
+                          removeLogo: false,
                         });
                         return;
                       }
@@ -523,18 +548,6 @@ export function SettingsPage() {
               </p>
               <h3 className="mt-2 text-xl font-bold uppercase">Promjena lozinke</h3>
             </div>
-
-            {securityFeedback ? (
-              <div
-                className={`border-b-2 border-line px-4 py-4 text-sm font-medium ${
-                  securityFeedback.tone === "success"
-                    ? "bg-success text-surface"
-                    : "bg-signal text-surface"
-                }`}
-              >
-                {securityFeedback.message}
-              </div>
-            ) : null}
 
             <form
               className="space-y-5 p-4"
@@ -641,6 +654,8 @@ function buildBrandingFormData(form: BrandingFormState) {
   if (form.logoFile) {
     formData.append("logo", form.logoFile);
   }
+
+  formData.append("removeLogo", String(form.removeLogo));
 
   return formData;
 }

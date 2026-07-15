@@ -20,29 +20,31 @@ export function formatTimeRange(startIso: string, endIso: string) {
 }
 
 export function formatLongDate(dateIso: string) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(dateIso));
+  const date = new Date(dateIso);
+  const weekday = new Intl.DateTimeFormat("hr-HR", { weekday: "short" }).format(date);
+  return `${weekday} ${formatDate(dateIso)}`;
 }
 
 export function formatDate(dateIso: string) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(dateIso));
+  return formatNumericDate(new Date(dateIso));
 }
 
 export function formatDateTime(dateIso: string) {
-  return new Intl.DateTimeFormat("hr-HR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
+  const date = new Date(dateIso);
+  const time = new Intl.DateTimeFormat("hr-HR", {
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(dateIso));
+  }).format(date);
+
+  return `${formatNumericDate(date)} ${time}`;
+}
+
+function formatNumericDate(date: Date) {
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}.${month}.${year}.`;
 }
 
 export function toDateInputValue(dateIso: string) {
