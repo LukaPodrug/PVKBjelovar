@@ -724,10 +724,15 @@ export function SchedulesPage() {
                           }
                         }}
                       >
-                        <div className="flex items-center justify-between gap-4 px-4 py-4">
-                          <h4 className="min-w-0 text-lg font-bold uppercase">
-                            {weeklySchedule.name}
-                          </h4>
+                        <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+                          <div className="flex min-w-0 flex-wrap items-center gap-3">
+                            <h4 className="min-w-0 text-base font-bold uppercase leading-tight">
+                              {weeklySchedule.name}
+                            </h4>
+                            <span className="ui-pill ui-pill--panel">
+                              {weeklySchedule.category.name}
+                            </span>
+                          </div>
 
                           <button
                             className={`ui-pill ui-pill-button ${

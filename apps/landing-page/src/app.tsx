@@ -812,6 +812,16 @@ function LandingFooter({
       value: bankName,
     },
   ].filter((item): item is { label: string; value: string } => Boolean(item.value));
+  const contactDetails = [
+    {
+      label: "E-pošta",
+      value: contactEmail,
+    },
+    {
+      label: "Telefon",
+      value: contactPhone,
+    },
+  ].filter((item): item is { label: string; value: string } => Boolean(item.value.trim()));
   const socialLinks = [
     {
       label: "Facebook",
@@ -833,19 +843,19 @@ function LandingFooter({
   return (
     <footer className="border-t-2 border-line bg-[linear-gradient(180deg,#f7fbff_0%,#edf4fb_100%)]">
       <div className="landing-footer-grid mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-        <section className="landing-footer-column">
-          <p className="landing-kicker text-muted">Kontakt</p>
-          <div className="landing-footer-list mt-4">
-            <div>
-              <span>E-pošta</span>
-              <strong>{contactEmail}</strong>
+        {contactDetails.length > 0 ? (
+          <section className="landing-footer-column">
+            <p className="landing-kicker text-muted">Kontakt</p>
+            <div className="landing-footer-list mt-4">
+              {contactDetails.map((item) => (
+                <div key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
             </div>
-            <div>
-              <span>Telefon</span>
-              <strong>{contactPhone}</strong>
-            </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
 
         {socialLinks.length > 0 ? (
           <section className="landing-footer-column">
