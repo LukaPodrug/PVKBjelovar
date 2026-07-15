@@ -24,13 +24,13 @@ export const navigationItems: NavigationItem[] = [
     label: "Kategorije",
     href: "/categories",
     caption: "Skupine",
-    allowedRoles: ["ADMIN", "COACH"],
+    allowedRoles: ["ADMIN"],
   },
   {
     label: "Treneri",
     href: "/coaches",
     caption: "Stručni stožer",
-    allowedRoles: ["ADMIN", "COACH"],
+    allowedRoles: ["ADMIN"],
   },
   {
     label: "Igrači",

@@ -229,235 +229,254 @@ export function SettingsPage() {
                   </div>
                 ) : null}
 
-                <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-                  <div className="space-y-3">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                      Pregled loga
-                    </p>
-                    {activeLogoUrl ? (
-                      <img
-                        className="h-44 w-full border-2 border-line object-cover"
-                        src={activeLogoUrl}
-                        alt={brandingForm.clubName || "Pregled loga kluba"}
-                      />
-                    ) : (
-                      <div className="flex h-44 items-center justify-center border-2 border-dashed border-line bg-bg px-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-muted">
-                        Učitaj logo kluba
+                <div className="grid gap-5 xl:grid-cols-2">
+                  <fieldset className="admin-settings-widget admin-settings-widget--club">
+                    <legend className="admin-settings-widget-title">
+                      Club info
+                    </legend>
+                    <div className="admin-settings-club-grid">
+                      <div className="admin-settings-logo-card">
+                        {activeLogoUrl ? (
+                          <img
+                            className="admin-settings-logo-preview"
+                            src={activeLogoUrl}
+                            alt={brandingForm.clubName || "Pregled loga kluba"}
+                          />
+                        ) : (
+                          <div className="admin-settings-logo-placeholder">
+                            Logo kluba
+                          </div>
+                        )}
+
+                        <input
+                          id="club-logo-upload"
+                          className="admin-settings-logo-input"
+                          type="file"
+                          accept="image/*"
+                          onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                            const nextFile = event.target.files?.[0] ?? null;
+                            setBrandingForm((current) => ({ ...current, logoFile: nextFile }));
+                          }}
+                        />
+
+                        <div className="admin-settings-logo-actions">
+                          <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="club-logo-upload">
+                            Odaberi logo
+                          </label>
+                          <p>
+                            {brandingForm.logoFile
+                              ? brandingForm.logoFile.name
+                              : activeLogoUrl
+                                ? "Trenutni logo je aktivan."
+                                : "Nijedan logo nije odabran."}
+                          </p>
+                        </div>
                       </div>
-                    )}
-                    <input
-                      className="block w-full border-2 border-line bg-white px-3 py-3 text-sm"
-                      type="file"
-                      accept="image/*"
-                      onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                        const nextFile = event.target.files?.[0] ?? null;
-                        setBrandingForm((current) => ({ ...current, logoFile: nextFile }));
-                      }}
-                    />
-                  </div>
 
-                  <div className="grid gap-5 lg:grid-cols-2">
-                    <label className="block lg:col-span-2">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Naziv kluba
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="text"
-                        value={brandingForm.clubName}
-                        onChange={(event) =>
-                          setBrandingForm((current) => ({
-                            ...current,
-                            clubName: event.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </label>
-
-                    <label className="block lg:col-span-2">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Podnaslov kluba
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="text"
-                        value={brandingForm.clubSubtitle}
-                        onChange={(event) =>
-                          setBrandingForm((current) => ({
-                            ...current,
-                            clubSubtitle: event.target.value,
-                          }))
-                        }
-                        placeholder="Plivački vaterpolski klub"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Kontaktna e-pošta
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="email"
-                        value={brandingForm.contactEmail}
-                        onChange={(event) =>
-                          setBrandingForm((current) => ({
-                            ...current,
-                            contactEmail: event.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Kontakt telefon
-                      </span>
-                      <input
-                        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        type="text"
-                        value={brandingForm.contactPhone}
-                        onChange={(event) =>
-                          setBrandingForm((current) => ({
-                            ...current,
-                            contactPhone: event.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </label>
-
-                    <div className="lg:col-span-2">
-                      <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Društvene mreže
-                      </p>
-                      <div className="grid gap-4 lg:grid-cols-3">
+                      <div className="admin-settings-club-fields">
                         <label className="block">
                           <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                            Facebook URL
+                            Naziv kluba
                           </span>
                           <input
                             className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            type="url"
-                            value={brandingForm.facebookUrl}
+                            type="text"
+                            value={brandingForm.clubName}
                             onChange={(event) =>
                               setBrandingForm((current) => ({
                                 ...current,
-                                facebookUrl: event.target.value,
+                                clubName: event.target.value,
                               }))
                             }
-                            placeholder="https://facebook.com/..."
+                            required
                           />
                         </label>
 
                         <label className="block">
                           <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                            Instagram URL
+                            Podnaslov kluba
                           </span>
                           <input
                             className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            type="url"
-                            value={brandingForm.instagramUrl}
+                            type="text"
+                            value={brandingForm.clubSubtitle}
                             onChange={(event) =>
                               setBrandingForm((current) => ({
                                 ...current,
-                                instagramUrl: event.target.value,
+                                clubSubtitle: event.target.value,
                               }))
                             }
-                            placeholder="https://instagram.com/..."
-                          />
-                        </label>
-
-                        <label className="block">
-                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                            YouTube URL
-                          </span>
-                          <input
-                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            type="url"
-                            value={brandingForm.youtubeUrl}
-                            onChange={(event) =>
-                              setBrandingForm((current) => ({
-                                ...current,
-                                youtubeUrl: event.target.value,
-                              }))
-                            }
-                            placeholder="https://youtube.com/..."
+                            placeholder="Plivački vaterpolski klub"
                           />
                         </label>
                       </div>
                     </div>
+                  </fieldset>
 
-                    <div className="lg:col-span-2">
-                      <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Podaci za uplatu
-                      </p>
-                      <div className="grid gap-4 lg:grid-cols-3">
-                        <label className="block">
-                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                            Primatelj
-                          </span>
-                          <input
-                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            type="text"
-                            value={brandingForm.bankRecipient}
-                            onChange={(event) =>
-                              setBrandingForm((current) => ({
-                                ...current,
-                                bankRecipient: event.target.value,
-                              }))
-                            }
-                          />
-                        </label>
+                  <fieldset className="admin-settings-widget">
+                    <legend className="admin-settings-widget-title">
+                      Kontakt
+                    </legend>
+                    <div className="grid gap-5">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Kontaktna e-pošta
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="email"
+                          value={brandingForm.contactEmail}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              contactEmail: event.target.value,
+                            }))
+                          }
+                          required
+                        />
+                      </label>
 
-                        <label className="block">
-                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                            IBAN
-                          </span>
-                          <input
-                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            type="text"
-                            value={brandingForm.bankIban}
-                            onChange={(event) =>
-                              setBrandingForm((current) => ({
-                                ...current,
-                                bankIban: event.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-
-                        <label className="block">
-                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                            Banka
-                          </span>
-                          <input
-                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                            type="text"
-                            value={brandingForm.bankName}
-                            onChange={(event) =>
-                              setBrandingForm((current) => ({
-                                ...current,
-                                bankName: event.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-                      </div>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Kontakt telefon
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={brandingForm.contactPhone}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              contactPhone: event.target.value,
+                            }))
+                          }
+                          required
+                        />
+                      </label>
                     </div>
-                  </div>
+                  </fieldset>
+
+                  <fieldset className="admin-settings-widget">
+                    <legend className="admin-settings-widget-title">
+                      Social media
+                    </legend>
+                    <div className="grid gap-5">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Facebook URL
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="url"
+                          value={brandingForm.facebookUrl}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              facebookUrl: event.target.value,
+                            }))
+                          }
+                          placeholder="https://facebook.com/..."
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Instagram URL
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="url"
+                          value={brandingForm.instagramUrl}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              instagramUrl: event.target.value,
+                            }))
+                          }
+                          placeholder="https://instagram.com/..."
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          YouTube URL
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="url"
+                          value={brandingForm.youtubeUrl}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              youtubeUrl: event.target.value,
+                            }))
+                          }
+                          placeholder="https://youtube.com/..."
+                        />
+                      </label>
+                    </div>
+                  </fieldset>
+
+                  <fieldset className="admin-settings-widget">
+                    <legend className="admin-settings-widget-title">
+                      Bank
+                    </legend>
+                    <div className="grid gap-5">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Primatelj
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={brandingForm.bankRecipient}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              bankRecipient: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          IBAN
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={brandingForm.bankIban}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              bankIban: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Banka
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={brandingForm.bankName}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              bankName: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                  </fieldset>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <button
-                    className="ui-pill ui-pill-button ui-pill--accent"
-                    type="submit"
-                    disabled={saveBrandingMutation.isPending}
-                  >
-                    {saveBrandingMutation.isPending ? "Spremanje..." : "Spremi postavke"}
-                  </button>
                   <button
                     className="ui-pill ui-pill-button ui-pill--panel"
                     type="button"
@@ -484,6 +503,13 @@ export function SettingsPage() {
                     }}
                   >
                     Resetiraj identitet
+                  </button>
+                  <button
+                    className="ui-pill ui-pill-button ui-pill--accent"
+                    type="submit"
+                    disabled={saveBrandingMutation.isPending}
+                  >
+                    {saveBrandingMutation.isPending ? "Spremanje..." : "Spremi postavke"}
                   </button>
                 </div>
               </form>
@@ -575,13 +601,6 @@ export function SettingsPage() {
               </div>
               <div className="flex flex-wrap gap-3">
                 <button
-                  className="ui-pill ui-pill-button ui-pill--success"
-                  type="submit"
-                  disabled={changePasswordMutation.isPending}
-                >
-                  {changePasswordMutation.isPending ? "Ažuriranje..." : "Promijeni lozinku"}
-                </button>
-                <button
                   className="ui-pill ui-pill-button ui-pill--panel"
                   type="button"
                   onClick={() => {
@@ -590,6 +609,13 @@ export function SettingsPage() {
                   }}
                 >
                   Resetiraj sigurnosni obrazac
+                </button>
+                <button
+                  className="ui-pill ui-pill-button ui-pill--accent"
+                  type="submit"
+                  disabled={changePasswordMutation.isPending}
+                >
+                  {changePasswordMutation.isPending ? "Ažuriranje..." : "Promijeni lozinku"}
                 </button>
               </div>
             </form>

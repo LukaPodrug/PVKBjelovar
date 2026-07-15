@@ -29,6 +29,11 @@ interface Tone {
   text: string;
 }
 
+interface OverlapLayout {
+  laneIndex: number;
+  laneCount: number;
+}
+
 interface PracticeWeekBoardProps {
   items: ScheduleCalendarItem[];
   weekStartDate: string;
@@ -105,6 +110,7 @@ export function PracticeWeekBoard({
   const weekDays = buildWeekDays(visibleWeekStart);
   const currentDayMeta = weekDays.find((day) => day.key === selectedDay) ?? weekDays[0];
   const groupedItems = buildVisibleWeekGroupedItems(items, weekDays);
+  const overlapLayouts = buildOverlapLayouts(groupedItems);
   const currentDayItems = groupedItems[currentDayMeta.key] ?? [];
   const timeWindow = buildTimeWindow(items, fixedStartHour, fixedEndHourExclusive);
   const timeSlots = buildTimeSlots(timeWindow.startHour, timeWindow.endHourExclusive);
@@ -112,22 +118,16 @@ export function PracticeWeekBoard({
   const monthLabel = formatMonthLabel(weekDays[0].date);
   const monthCalendar = buildMonthCalendar(visibleWeekStart, currentDayMeta.date);
   const totalGridHeight = timeSlots.length * hourHeight;
-  const categoryCount = new Set(items.map((item) => item.category.id)).size;
-  const cancelledCount = items.filter((item) => item.isCancelled).length;
   const isCurrentWeek = isSameDate(visibleWeekStart, currentWeekStart);
+  const selectedDayIndex = weekDays.findIndex((day) => day.key === selectedDay);
 
   useEffect(() => {
     const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
 
     if (selectedItem) {
       setSelectedDay(getDayKeyFromDate(selectedItem.startTime));
-      return;
     }
-
-    if (groupedItems[selectedDay]?.length === 0 && groupedItems.MONDAY.length > 0) {
-      setSelectedDay("MONDAY");
-    }
-  }, [groupedItems, items, selectedDay, selectedItemId]);
+  }, [items, selectedItemId]);
 
   const moveVisibleWeek = (offsetDays: number) => {
     onWeekStartChange(getDateKey(shiftDate(visibleWeekStart, offsetDays)));
@@ -139,9 +139,22 @@ export function PracticeWeekBoard({
   };
 
   const moveSelectedDay = (offsetDays: number) => {
-    const nextDate = shiftDate(currentDayMeta.date, offsetDays);
-    onWeekStartChange(getDateKey(getWeekStart(nextDate)));
-    setSelectedDay(getDayKeyFromDate(nextDate.toISOString()));
+    const nextDayIndex = selectedDayIndex + offsetDays;
+
+    if (nextDayIndex < 0) {
+      onWeekStartChange(getDateKey(shiftDate(visibleWeekStart, -7)));
+      setSelectedDay("SUNDAY");
+      return;
+    }
+
+    if (nextDayIndex >= weekDays.length) {
+      onWeekStartChange(getDateKey(shiftDate(visibleWeekStart, 7)));
+      setSelectedDay("MONDAY");
+      return;
+    }
+
+    const nextDay = weekDays[nextDayIndex];
+    setSelectedDay(nextDay.key);
   };
 
   const selectCalendarDate = (date: Date) => {
@@ -155,11 +168,7 @@ export function PracticeWeekBoard({
         <div className="schedule-board-toolbar border-b-2 border-line">
           <div>
             <p className="ui-kicker text-muted">Tjedni pregled</p>
-            <h3 className="mt-2 text-3xl">Stvarni termini i treninzi</h3>
-            <p className="ui-copy mt-3 max-w-3xl text-sm">
-              Pregled prikazuje samo stvarne termine u odabranom tjednu, uključujući aktivirane
-              rasporede i pojedinačne posebne treninge.
-            </p>
+            <h3 className="mt-2 text-3xl">Raspored treninga</h3>
           </div>
 
           <div className="schedule-week-controls">
@@ -197,17 +206,6 @@ export function PracticeWeekBoard({
             </button>
           </div>
 
-          <div className="schedule-board-pills">
-            <span className="schedule-pill">
-              Termini <strong>{items.length}</strong>
-            </span>
-            <span className="schedule-pill">
-              Kategorije <strong>{categoryCount}</strong>
-            </span>
-            <span className="schedule-pill">
-              Otkazani <strong>{cancelledCount}</strong>
-            </span>
-          </div>
         </div>
       ) : null}
 
@@ -274,6 +272,10 @@ export function PracticeWeekBoard({
                           hourHeight,
                           minimumCardHeight,
                         );
+                        const overlapLayout = overlapLayouts[day.key].get(item.id) ?? {
+                          laneIndex: 0,
+                          laneCount: 1,
+                        };
                         const tone = getToneForItem(item, toneMode);
                         const isSelected = selectedItemId === item.id;
                         const eventTitle = getEventTitle(item, showCategoryName, showPracticeTypeText);
@@ -296,6 +298,7 @@ export function PracticeWeekBoard({
                               style={{
                                 top: position.top,
                                 height: position.height,
+                                ...getOverlapStyle(overlapLayout),
                                 "--schedule-accent": tone.accent,
                                 "--schedule-soft": tone.soft,
                                 "--schedule-text": tone.text,
@@ -341,6 +344,7 @@ export function PracticeWeekBoard({
                             style={{
                               top: position.top,
                               height: position.height,
+                              ...getOverlapStyle(overlapLayout),
                               "--schedule-accent": tone.accent,
                               "--schedule-soft": tone.soft,
                               "--schedule-text": tone.text,
@@ -377,21 +381,6 @@ export function PracticeWeekBoard({
           </div>
 
           <div className="schedule-mobile-view">
-            <div className="schedule-mobile-days">
-              {weekDays.map((day) => (
-                <button
-                  key={day.key}
-                  className={`schedule-mobile-day-button ${selectedDay === day.key ? "is-active" : ""}`}
-                  type="button"
-                  onClick={() => setSelectedDay(day.key)}
-                >
-                  <span>{day.shortLabel}</span>
-                  <strong>{day.label}</strong>
-                  <em>{formatDayDate(day.date)}</em>
-                </button>
-              ))}
-            </div>
-
             <div className="schedule-mobile-panel">
               <div className="schedule-mobile-panel-header">
                 <div>
@@ -428,7 +417,12 @@ export function PracticeWeekBoard({
               </div>
 
               <div className="schedule-mobile-list">
-                {currentDayItems.map((item) => {
+                {currentDayItems.length === 0 ? (
+                  <div className="schedule-empty-state schedule-empty-state-mobile">
+                    Nema treninga za odabrani dan.
+                  </div>
+                ) : (
+                  currentDayItems.map((item) => {
                     const tone = getToneForItem(item, toneMode);
                     const isSelected = selectedItemId === item.id;
                     const eventTitle = getEventTitle(item, showCategoryName, showPracticeTypeText);
@@ -523,7 +517,8 @@ export function PracticeWeekBoard({
                         )}
                       </article>
                     );
-                  })}
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -637,22 +632,83 @@ function buildVisibleWeekGroupedItems(items: ScheduleCalendarItem[], weekDays: W
   return groups;
 }
 
+function buildOverlapLayouts(groupedItems: Record<DayKey, ScheduleCalendarItem[]>) {
+  return orderedDays.reduce<Record<DayKey, Map<string, OverlapLayout>>>((accumulator, day) => {
+    accumulator[day.key] = buildDayOverlapLayout(groupedItems[day.key]);
+    return accumulator;
+  }, {} as Record<DayKey, Map<string, OverlapLayout>>);
+}
+
+function buildDayOverlapLayout(items: ScheduleCalendarItem[]) {
+  const layout = new Map<string, OverlapLayout>();
+  const sortedItems = [...items].sort(
+    (left, right) =>
+      getMinutesSinceMidnight(left.startTime) - getMinutesSinceMidnight(right.startTime),
+  );
+  let cluster: ScheduleCalendarItem[] = [];
+  let clusterEndMinutes = 0;
+
+  const commitCluster = () => {
+    if (cluster.length === 0) {
+      return;
+    }
+
+    const laneEndMinutes: number[] = [];
+    const clusterAssignments = new Map<string, number>();
+
+    for (const item of cluster) {
+      const startMinutes = getMinutesSinceMidnight(item.startTime);
+      const endMinutes = getMinutesSinceMidnight(item.endTime);
+      const laneIndex = laneEndMinutes.findIndex((laneEnd) => laneEnd <= startMinutes);
+
+      if (laneIndex === -1) {
+        clusterAssignments.set(item.id, laneEndMinutes.length);
+        laneEndMinutes.push(endMinutes);
+      } else {
+        clusterAssignments.set(item.id, laneIndex);
+        laneEndMinutes[laneIndex] = endMinutes;
+      }
+    }
+
+    const laneCount = Math.max(laneEndMinutes.length, 1);
+
+    for (const item of cluster) {
+      layout.set(item.id, {
+        laneIndex: clusterAssignments.get(item.id) ?? 0,
+        laneCount,
+      });
+    }
+
+    cluster = [];
+    clusterEndMinutes = 0;
+  };
+
+  for (const item of sortedItems) {
+    const startMinutes = getMinutesSinceMidnight(item.startTime);
+    const endMinutes = getMinutesSinceMidnight(item.endTime);
+
+    if (cluster.length > 0 && startMinutes >= clusterEndMinutes) {
+      commitCluster();
+    }
+
+    cluster.push(item);
+    clusterEndMinutes = Math.max(clusterEndMinutes, endMinutes);
+  }
+
+  commitCluster();
+
+  return layout;
+}
+
 function buildTimeWindow(
   items: ScheduleCalendarItem[],
   fixedStartHour?: number,
   fixedEndHourExclusive?: number,
 ) {
-  if (fixedStartHour !== undefined && fixedEndHourExclusive !== undefined) {
-    return {
-      startHour: fixedStartHour,
-      endHourExclusive: Math.max(fixedEndHourExclusive, fixedStartHour + 1),
-    };
-  }
-
   if (items.length === 0) {
     return {
-      startHour: 16,
-      endHourExclusive: 22,
+      startHour: fixedStartHour ?? 16,
+      endHourExclusive: Math.max(fixedEndHourExclusive ?? 22, (fixedStartHour ?? 16) + 1),
     };
   }
 
@@ -664,8 +720,11 @@ function buildTimeWindow(
     maximumMinutes = Math.max(maximumMinutes, getMinutesSinceMidnight(item.endTime));
   }
 
-  const startHour = Math.max(6, Math.floor(minimumMinutes / 60) - 1);
-  const endHourExclusive = Math.min(23, Math.max(startHour + 5, Math.ceil(maximumMinutes / 60) + 1));
+  const startHour = Math.max(0, Math.floor(minimumMinutes / 60) - 1);
+  const endHourExclusive = Math.min(
+    24,
+    Math.max(startHour + 1, Math.ceil(maximumMinutes / 60) + 1),
+  );
 
   return {
     startHour,
@@ -695,6 +754,27 @@ function buildTimeSlots(startHour: number, endHourExclusive: number) {
     { length: Math.max(endHourExclusive - startHour, 1) },
     (_, index) => startHour + index,
   );
+}
+
+function getOverlapStyle({ laneCount, laneIndex }: OverlapLayout): CSSProperties {
+  const outerGutterRem = 0.7;
+  const laneGapRem = laneCount > 1 ? 0.22 : 0;
+  const totalInnerGapRem = laneGapRem * (laneCount - 1);
+  const laneWidthPercent = 100 / laneCount;
+  const leftPercent = laneWidthPercent * laneIndex;
+  const leftGutterOffsetRem =
+    outerGutterRem / 2 -
+    (outerGutterRem * laneIndex) / laneCount +
+    laneGapRem * laneIndex -
+    (totalInnerGapRem * laneIndex) / laneCount;
+
+  return {
+    left: `calc(${leftPercent}% + ${leftGutterOffsetRem}rem)`,
+    right: "auto",
+    width: `calc(${laneWidthPercent}% - ${outerGutterRem / laneCount}rem - ${
+      totalInnerGapRem / laneCount
+    }rem)`,
+  };
 }
 
 function buildWeekDays(referenceDate: Date) {

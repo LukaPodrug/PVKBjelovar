@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { CategoryDetailsDrawer } from "./components/category-details-drawer";
 import { fetchNewsFeed, type NewsItem } from "./lib/contentful";
@@ -65,6 +65,11 @@ function LandingHomePage() {
   const [signupForm, setSignupForm] = useState<SignupFormState>(emptySignupForm);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [visibleNewsCount, setVisibleNewsCount] = useState(initialVisibleNewsCount);
+  const categoryCarouselRef = useRef<HTMLDivElement | null>(null);
+  const [categoryCarouselState, setCategoryCarouselState] = useState({
+    canScrollLeft: false,
+    canScrollRight: false,
+  });
   const [signupFeedback, setSignupFeedback] = useState<{
     tone: "success" | "error";
     message: string;
@@ -160,6 +165,59 @@ function LandingHomePage() {
     setVisibleNewsCount(initialVisibleNewsCount);
   }, [newsItems.length]);
 
+  const updateCategoryCarouselState = () => {
+    const carousel = categoryCarouselRef.current;
+
+    if (!carousel) {
+      setCategoryCarouselState({
+        canScrollLeft: false,
+        canScrollRight: false,
+      });
+      return;
+    }
+
+    const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth;
+
+    setCategoryCarouselState({
+      canScrollLeft: carousel.scrollLeft > 1,
+      canScrollRight: carousel.scrollLeft < maxScrollLeft - 1,
+    });
+  };
+
+  const scrollCategories = (direction: -1 | 1) => {
+    const carousel = categoryCarouselRef.current;
+
+    if (!carousel) {
+      return;
+    }
+
+    carousel.scrollBy({
+      left: direction * Math.max(280, carousel.clientWidth * 0.82),
+      behavior: "smooth",
+    });
+  };
+
+  useEffect(() => {
+    const carousel = categoryCarouselRef.current;
+
+    updateCategoryCarouselState();
+
+    if (!carousel) {
+      return;
+    }
+
+    const handleScroll = () => updateCategoryCarouselState();
+    const handleResize = () => updateCategoryCarouselState();
+
+    carousel.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      carousel.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [categories.length]);
+
   useEffect(() => {
     if (!selectedCategoryId) {
       return;
@@ -253,14 +311,44 @@ function LandingHomePage() {
                 Kategorije trenutno nije moguće učitati iz javnog API-ja.
               </div>
             ) : (
-              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                {categories.map((category) => (
-                  <CategoryShowcaseCard
-                    key={category.id}
-                    category={category}
-                    onOpen={() => setSelectedCategoryId(category.id)}
-                  />
-                ))}
+              <div className="landing-category-carousel">
+                <div
+                  ref={categoryCarouselRef}
+                  className="landing-category-carousel-track"
+                  aria-label="Kategorije"
+                >
+                  {categories.map((category) => (
+                    <div className="landing-category-carousel-slide" key={category.id}>
+                      <CategoryShowcaseCard
+                        category={category}
+                        onOpen={() => setSelectedCategoryId(category.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {categories.length > 1 ? (
+                  <div className="landing-category-carousel-controls" aria-label="Navigacija kategorija">
+                    <button
+                      className="landing-category-carousel-button"
+                      type="button"
+                      onClick={() => scrollCategories(-1)}
+                      aria-label="Prethodne kategorije"
+                      disabled={!categoryCarouselState.canScrollLeft}
+                    >
+                      ←
+                    </button>
+                    <button
+                      className="landing-category-carousel-button"
+                      type="button"
+                      onClick={() => scrollCategories(1)}
+                      aria-label="Sljedeće kategorije"
+                      disabled={!categoryCarouselState.canScrollRight}
+                    >
+                      →
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -301,6 +389,15 @@ function LandingHomePage() {
                     </p>
                     <p className="mt-3 text-sm leading-7 text-ink">
                       Odobrene prijave dobivaju pristupne podatke, a odbijene prijave ostaju zabilježene za daljnje praćenje.
+                    </p>
+                  </div>
+
+                  <div className="landing-panel border-2 border-line bg-panel px-4 py-4">
+                    <p className="landing-kicker text-muted">
+                      Pristup aplikaciji
+                    </p>
+                    <p className="mt-3 text-sm leading-7 text-ink">
+                      Nakon što administrator potvrdi prijavu, roditelji će e-poštom dobiti pristupne podatke za mobilnu aplikaciju.
                     </p>
                   </div>
                 </div>
@@ -381,9 +478,7 @@ function LandingHomePage() {
 
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <button
-                      className={`landing-pill landing-pill-button ${
-                        showSecondParent ? "landing-pill--panel" : "landing-pill--outline"
-                      }`}
+                      className={`landing-parent-chip ${showSecondParent ? "is-active" : ""}`}
                       type="button"
                       onClick={() => {
                         setShowSecondParent((current) => !current);
@@ -401,9 +496,10 @@ function LandingHomePage() {
                         );
                       }}
                     >
+                      <span aria-hidden="true">{showSecondParent ? "−" : "+"}</span>
                       {showSecondParent ? "Ukloni roditelja 2" : "Dodaj roditelja 2"}
                     </button>
-                    <div className="border-2 border-line bg-panel px-4 py-4 text-sm leading-7 text-ink">
+                    <div className="landing-signup-note border-2 border-line bg-panel px-4 py-4 text-sm leading-7 text-ink">
                       Drugi roditelj nije obavezan, ali ako ga uključite potrebno je ispuniti sva njegova kontaktna polja.
                     </div>
                   </div>
@@ -500,9 +596,9 @@ function LandingHomePage() {
                     />
                   </Fieldset>
 
-                  <label className="flex items-start gap-3 border-2 border-line bg-white px-4 py-4">
+                  <label className="landing-gdpr-consent flex items-start gap-3 border-2 border-line bg-white px-4 py-4">
                     <input
-                      className="mt-1 h-4 w-4 accent-accent"
+                      className="landing-gdpr-checkbox mt-1 h-4 w-4 accent-accent"
                       type="checkbox"
                       checked={signupForm.gdprConsent}
                       onChange={(event) =>
@@ -577,6 +673,7 @@ function LandingHeader({
   logoUrl: string | null;
 }) {
   const [isLogoBroken, setIsLogoBroken] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const clubMonogram = createClubMonogram(clubName);
 
   useEffect(() => {
@@ -585,34 +682,65 @@ function LandingHeader({
 
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-white/88 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-        <Link className="landing-header-brand" to="/">
-          <span className="landing-header-mark">
-            {logoUrl && !isLogoBroken ? (
-              <img
-                src={logoUrl}
-                alt={clubName}
-                onError={() => setIsLogoBroken(true)}
-              />
-            ) : (
-              <span aria-hidden="true">{clubMonogram}</span>
-            )}
-          </span>
+      <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-3">
+          <Link className="landing-header-brand" to="/">
+            <span className="landing-header-mark">
+              {logoUrl && !isLogoBroken ? (
+                <img
+                  src={logoUrl}
+                  alt={clubName}
+                  onError={() => setIsLogoBroken(true)}
+                />
+              ) : (
+                <span aria-hidden="true">{clubMonogram}</span>
+              )}
+            </span>
 
-          <span className="landing-header-brand-copy">
-            <strong>{clubName}</strong>
-            <span>{clubSubtitle}</span>
-          </span>
-        </Link>
+            <span className="landing-header-brand-copy">
+              <strong>{clubName}</strong>
+              <span>{clubSubtitle}</span>
+            </span>
+          </Link>
 
-        <nav className="landing-header-nav" aria-label="Glavna navigacija">
-          <a className="landing-header-link" href="/#news">
+          <button
+            className={`landing-header-menu-button ${isMobileNavOpen ? "is-active" : ""}`}
+            type="button"
+            aria-controls="landing-mobile-nav"
+            aria-expanded={isMobileNavOpen}
+            aria-label={isMobileNavOpen ? "Zatvori navigaciju" : "Otvori navigaciju"}
+            onClick={() => setIsMobileNavOpen((current) => !current)}
+          >
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+          </button>
+
+          <nav className="landing-header-nav" aria-label="Glavna navigacija">
+            <a className="landing-header-link" href="/#news">
+              Novosti
+            </a>
+            <a className="landing-header-link" href="/#categories">
+              Kategorije
+            </a>
+            <a className="landing-header-link" href="/#signup">
+              Prijava
+            </a>
+          </nav>
+        </div>
+
+        <nav
+          id="landing-mobile-nav"
+          className={`landing-mobile-nav ${isMobileNavOpen ? "is-open" : ""}`}
+          aria-label="Mobilna navigacija"
+        >
+          <a className="landing-mobile-nav-link" href="/#news" onClick={() => setIsMobileNavOpen(false)}>
             Novosti
           </a>
-          <a className="landing-header-link" href="/#categories">
+          <a className="landing-mobile-nav-link" href="/#categories" onClick={() => setIsMobileNavOpen(false)}>
             Kategorije
           </a>
-          <a className="landing-header-link" href="/#signup">
+          <a className="landing-mobile-nav-link" href="/#signup" onClick={() => setIsMobileNavOpen(false)}>
             Prijava
           </a>
         </nav>
@@ -1263,24 +1391,70 @@ function FileField({
   file: File | null;
   onChange: (file: File | null) => void;
 }) {
+  const inputId = useId();
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(file);
+    setPreviewUrl(nextPreviewUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextPreviewUrl);
+    };
+  }, [file]);
+
   return (
-    <label className="block">
-      <span className="landing-kicker mb-2 block text-muted">
+    <div className="block">
+      <label className="landing-kicker mb-2 block text-muted" htmlFor={inputId}>
         {label}
-      </span>
-      <div className="space-y-3">
+      </label>
+      <div className="landing-file-field">
         <input
-          className="block w-full border-2 border-line bg-white px-3 py-3 text-sm"
+          id={inputId}
+          className="landing-file-input"
           type="file"
           accept="image/*"
           onChange={(event: ChangeEvent<HTMLInputElement>) =>
             onChange(event.target.files?.[0] ?? null)
           }
         />
-        <div className="border-2 border-line bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
-          {file ? file.name : "Nijedna datoteka nije odabrana"}
+
+        <div className="landing-file-preview">
+          {previewUrl ? (
+            <img src={previewUrl} alt={`Pregled: ${file?.name ?? label}`} />
+          ) : (
+            <span aria-hidden="true">+</span>
+          )}
+        </div>
+
+        <div className="landing-file-copy">
+          <div>
+            <p>{file ? file.name : "Nijedna fotografija nije odabrana"}</p>
+            <span>{file ? "Fotografija je spremna za slanje." : "JPG, PNG ili drugi format slike."}</span>
+          </div>
+
+          <div className="landing-file-actions">
+            <label className="landing-parent-chip" htmlFor={inputId}>
+              <span aria-hidden="true">+</span>
+              Odaberi fotografiju
+            </label>
+            {file ? (
+              <button
+                className="landing-file-remove"
+                type="button"
+                onClick={() => onChange(null)}
+              >
+                Ukloni
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
-    </label>
+    </div>
   );
 }

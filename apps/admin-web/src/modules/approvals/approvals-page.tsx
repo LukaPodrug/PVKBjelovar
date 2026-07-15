@@ -177,13 +177,12 @@ export function ApprovalsPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse">
               <thead className="bg-panel">
-                <tr className="border-b-2 border-line text-left text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                <tr className="border-b-2 border-line text-center text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                   <th className="px-4 py-4">Zaprimljeno</th>
                   <th className="px-4 py-4">Dijete</th>
                   <th className="px-4 py-4">Roditelji</th>
                   <th className="px-4 py-4">Predložena kategorija</th>
                   <th className="px-4 py-4">GDPR</th>
-                  <th className="px-4 py-4">Radnje</th>
                 </tr>
               </thead>
               <tbody>
@@ -201,48 +200,35 @@ export function ApprovalsPage() {
                         setSelectedSignupId(signup.id);
                       }}
                     >
-                      <td className="px-4 py-4 align-top text-sm font-medium">
+                      <td className="px-4 py-4 align-middle text-center text-sm font-medium">
                         {formatDateTime(signup.createdAt)}
                       </td>
-                      <td className="px-4 py-4 align-top">
+                      <td className="px-4 py-4 align-middle text-center">
                         <p className="text-sm font-bold uppercase">
                           {signup.childFirstName} {signup.childLastName}
                         </p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted">
-                          Datum rođenja {formatDate(signup.childDateOfBirth)}
+                        <p className="mt-1 text-sm font-medium text-muted">
+                          {formatNumericDate(signup.childDateOfBirth)}
                         </p>
                       </td>
-                      <td className="px-4 py-4 align-top text-sm">
-                        <p>
+                      <td className="px-4 py-4 align-middle text-center text-sm">
+                        <p className="font-medium">
                           {signup.parentOneFirstName} {signup.parentOneLastName}
                         </p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted">
-                          {signup.parentTwoFirstName
-                            ? `${signup.parentTwoFirstName} ${signup.parentTwoLastName}`
-                            : "Prijava s jednim roditeljem"}
-                        </p>
+                        {signup.parentTwoFirstName ? (
+                          <p className="mt-1 font-medium">
+                            {signup.parentTwoFirstName} {signup.parentTwoLastName}
+                          </p>
+                        ) : null}
                       </td>
-                      <td className="px-4 py-4 align-top text-sm">
+                      <td className="px-4 py-4 align-middle text-center text-sm">
                         {signup.suggestedCategory?.name ?? "Bez automatskog prijedloga"}
                       </td>
-                      <td className="px-4 py-4 align-top">
+                      <td className="px-4 py-4 align-middle text-center">
                         <StatusChip
                           label={signup.gdprConsent ? "Suglasnost potvrđena" : "Suglasnost nedostaje"}
                           tone={signup.gdprConsent ? "success" : "warning"}
                         />
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <button
-                          className="ui-pill ui-pill-button ui-pill--panel"
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setFeedback(null);
-                            setSelectedSignupId(signup.id);
-                          }}
-                        >
-                          Pregled
-                        </button>
                       </td>
                     </tr>
                   );
@@ -273,153 +259,150 @@ export function ApprovalsPage() {
         }
       >
         {selectedSignup ? (
-          <>
-            <section className="border-2 border-line bg-surface">
-              <div className="border-b-2 border-line bg-panel px-4 py-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  Sažetak
-                </p>
-                <h3 className="mt-2 text-xl font-bold uppercase">
-                  Prijava za {selectedSignup.childFirstName} {selectedSignup.childLastName}
+          <div className="approval-drawer">
+            <section className="approval-widget approval-widget--summary">
+              <div>
+                <p className="approval-widget-title">Sažetak prijave</p>
+                <h3 className="mt-3 text-2xl font-bold tracking-[-0.03em]">
+                  {selectedSignup.childFirstName} {selectedSignup.childLastName}
                 </h3>
+                <p className="mt-2 text-sm leading-7 text-muted">
+                  Zaprimljeno {formatDateTime(selectedSignup.createdAt)}. Pregledajte podatke,
+                  odaberite kategoriju i završite obradu prijave.
+                </p>
               </div>
 
-              <div className="space-y-5 p-4">
-                <div className="flex flex-wrap gap-2">
-                  <StatusChip
-                    label={selectedSignup.gdprConsent ? "GDPR potvrđen" : "GDPR nedostaje"}
-                    tone={selectedSignup.gdprConsent ? "success" : "warning"}
+              <div className="approval-summary-chips">
+                <StatusChip
+                  label={selectedSignup.gdprConsent ? "GDPR potvrđen" : "GDPR nedostaje"}
+                  tone={selectedSignup.gdprConsent ? "success" : "warning"}
+                />
+                <span className="ui-pill ui-pill--panel">
+                  Predloženo <strong>{selectedSignup.suggestedCategory?.name ?? "nema"}</strong>
+                </span>
+                <span className="ui-pill ui-pill--outline">
+                  OIB <strong>{selectedSignup.childOib}</strong>
+                </span>
+              </div>
+            </section>
+
+            <div className="approval-drawer-grid">
+              <DetailSection
+                title="Dijete"
+                content={
+                  <ProfileCard
+                    title={`${selectedSignup.childFirstName} ${selectedSignup.childLastName}`}
+                    imageUrl={selectedSignup.childProfileImageUrl}
+                    lines={[
+                      `Datum rođenja: ${formatNumericDate(selectedSignup.childDateOfBirth)}`,
+                      `OIB: ${selectedSignup.childOib}`,
+                    ]}
                   />
-                  <span className="ui-pill ui-pill--panel">
-                    Predloženo <strong>{selectedSignup.suggestedCategory?.name ?? "nema"}</strong>
-                  </span>
-                  <span className="ui-pill ui-pill--outline">
-                    Zaprimljeno <strong>{formatDateTime(selectedSignup.createdAt)}</strong>
-                  </span>
-                </div>
+                }
+              />
 
-                <div className="space-y-4">
-                  <div className="space-y-4">
-                    <DetailSection
-                      title="Obiteljski podaci"
-                      content={
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          <ProfileCard
-                            title="Roditelj 1"
-                            imageUrl={selectedSignup.parentOneProfileImageUrl}
-                            lines={[
-                              `${selectedSignup.parentOneFirstName} ${selectedSignup.parentOneLastName}`,
-                              selectedSignup.parentOneEmail,
-                              selectedSignup.parentOnePhone,
-                            ]}
-                          />
-                          <ProfileCard
-                            title="Roditelj 2"
-                            imageUrl={selectedSignup.parentTwoProfileImageUrl}
-                            lines={
-                              selectedSignup.parentTwoFirstName
-                                ? [
-                                    `${selectedSignup.parentTwoFirstName} ${selectedSignup.parentTwoLastName ?? ""}`.trim(),
-                                    selectedSignup.parentTwoEmail ?? "Bez e-pošte",
-                                    selectedSignup.parentTwoPhone ?? "Bez telefona",
-                                  ]
-                                : ["Drugi roditelj nije prijavljen"]
-                            }
-                          />
-                          <ProfileCard
-                            title="Dijete"
-                            imageUrl={selectedSignup.childProfileImageUrl}
-                            lines={[
-                              `${selectedSignup.childFirstName} ${selectedSignup.childLastName}`,
-                              `Datum rođenja: ${formatDate(selectedSignup.childDateOfBirth)}`,
-                              `OIB: ${selectedSignup.childOib}`,
-                            ]}
-                          />
-                          <div className="border-2 border-line bg-white p-4">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                              Sukladnost
-                            </p>
-                            <div className="mt-4 space-y-3 text-sm leading-6">
-                              <div className="flex items-center justify-between gap-3 rounded-[18px] border-2 border-line bg-panel px-3 py-3">
-                                <span className="font-bold uppercase">GDPR suglasnost</span>
-                                <StatusChip
-                                  label={selectedSignup.gdprConsent ? "Potvrđena" : "Nedostaje"}
-                                  tone={selectedSignup.gdprConsent ? "success" : "warning"}
-                                />
-                              </div>
-                              <div className="rounded-[18px] border-2 border-line bg-panel px-3 py-3">
-                                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
-                                  Zaprimljeno
-                                </p>
-                                <p className="mt-2 font-medium">
-                                  {formatDateTime(selectedSignup.createdAt)}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      }
+              <DetailSection
+                title="Roditelji"
+                content={
+                  <div className="approval-card-grid">
+                    <ProfileCard
+                      title={`${selectedSignup.parentOneFirstName} ${selectedSignup.parentOneLastName}`}
+                      imageUrl={selectedSignup.parentOneProfileImageUrl}
+                      lines={[
+                        `Email: ${selectedSignup.parentOneEmail}`,
+                        `Telefon: ${selectedSignup.parentOnePhone}`,
+                      ]}
                     />
+                    {selectedSignup.parentTwoFirstName ? (
+                      <ProfileCard
+                        title={`${selectedSignup.parentTwoFirstName} ${selectedSignup.parentTwoLastName ?? ""}`.trim()}
+                        imageUrl={selectedSignup.parentTwoProfileImageUrl}
+                        lines={[
+                          `Email: ${selectedSignup.parentTwoEmail ?? "Bez e-pošte"}`,
+                          `Telefon: ${selectedSignup.parentTwoPhone ?? "Bez telefona"}`,
+                        ]}
+                      />
+                    ) : null}
                   </div>
+                }
+              />
 
-                  <div className="space-y-4">
-                    <DetailSection
-                      title="Pregled kategorije"
-                      content={
-                        <div className="space-y-4">
-                          <div className="border-2 border-line bg-white p-4">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                              Automatski prijedlog
-                            </p>
-                            <p className="mt-3 text-xl font-bold uppercase">
-                              {selectedSignup.suggestedCategory?.name ?? "Nema prijedloga"}
-                            </p>
-                          </div>
+              <DetailSection
+                title="Sukladnost"
+                content={
+                  <div className="approval-info-list">
+                    <div className="approval-info-row">
+                      <span>GDPR suglasnost</span>
+                      <StatusChip
+                        label={selectedSignup.gdprConsent ? "Potvrđena" : "Nedostaje"}
+                        tone={selectedSignup.gdprConsent ? "success" : "warning"}
+                      />
+                    </div>
+                    <div className="approval-info-row">
+                      <span>Zaprimljeno</span>
+                      <strong>{formatDateTime(selectedSignup.createdAt)}</strong>
+                    </div>
+                    <div className="approval-info-row">
+                      <span>Automatski prijedlog</span>
+                      <strong>{selectedSignup.suggestedCategory?.name ?? "Nema prijedloga"}</strong>
+                    </div>
+                  </div>
+                }
+              />
 
-                          <label className="block border-2 border-line bg-white p-4">
-                            <span className="mb-3 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                              Ručni odabir
-                            </span>
-                            <select
-                              className="w-full border-2 border-line bg-bg px-4 py-3 outline-none"
-                              value={selectedCategoryId}
-                              onChange={(event) =>
-                                setSelectedCategoryIds((current) => ({
-                                  ...current,
-                                  [selectedSignup.id]: event.target.value,
-                                }))
-                              }
-                            >
-                              <option value="">Odaberite kategoriju</option>
-                              {categories.map((category) => (
-                                <option key={category.id} value={category.id}>
-                                  {category.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+              <DetailSection
+                title="Obrada"
+                content={
+                  <div className="approval-decision-panel">
+                    <label className="block">
+                      <span className="mb-3 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Kategorija za upis
+                      </span>
+                      <select
+                        className="w-full border-2 border-line bg-bg px-4 py-3 outline-none"
+                        value={selectedCategoryId}
+                        onChange={(event) =>
+                          setSelectedCategoryIds((current) => ({
+                            ...current,
+                            [selectedSignup.id]: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Odaberite kategoriju</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-                          <label className="block border-2 border-line bg-white p-4">
-                            <span className="mb-3 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                              Razlog odbijanja
-                            </span>
-                            <textarea
-                              className="min-h-28 w-full border-2 border-line bg-bg px-4 py-3 outline-none"
-                              value={declineReasons[selectedSignup.id] ?? ""}
-                              onChange={(event) =>
-                                setDeclineReasons((current) => ({
-                                  ...current,
-                                  [selectedSignup.id]: event.target.value,
-                                }))
-                              }
-                              placeholder="Opcionalna napomena za internu evidenciju"
-                            />
-                          </label>
-                        </div>
-                      }
-                    />
+                    <label className="block">
+                      <span className="mb-3 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Razlog odbijanja
+                      </span>
+                      <textarea
+                        className="min-h-28 w-full border-2 border-line bg-bg px-4 py-3 outline-none"
+                        value={declineReasons[selectedSignup.id] ?? ""}
+                        onChange={(event) =>
+                          setDeclineReasons((current) => ({
+                            ...current,
+                            [selectedSignup.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Opcionalna napomena za internu evidenciju"
+                      />
+                    </label>
 
-                    <div className="flex flex-wrap gap-3">
+                    <div className="approval-action-row">
+                      <button
+                        className="ui-pill ui-pill-button ui-pill--signal"
+                        type="button"
+                        disabled={approveMutation.isPending || declineMutation.isPending}
+                        onClick={() => declineMutation.mutate(selectedSignup)}
+                      >
+                        {declineMutation.isPending ? "Odbijanje..." : "Odbij prijavu"}
+                      </button>
                       <button
                         className="ui-pill ui-pill-button ui-pill--success"
                         type="button"
@@ -430,22 +413,14 @@ export function ApprovalsPage() {
                         }
                         onClick={() => approveMutation.mutate(selectedSignup)}
                       >
-                        {approveMutation.isPending ? "Odobravanje..." : "Odobri"}
-                      </button>
-                      <button
-                        className="ui-pill ui-pill-button ui-pill--signal"
-                        type="button"
-                        disabled={approveMutation.isPending || declineMutation.isPending}
-                        onClick={() => declineMutation.mutate(selectedSignup)}
-                      >
-                        {declineMutation.isPending ? "Odbijanje..." : "Odbij"}
+                        {approveMutation.isPending ? "Odobravanje..." : "Odobri prijavu"}
                       </button>
                     </div>
                   </div>
-                </div>
-              </div>
-            </section>
-          </>
+                }
+              />
+            </div>
+          </div>
         ) : null}
       </EntityDrawer>
     </section>
@@ -460,11 +435,11 @@ function DetailSection({
   content: ReactNode;
 }) {
   return (
-    <section className="border-2 border-line bg-surface">
-      <div className="border-b-2 border-line bg-panel px-4 py-3">
-        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">{title}</p>
+    <section className="approval-widget">
+      <div className="approval-widget-header">
+        <p className="approval-widget-title">{title}</p>
       </div>
-      <div className="min-w-0 p-4">{content}</div>
+      <div className="min-w-0">{content}</div>
     </section>
   );
 }
@@ -479,24 +454,24 @@ function ProfileCard({
   lines: string[];
 }) {
   return (
-    <div className="border-2 border-line bg-white">
-      <div className="border-b-2 border-line bg-panel px-4 py-3">
-        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">{title}</p>
-      </div>
-      <div className="grid gap-0 lg:grid-cols-[120px_1fr]">
+    <div className="approval-profile-card">
+      <div className="approval-profile-card-media">
         {imageUrl ? (
           <img
-            className="h-full min-h-[120px] w-full border-b-2 border-line object-cover lg:border-b-0 lg:border-r-2"
+            className="approval-profile-card-image"
             src={imageUrl}
             alt={title}
           />
         ) : (
-          <div className="flex min-h-[120px] items-center justify-center border-b-2 border-line bg-bg px-3 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-muted lg:border-b-0 lg:border-r-2">
+          <div className="approval-profile-card-placeholder">
             Nema fotografije
           </div>
         )}
+      </div>
 
-        <div className="space-y-2 px-4 py-4 text-sm leading-6">
+      <div className="approval-profile-card-body">
+        <p className="approval-profile-card-title">{title}</p>
+        <div className="mt-3 space-y-2 text-sm leading-6">
           {lines.map((line) => (
             <p key={line}>{line}</p>
           ))}
@@ -514,6 +489,15 @@ function StatusChip({
   tone: "success" | "warning";
 }) {
   return <span className={`ui-pill ${tone === "success" ? "ui-pill--success" : "ui-pill--warning"}`}>{label}</span>;
+}
+
+function formatNumericDate(dateIso: string) {
+  const date = new Date(dateIso);
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}.${month}.${year}.`;
 }
 
 function buildApprovalSuccessMessage(result: ApprovalResult) {

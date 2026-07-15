@@ -90,7 +90,7 @@ export function LeaderboardPage() {
           <h3 className="mt-2 text-xl font-bold uppercase">Poredak po dolascima</h3>
         </div>
 
-        <div className="grid gap-5 p-4 lg:grid-cols-[260px_1fr]">
+        <div className="grid gap-5 p-4 lg:grid-cols-[260px_1fr] lg:items-start">
           <label className="block">
             <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
               Kategorija
@@ -109,8 +109,8 @@ export function LeaderboardPage() {
             </select>
           </label>
 
-          <div className="space-y-3">
-            <span className="block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+          <div>
+            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
               Razdoblje
             </span>
             <div className="flex flex-wrap gap-2">
@@ -118,7 +118,7 @@ export function LeaderboardPage() {
                 <button
                   key={preset.mode}
                   type="button"
-                  className={`ui-pill ui-pill-button ${
+                  className={`leaderboard-period-chip ui-pill ui-pill-button ${
                     windowMode === preset.mode ? "ui-pill--accent" : "ui-pill--panel"
                   }`}
                   onClick={() => handleWindowModeChange(preset.mode)}
@@ -129,7 +129,7 @@ export function LeaderboardPage() {
             </div>
 
             {windowMode === "custom" ? (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="leaderboard-custom-range">
                 <label className="block">
                   <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                     Od
@@ -176,21 +176,18 @@ export function LeaderboardPage() {
         </div>
       ) : (
         <section className="border-2 border-line bg-surface">
-          <div className="flex flex-col gap-2 border-b-2 border-line bg-panel px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="border-b-2 border-line bg-panel px-4 py-4">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                 {leaderboard?.categoryName ?? "Kategorija"}
               </p>
               <h3 className="mt-2 text-xl font-bold uppercase">Ljestvica dolazaka</h3>
             </div>
-            <span className="ui-pill ui-pill--outline">
-              Treninga u razdoblju <strong>{leaderboard?.total ?? 0}</strong>
-            </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse">
-              <thead className="bg-bg">
+              <thead className="bg-panel">
                 <tr className="border-b-2 border-line text-left text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                   <th className="px-4 py-4">Mjesto</th>
                   <th className="px-4 py-4">Igrač</th>
@@ -200,12 +197,10 @@ export function LeaderboardPage() {
               </thead>
               <tbody>
                 {(leaderboard?.entries ?? []).map((entry) => {
-                  const isTop = entry.rank === 1;
-
                   return (
                     <tr
                       key={entry.playerId}
-                      className={`border-b-2 border-line ${isTop ? "bg-panel" : "bg-white"}`}
+                      className="border-b-2 border-line bg-white hover:bg-bg"
                     >
                       <td className="px-4 py-4 align-middle text-sm font-bold">
                         <span className="inline-flex items-center gap-2">

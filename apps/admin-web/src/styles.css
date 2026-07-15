@@ -305,6 +305,129 @@ textarea {
   letter-spacing: 0.14em !important;
 }
 
+.admin-shell aside nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(29, 79, 145, 0.28) transparent;
+}
+
+.admin-shell aside nav::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-shell aside nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-shell aside nav::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(29, 79, 145, 0.24);
+}
+
+.admin-tab-refresh {
+  position: absolute;
+  inset: 1.5rem 0 auto;
+  z-index: 10;
+  display: grid;
+  gap: 1rem;
+  pointer-events: none;
+}
+
+.admin-tab-refresh-status {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 42px;
+  padding: 0 1rem;
+  border: 1px solid rgba(215, 224, 234, 0.92);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-tab-refresh-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(29, 79, 145, 0.18);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: admin-spin 780ms linear infinite;
+}
+
+.admin-tab-refresh-panel,
+.admin-tab-refresh-card,
+.admin-tab-refresh-table {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.07), transparent 32%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-tab-refresh-panel {
+  padding: clamp(1.25rem, 2vw, 1.75rem);
+}
+
+.admin-tab-refresh-card {
+  min-height: 168px;
+  padding: 1.15rem;
+}
+
+.admin-tab-refresh-table {
+  overflow: hidden;
+}
+
+.admin-tab-refresh-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 0.35fr) minmax(140px, 1fr) minmax(88px, 0.25fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-tab-refresh-row:last-child {
+  border-bottom: 0;
+}
+
+.admin-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #e8eef6 0%, #f7fbff 48%, #e2ebf5 100%);
+}
+
+.admin-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.78) 48%,
+    transparent 100%
+  );
+  animation: admin-shimmer 1.15s ease-in-out infinite;
+}
+
+@keyframes admin-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .admin-shell a,
 .admin-login a,
 .admin-shell button,
@@ -406,6 +529,13 @@ textarea {
   color: var(--ink);
   box-shadow: var(--shadow-soft);
   cursor: pointer;
+}
+
+.admin-shell .schedule-week-nav-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  box-shadow: none;
+  background: rgba(243, 247, 251, 0.74);
 }
 
 .admin-shell .schedule-week-nav-summary {
@@ -639,6 +769,7 @@ textarea {
 }
 
 .admin-shell .schedule-event {
+  position: absolute;
   left: 0.6rem;
   right: 0.6rem;
   padding: 0.9rem 0.9rem 0.9rem 1rem;
@@ -908,6 +1039,274 @@ textarea {
   font-weight: 600;
 }
 
+.admin-shell .admin-settings-widget {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.06), transparent 30%),
+    rgba(243, 247, 251, 0.82);
+}
+
+.admin-shell .admin-settings-widget-title {
+  margin-left: 0.25rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .admin-settings-widget--club {
+  grid-column: 1 / -1;
+}
+
+.admin-shell .admin-settings-club-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-shell .admin-settings-logo-card {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .admin-settings-logo-preview,
+.admin-shell .admin-settings-logo-placeholder {
+  width: 100%;
+  min-height: 190px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.admin-shell .admin-settings-logo-preview {
+  height: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  background: var(--surface);
+}
+
+.admin-shell .admin-settings-logo-placeholder {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  background:
+    linear-gradient(135deg, rgba(232, 240, 255, 0.74), rgba(255, 255, 255, 0.92));
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .admin-settings-logo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.admin-shell .admin-settings-logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-shell .admin-settings-logo-actions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.admin-shell .admin-settings-club-fields {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.admin-shell .entity-drawer-panel {
+  border-top-left-radius: 28px;
+  border-bottom-left-radius: 28px;
+}
+
+.admin-shell .approval-drawer {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-shell .approval-drawer-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-shell .approval-card-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-shell .approval-widget {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.06), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-shell .approval-widget--summary {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+.admin-shell .approval-widget-header {
+  margin-bottom: 1rem;
+}
+
+.admin-shell .approval-widget-title {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 32px;
+  align-items: center;
+  padding: 0 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(243, 247, 251, 0.88);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-shell .approval-summary-chips,
+.admin-shell .approval-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.admin-shell .approval-profile-card {
+  display: grid;
+  min-height: 168px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-shell .approval-profile-card-media {
+  min-height: 150px;
+  background: var(--panel);
+}
+
+.admin-shell .approval-profile-card-image {
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+  object-fit: cover;
+}
+
+.admin-shell .approval-profile-card-placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  padding: 1rem;
+  background:
+    linear-gradient(135deg, rgba(232, 240, 255, 0.74), rgba(255, 255, 255, 0.92));
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.admin-shell .approval-profile-card-body {
+  padding: 1rem;
+}
+
+.admin-shell .approval-profile-card-title {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.admin-shell .approval-info-list,
+.admin-shell .approval-decision-panel {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-shell .approval-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 56px;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(243, 247, 251, 0.86);
+}
+
+.admin-shell .approval-info-row > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-shell .approval-info-row .ui-pill {
+  color: var(--surface);
+}
+
+.admin-shell .approval-info-row strong {
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.admin-shell .leaderboard-period-chip {
+  min-height: 50px;
+  padding-inline: 1rem;
+}
+
+.admin-shell .leaderboard-custom-range {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at top right, rgba(29, 79, 145, 0.06), transparent 28%),
+    rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-soft);
+}
+
 .admin-shell .schedule-empty-state {
   display: flex;
   align-items: center;
@@ -934,6 +1333,33 @@ textarea {
   .admin-shell .schedule-board-main,
   .admin-shell .schedule-board-sidebar {
     padding: 1.25rem;
+  }
+
+  .admin-shell .admin-settings-club-grid {
+    grid-template-columns: minmax(230px, 0.42fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .admin-shell .leaderboard-custom-range {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-shell .approval-widget--summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .admin-shell .approval-drawer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-shell .approval-profile-card {
+    grid-template-columns: minmax(130px, 0.38fr) minmax(0, 1fr);
+  }
+
+  .admin-shell .approval-profile-card-media,
+  .admin-shell .approval-profile-card-image,
+  .admin-shell .approval-profile-card-placeholder {
+    min-height: 100%;
   }
 
   .admin-shell .schedule-week-controls {

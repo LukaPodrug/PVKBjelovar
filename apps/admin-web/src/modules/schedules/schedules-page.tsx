@@ -811,7 +811,7 @@ export function SchedulesPage() {
                   showPracticeTypeLegend
                   toneMode="practiceType"
                   fixedStartHour={6}
-                  fixedEndHourExclusive={23}
+                  fixedEndHourExclusive={24}
                   hourHeight={28}
                   minimumCardHeight={28}
                   emptyMessage="U odabranom tjednu nema stvarnih termina za ovu kategoriju."

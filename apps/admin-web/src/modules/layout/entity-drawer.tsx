@@ -58,7 +58,7 @@ export function EntityDrawer({
       />
 
       <aside
-        className="absolute inset-y-0 right-0 flex h-full w-full flex-col overflow-hidden border-l border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(243,247,251,0.98)_100%)] shadow-[0_28px_64px_rgba(15,23,42,0.2)] sm:w-[min(96vw,1040px)]"
+        className="entity-drawer-panel absolute inset-y-0 right-0 flex h-full w-full flex-col overflow-hidden border-l border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(243,247,251,0.98)_100%)] shadow-[0_28px_64px_rgba(15,23,42,0.2)] sm:w-[min(96vw,1040px)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
