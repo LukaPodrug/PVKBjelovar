@@ -8,6 +8,7 @@ export interface NewsItem {
   publishedAt: string;
   ctaLabel: string;
   imageUrl: string | null;
+  imageUrls: string[];
 }
 
 export interface NewsFeedResult {
@@ -56,17 +57,33 @@ function getStringField(fields: Record<string, unknown>, candidates: string[]) {
   return "";
 }
 
-function getAssetId(fields: Record<string, unknown>, candidates: string[]) {
+function getLinkedAssetId(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  return (value as { sys?: { id?: string } }).sys?.id ?? null;
+}
+
+function getAssetIds(fields: Record<string, unknown>, candidates: string[]) {
+  const ids: string[] = [];
+
   for (const candidate of candidates) {
-    const value = fields[candidate] as { sys?: { id?: string } } | undefined;
-    const assetId = value?.sys?.id;
+    const value = fields[candidate];
+
+    if (Array.isArray(value)) {
+      ids.push(...value.map(getLinkedAssetId).filter((id): id is string => Boolean(id)));
+      continue;
+    }
+
+    const assetId = getLinkedAssetId(value);
 
     if (assetId) {
-      return assetId;
+      ids.push(assetId);
     }
   }
 
-  return null;
+  return [...new Set(ids)];
 }
 
 function normalizeImageUrl(url: string | undefined) {
@@ -140,7 +157,17 @@ export async function fetchNewsFeed(): Promise<NewsFeedResult> {
     const items = (payload.items ?? [])
       .map((entry) => {
         const fields = entry.fields ?? {};
-        const imageId = getAssetId(fields, ["image", "heroImage", "coverImage", "thumbnail"]);
+        const imageIds = getAssetIds(fields, [
+          "images",
+          "gallery",
+          "galleryImages",
+          "photos",
+          "media",
+          "image",
+          "heroImage",
+          "coverImage",
+          "thumbnail",
+        ]);
         const title = getStringField(fields, ["title", "headline", "name"]) || "Novost bez naslova";
         const summary =
           getStringField(fields, ["summary", "excerpt", "description", "body"]) ||
@@ -149,6 +176,9 @@ export async function fetchNewsFeed(): Promise<NewsFeedResult> {
           getParagraphsField(fields, ["body", "content", "articleBody", "description", "summary"]) ||
           [];
         const id = entry.sys?.id ?? crypto.randomUUID();
+        const imageUrls = imageIds
+          .map((imageId) => assets.get(imageId))
+          .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
 
         return {
           id,
@@ -162,7 +192,8 @@ export async function fetchNewsFeed(): Promise<NewsFeedResult> {
             entry.sys?.createdAt ||
             new Date().toISOString(),
           ctaLabel: getStringField(fields, ["ctaLabel", "cta", "buttonLabel"]) || "Pročitajte novost",
-          imageUrl: imageId ? assets.get(imageId) ?? null : null,
+          imageUrl: imageUrls[0] ?? null,
+          imageUrls,
         } satisfies NewsItem;
       })
       .filter((item) => item.title.trim().length > 0);

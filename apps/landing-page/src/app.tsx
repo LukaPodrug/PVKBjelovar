@@ -777,6 +777,7 @@ function CategoryShowcaseCard({
 
 function ArticlePage() {
   const { slug } = useParams();
+  const [activeGalleryIndex, setActiveGalleryIndex] = useState<number | null>(null);
   const clubSettingsQuery = useQuery({
     queryKey: ["public-club-settings"],
     queryFn: fetchClubSettings,
@@ -793,6 +794,9 @@ function ArticlePage() {
   const article = newsQuery.data?.items.find((item) => item.slug === slug) ?? null;
   const relatedArticles =
     newsQuery.data?.items.filter((item) => item.slug !== slug).slice(0, 2) ?? [];
+  const galleryImages = article?.imageUrls ?? [];
+  const activeGalleryImage =
+    activeGalleryIndex === null ? null : galleryImages[activeGalleryIndex] ?? null;
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -801,6 +805,47 @@ function ArticlePage() {
   useEffect(() => {
     document.title = article ? `${article.title} | ${clubName}` : `${clubName} | Novost`;
   }, [article, clubName]);
+
+  useEffect(() => {
+    setActiveGalleryIndex(null);
+  }, [slug]);
+
+  useEffect(() => {
+    if (activeGalleryIndex === null || galleryImages.length === 0) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const goToPreviousImage = () =>
+      setActiveGalleryIndex((current) =>
+        current === null ? current : (current - 1 + galleryImages.length) % galleryImages.length,
+      );
+    const goToNextImage = () =>
+      setActiveGalleryIndex((current) =>
+        current === null ? current : (current + 1) % galleryImages.length,
+      );
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveGalleryIndex(null);
+      }
+
+      if (event.key === "ArrowLeft") {
+        goToPreviousImage();
+      }
+
+      if (event.key === "ArrowRight") {
+        goToNextImage();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeGalleryIndex, galleryImages.length]);
 
   return (
     <div className="landing-page bg-bg text-ink">
@@ -823,7 +868,14 @@ function ArticlePage() {
                 <article className="landing-article-shell landing-surface mt-5 border-2 border-line bg-surface">
                   <div className="landing-article-hero">
                     {article.imageUrl ? (
-                      <img src={article.imageUrl} alt={article.title} />
+                      <button
+                        className="landing-article-hero-button"
+                        type="button"
+                        onClick={() => setActiveGalleryIndex(0)}
+                        aria-label="Otvori galeriju slika"
+                      >
+                        <img src={article.imageUrl} alt={article.title} />
+                      </button>
                     ) : (
                       <div className="landing-news-card-placeholder">
                         <span>{article.eyebrow}</span>
@@ -846,6 +898,14 @@ function ArticlePage() {
                           <p key={`${article.id}-paragraph-${index}`}>{paragraph}</p>
                         ))}
                       </div>
+
+                      {galleryImages.length > 1 ? (
+                        <ArticleGallery
+                          articleTitle={article.title}
+                          images={galleryImages}
+                          onOpen={setActiveGalleryIndex}
+                        />
+                      ) : null}
                     </div>
                   </div>
                 </article>
@@ -885,7 +945,162 @@ function ArticlePage() {
         </section>
       </main>
 
+      {activeGalleryImage ? (
+        <GalleryCarousel
+          activeIndex={activeGalleryIndex ?? 0}
+          articleTitle={article?.title ?? ""}
+          images={galleryImages}
+          onClose={() => setActiveGalleryIndex(null)}
+          onNext={() =>
+            setActiveGalleryIndex((current) =>
+              current === null ? current : (current + 1) % galleryImages.length,
+            )
+          }
+          onPrevious={() =>
+            setActiveGalleryIndex((current) =>
+              current === null ? current : (current - 1 + galleryImages.length) % galleryImages.length,
+            )
+          }
+          onSelect={setActiveGalleryIndex}
+        />
+      ) : null}
+
       <LandingFooter clubName={clubName} contactEmail={contactEmail} contactPhone={contactPhone} />
+    </div>
+  );
+}
+
+function ArticleGallery({
+  articleTitle,
+  images,
+  onOpen,
+}: {
+  articleTitle: string;
+  images: string[];
+  onOpen: (index: number) => void;
+}) {
+  return (
+    <section className="landing-article-gallery" aria-label="Galerija slika">
+      <div className="landing-article-gallery-header">
+        <p className="landing-kicker text-muted">Galerija</p>
+        <span>{images.length} slika</span>
+      </div>
+
+      <div className="landing-article-gallery-grid">
+        {images.map((imageUrl, index) => (
+          <button
+            key={`${imageUrl}-${index}`}
+            className="landing-article-gallery-item"
+            type="button"
+            onClick={() => onOpen(index)}
+            aria-label={`Otvori sliku ${index + 1} iz galerije`}
+          >
+            <img src={imageUrl} alt={`${articleTitle} - slika ${index + 1}`} />
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GalleryCarousel({
+  activeIndex,
+  articleTitle,
+  images,
+  onClose,
+  onNext,
+  onPrevious,
+  onSelect,
+}: {
+  activeIndex: number;
+  articleTitle: string;
+  images: string[];
+  onClose: () => void;
+  onNext: () => void;
+  onPrevious: () => void;
+  onSelect: (index: number) => void;
+}) {
+  const activeImage = images[activeIndex];
+
+  if (!activeImage) {
+    return null;
+  }
+
+  return (
+    <div
+      className="landing-gallery-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pregled galerije"
+    >
+      <button
+        className="landing-gallery-backdrop"
+        type="button"
+        onClick={onClose}
+        aria-label="Zatvori galeriju"
+      />
+
+      <div className="landing-gallery-dialog">
+        <div className="landing-gallery-topbar">
+          <span>
+            {activeIndex + 1} / {images.length}
+          </span>
+          <button
+            className="landing-gallery-icon-button"
+            type="button"
+            onClick={onClose}
+            aria-label="Zatvori galeriju"
+            title="Zatvori"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="landing-gallery-stage">
+          {images.length > 1 ? (
+            <button
+              className="landing-gallery-nav landing-gallery-nav--previous"
+              type="button"
+              onClick={onPrevious}
+              aria-label="Prethodna slika"
+              title="Prethodna slika"
+            >
+              ←
+            </button>
+          ) : null}
+
+          <img src={activeImage} alt={`${articleTitle} - slika ${activeIndex + 1}`} />
+
+          {images.length > 1 ? (
+            <button
+              className="landing-gallery-nav landing-gallery-nav--next"
+              type="button"
+              onClick={onNext}
+              aria-label="Sljedeća slika"
+              title="Sljedeća slika"
+            >
+              →
+            </button>
+          ) : null}
+        </div>
+
+        {images.length > 1 ? (
+          <div className="landing-gallery-strip" aria-label="Odabir slike">
+            {images.map((imageUrl, index) => (
+              <button
+                key={`${imageUrl}-thumb-${index}`}
+                className={`landing-gallery-thumb ${index === activeIndex ? "is-active" : ""}`}
+                type="button"
+                onClick={() => onSelect(index)}
+                aria-label={`Prikaži sliku ${index + 1}`}
+                aria-current={index === activeIndex}
+              >
+                <img src={imageUrl} alt="" />
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
