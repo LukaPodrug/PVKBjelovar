@@ -23,4 +23,4 @@ Or directly inside the workspace:
 npm run start --workspace @water-polo-club/mobile
 ```
 
-If you test on a physical device, replace `127.0.0.1` with the local IP address of the machine running the API.
+By default, development uses the deployed API at `https://pvkbjelovar.onrender.com/api`.

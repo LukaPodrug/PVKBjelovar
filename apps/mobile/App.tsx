@@ -62,6 +62,17 @@ interface ChangePasswordFormState {
   confirmNewPassword: string;
 }
 
+interface QuickLoginProfile {
+  label: string;
+  identifier: string;
+  password: string;
+}
+
+interface ToastMessage {
+  tone: "success" | "error";
+  message: string;
+}
+
 interface ScheduleCalendarItem {
   id: string;
   scheduleId: string;
@@ -207,7 +218,7 @@ type LeaderboardWindow = "week" | "month" | "all";
 
 const defaultApiBaseUrl =
   process.env.EXPO_PUBLIC_API_URL ??
-  (typeof __DEV__ !== "undefined" && __DEV__ ? "http://127.0.0.1:4000/api" : "");
+  "https://pvkbjelovar.onrender.com/api";
 
 const roleContent: Record<
   UserRole,
@@ -249,6 +260,32 @@ const initialLoginForm: LoginFormState = {
   password: "",
 };
 
+const developmentQuickLoginProfiles: QuickLoginProfile[] =
+  typeof __DEV__ !== "undefined" && __DEV__
+    ? [
+        {
+          label: "Igrač",
+          identifier: "luka-podrug",
+          password: "admin12345",
+        },
+        {
+          label: "Admin",
+          identifier: "bruno.sabioni@pvkmladostbjelovar.com",
+          password: "admin123",
+        },
+        {
+          label: "Trener",
+          identifier: "414uj8h4zl@ozsaip.com",
+          password: "admin12345",
+        },
+        {
+          label: "Roditelj",
+          identifier: "t8kimwbid7v4@inboxly.website",
+          password: "Wp!ZWJ0FBC4-yuNsz",
+        },
+      ]
+    : [];
+
 const emptyPasswordForm: ChangePasswordFormState = {
   currentPassword: "",
   newPassword: "",
@@ -261,25 +298,45 @@ export default function App() {
   const [passwordForm, setPasswordForm] = useState<ChangePasswordFormState>(emptyPasswordForm);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
-  async function handleLogin() {
+  useEffect(() => {
+    if (!toastMessage) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setToastMessage(null);
+    }, 2800);
+
+    return () => clearTimeout(timeout);
+  }, [toastMessage]);
+
+  async function loginWithCredentials(identifier: string, password: string) {
+    const nextLoginForm = {
+      ...loginForm,
+      identifier,
+      password,
+    };
+
+    setLoginForm(nextLoginForm);
     setIsBusy(true);
     setErrorMessage(null);
     setSuccessMessage(null);
 
     try {
-      const payload = await requestJson<AuthResponse>(normalizeApiBaseUrl(loginForm.apiBaseUrl), "/auth/login", {
+      const payload = await requestJson<AuthResponse>(normalizeApiBaseUrl(nextLoginForm.apiBaseUrl), "/auth/login", {
         method: "POST",
         body: JSON.stringify({
-          identifier: loginForm.identifier.trim(),
-          password: loginForm.password,
+          identifier: nextLoginForm.identifier.trim(),
+          password: nextLoginForm.password,
         }),
       });
 
       setSession(payload);
       setPasswordForm({
-        currentPassword: loginForm.password,
+        currentPassword: nextLoginForm.password,
         newPassword: "",
         confirmNewPassword: "",
       });
@@ -288,6 +345,14 @@ export default function App() {
     } finally {
       setIsBusy(false);
     }
+  }
+
+  async function handleLogin() {
+    await loginWithCredentials(loginForm.identifier, loginForm.password);
+  }
+
+  async function handleQuickLogin(profile: QuickLoginProfile) {
+    await loginWithCredentials(profile.identifier, profile.password);
   }
 
   async function handlePasswordChange() {
@@ -317,7 +382,7 @@ export default function App() {
           mustChangePassword: false,
         },
       });
-      setSuccessMessage("Lozinka je uspješno promijenjena.");
+      setToastMessage({ tone: "success", message: "Lozinka je uspješno promijenjena." });
       setPasswordForm(emptyPasswordForm);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Promjena lozinke nije uspjela.");
@@ -359,6 +424,7 @@ export default function App() {
             isBusy={isBusy}
             onChange={setLoginForm}
             onLogin={handleLogin}
+            onQuickLogin={handleQuickLogin}
           />
         ) : session.user.mustChangePassword ? (
           <PasswordChangeScreen
@@ -377,9 +443,11 @@ export default function App() {
             successMessage={successMessage}
             onLogout={handleLogout}
             onUserUpdate={handleUserUpdate}
+            onToast={setToastMessage}
           />
         )}
       </KeyboardAvoidingView>
+      {toastMessage ? <ToastOverlay toast={toastMessage} /> : null}
     </SafeAreaView>
   );
 }
@@ -390,12 +458,14 @@ function LoginScreen({
   isBusy,
   onChange,
   onLogin,
+  onQuickLogin,
 }: {
   form: LoginFormState;
   errorMessage: string | null;
   isBusy: boolean;
   onChange: (value: LoginFormState) => void;
   onLogin: () => void;
+  onQuickLogin: (profile: QuickLoginProfile) => void;
 }) {
   return (
     <ScrollView contentContainerStyle={styles.screenContent} keyboardShouldPersistTaps="handled">
@@ -409,7 +479,7 @@ function LoginScreen({
         <Text style={styles.sectionTitle}>Uđite u aplikaciju</Text>
 
         <LabeledInput
-          label="Prijava"
+          label="E-pošta ili korisničko ime"
           value={form.identifier}
           autoCapitalize="none"
           autoCorrect={false}
@@ -436,6 +506,24 @@ function LoginScreen({
             <Text style={styles.primaryButtonText}>Prijava</Text>
           )}
         </Pressable>
+
+        {developmentQuickLoginProfiles.length > 0 ? (
+          <View style={styles.quickLoginPanel}>
+            <Text style={styles.quickLoginTitle}>Brza testna prijava</Text>
+            <View style={styles.quickLoginActions}>
+              {developmentQuickLoginProfiles.map((profile) => (
+                <Pressable
+                  key={profile.label}
+                  disabled={isBusy}
+                  style={[styles.quickLoginButton, isBusy && styles.buttonDisabled]}
+                  onPress={() => onQuickLogin(profile)}
+                >
+                  <Text style={styles.quickLoginButtonText}>{profile.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -518,12 +606,14 @@ function RoleHomeScreen({
   successMessage,
   onLogout,
   onUserUpdate,
+  onToast,
 }: {
   apiBaseUrl: string;
   session: AuthResponse;
   successMessage: string | null;
   onLogout: () => void;
   onUserUpdate: (user: AuthUser) => void;
+  onToast: (toast: ToastMessage) => void;
 }) {
   const content = roleContent[session.user.role];
 
@@ -535,6 +625,8 @@ function RoleHomeScreen({
         headline={content}
         successMessage={successMessage}
         onLogout={onLogout}
+        onUserUpdate={onUserUpdate}
+        onToast={onToast}
       />
     );
   }
@@ -548,6 +640,7 @@ function RoleHomeScreen({
         successMessage={successMessage}
         onLogout={onLogout}
         onUserUpdate={onUserUpdate}
+        onToast={onToast}
       />
     );
   }
@@ -559,6 +652,8 @@ function RoleHomeScreen({
       headline={content}
       successMessage={successMessage}
       onLogout={onLogout}
+      onUserUpdate={onUserUpdate}
+      onToast={onToast}
     />
   );
 }
@@ -569,12 +664,16 @@ function StaffAttendanceScreen({
   headline,
   successMessage,
   onLogout,
+  onUserUpdate,
+  onToast,
 }: {
   apiBaseUrl: string;
   session: AuthResponse;
   headline: (typeof roleContent)[UserRole];
   successMessage: string | null;
   onLogout: () => void;
+  onUserUpdate: (user: AuthUser) => void;
+  onToast: (toast: ToastMessage) => void;
 }) {
   const [selectedDateKey, setSelectedDateKey] = useState(getCurrentDateKey());
   const [practices, setPractices] = useState<ScheduleCalendarItem[]>([]);
@@ -583,8 +682,52 @@ function StaffAttendanceScreen({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedPractice, setSelectedPractice] = useState<ScheduleCalendarItem | null>(null);
   const [qrSession, setQrSession] = useState<AttendanceQrSessionResponse | null>(null);
+  const [pushToken, setPushToken] = useState<string | null>(null);
+  const [categories, setCategories] = useState<MeCategory[]>([]);
   const [activeTab, setActiveTab] = useState("practices");
   const visiblePractices = practices.filter((practice) => practice.occurrenceDate === selectedDateKey);
+
+  useEffect(() => {
+    let isActive = true;
+
+    void registerForPushNotifications(apiBaseUrl, session.token).then((token) => {
+      if (isActive) {
+        setPushToken(token);
+      }
+    });
+
+    async function loadCategories() {
+      try {
+        const scopedCategories = await requestJson<MeCategory[]>(apiBaseUrl, "/me/categories", {
+          method: "GET",
+          token: session.token,
+        });
+
+        if (isActive) {
+          setCategories(
+            scopedCategories.length > 0
+              ? scopedCategories
+              : await requestJson<MeCategory[]>(apiBaseUrl, "/categories/public", {
+                  method: "GET",
+                }),
+          );
+        }
+      } catch {
+        if (isActive) {
+          const publicCategories = await requestJson<MeCategory[]>(apiBaseUrl, "/categories/public", {
+            method: "GET",
+          }).catch(() => []);
+          setCategories(publicCategories);
+        }
+      }
+    }
+
+    void loadCategories();
+
+    return () => {
+      isActive = false;
+    };
+  }, [apiBaseUrl, session.token]);
 
   useEffect(() => {
     let isMounted = true;
@@ -662,9 +805,26 @@ function StaffAttendanceScreen({
     }
   }
 
+  async function handleLogout() {
+    if (pushToken) {
+      try {
+        await requestJson(apiBaseUrl, `/me/push-devices/${encodeURIComponent(pushToken)}`, {
+          method: "DELETE",
+          token: session.token,
+        });
+      } catch (error) {
+        console.warn("Push token removal failed", error);
+      }
+    }
+
+    onLogout();
+  }
+
   const staffTabs: TabItem[] = [
     { key: "practices", label: "Treninzi", icon: "📅" },
-    { key: "account", label: "Račun", icon: "👤" },
+    { key: "leaderboard", label: "Poredak", icon: "🏆" },
+    { key: "notifications", label: "Obavijesti", icon: "🔔" },
+    { key: "profile", label: "Profil", icon: "👤" },
   ];
 
   return (
@@ -770,20 +930,29 @@ function StaffAttendanceScreen({
               )}
             </View>
           </TabScrollView>
+        ) : activeTab === "leaderboard" ? (
+          <TabScrollView>
+            <LeaderboardCard
+              apiBaseUrl={apiBaseUrl}
+              token={session.token}
+              categories={categories}
+              usePublicLeaderboard
+            />
+          </TabScrollView>
+        ) : activeTab === "notifications" ? (
+          <TabScrollView>
+            <NotificationsInbox apiBaseUrl={apiBaseUrl} token={session.token} treatForbiddenAsEmpty />
+          </TabScrollView>
         ) : (
           <TabScrollView>
-            <View style={styles.card}>
-              <Text style={styles.sectionEyebrow}>Aktivni račun</Text>
-              <Text style={styles.sectionTitle}>{headline.description}</Text>
-              <View style={styles.summaryRow}>
-                <SummaryPill label="Uloga" value={headline.badge} />
-                <SummaryPill label="Prijava" value={session.user.email ?? session.user.username ?? "-"} />
-              </View>
-            </View>
-
-            <Pressable style={styles.secondaryButton} onPress={onLogout}>
-              <Text style={styles.secondaryButtonText}>Odjava</Text>
-            </Pressable>
+            <AccountProfilePanel
+              apiBaseUrl={apiBaseUrl}
+              session={session}
+              successMessage={successMessage}
+              onLogout={handleLogout}
+              onUserUpdate={onUserUpdate}
+              onToast={onToast}
+            />
           </TabScrollView>
         )}
       </View>
@@ -913,6 +1082,167 @@ function TabBar({
 
 function TabScrollView({ children }: { children: ReactNode }) {
   return <ScrollView contentContainerStyle={styles.tabContent}>{children}</ScrollView>;
+}
+
+function AccountProfilePanel({
+  apiBaseUrl,
+  session,
+  successMessage,
+  onLogout,
+  onUserUpdate,
+  onToast,
+}: {
+  apiBaseUrl: string;
+  session: AuthResponse;
+  successMessage: string | null;
+  onLogout: () => void;
+  onUserUpdate: (user: AuthUser) => void;
+  onToast: (toast: ToastMessage) => void;
+}) {
+  const [username, setUsername] = useState(session.user.username ?? "");
+  const [passwordForm, setPasswordForm] = useState<ChangePasswordFormState>(emptyPasswordForm);
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  useEffect(() => {
+    setUsername(session.user.username ?? "");
+  }, [session.user.username]);
+
+  async function handleSaveUsername() {
+    setIsSavingUsername(true);
+
+    try {
+      const payload = await requestJson<{ user: AuthUser }>(apiBaseUrl, "/auth/profile", {
+        method: "PATCH",
+        token: session.token,
+        body: JSON.stringify({
+          username,
+        }),
+      });
+      onUserUpdate(payload.user);
+      onToast({ tone: "success", message: "Korisničko ime je uspješno ažurirano." });
+    } catch (error) {
+      onToast({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Korisničko ime nije moguće spremiti.",
+      });
+    } finally {
+      setIsSavingUsername(false);
+    }
+  }
+
+  async function handleChangePassword() {
+    setIsChangingPassword(true);
+
+    try {
+      await requestJson<{ message: string }>(apiBaseUrl, "/auth/change-password", {
+        method: "PATCH",
+        token: session.token,
+        body: JSON.stringify(passwordForm),
+      });
+      setPasswordForm(emptyPasswordForm);
+      onToast({ tone: "success", message: "Lozinka je uspješno promijenjena." });
+    } catch (error) {
+      onToast({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Promjena lozinke nije uspjela.",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  }
+
+  return (
+    <>
+      {successMessage ? <MessageBanner tone="success" message={successMessage} /> : null}
+
+      <View style={styles.card}>
+        <Text style={styles.sectionEyebrow}>Moj račun</Text>
+        <Text style={styles.sectionTitle}>
+          {session.user.firstName} {session.user.lastName}
+        </Text>
+        <View style={styles.summaryRow}>
+          <SummaryPill label="Uloga" value={roleContent[session.user.role].badge} />
+          <SummaryPill label="E-pošta" value={session.user.email ?? "-"} />
+          <SummaryPill label="Korisničko ime" value={session.user.username ?? "-"} />
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionEyebrow}>Prijava</Text>
+        <Text style={styles.sectionTitle}>Korisničko ime</Text>
+        <Text style={styles.sectionCopy}>
+          Korisničko ime možete koristiti za prijavu umjesto e-pošte.
+        </Text>
+
+        <LabeledInput
+          label="Korisničko ime"
+          value={username}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onChangeText={setUsername}
+        />
+
+        <Pressable
+          disabled={isSavingUsername}
+          style={[styles.primaryButton, isSavingUsername && styles.buttonDisabled]}
+          onPress={handleSaveUsername}
+        >
+          {isSavingUsername ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Spremi korisničko ime</Text>
+          )}
+        </Pressable>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionEyebrow}>Sigurnost</Text>
+        <Text style={styles.sectionTitle}>Promjena lozinke</Text>
+
+        <LabeledInput
+          label="Trenutna lozinka"
+          value={passwordForm.currentPassword}
+          secureTextEntry
+          onChangeText={(currentPassword) =>
+            setPasswordForm((current) => ({ ...current, currentPassword }))
+          }
+        />
+        <LabeledInput
+          label="Nova lozinka"
+          value={passwordForm.newPassword}
+          secureTextEntry
+          onChangeText={(newPassword) =>
+            setPasswordForm((current) => ({ ...current, newPassword }))
+          }
+        />
+        <LabeledInput
+          label="Potvrda nove lozinke"
+          value={passwordForm.confirmNewPassword}
+          secureTextEntry
+          onChangeText={(confirmNewPassword) =>
+            setPasswordForm((current) => ({ ...current, confirmNewPassword }))
+          }
+        />
+
+        <Pressable
+          disabled={isChangingPassword}
+          style={[styles.primaryButton, isChangingPassword && styles.buttonDisabled]}
+          onPress={handleChangePassword}
+        >
+          {isChangingPassword ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Spremi novu lozinku</Text>
+          )}
+        </Pressable>
+      </View>
+
+      <Pressable style={styles.secondaryButton} onPress={onLogout}>
+        <Text style={styles.secondaryButtonText}>Odjava</Text>
+      </Pressable>
+    </>
+  );
 }
 
 function PracticeRow({ practice }: { practice: ChildScheduleItem }) {
@@ -1062,6 +1392,7 @@ function PlayerAttendanceScreen({
   successMessage,
   onLogout,
   onUserUpdate,
+  onToast,
 }: {
   apiBaseUrl: string;
   session: AuthResponse;
@@ -1069,22 +1400,15 @@ function PlayerAttendanceScreen({
   successMessage: string | null;
   onLogout: () => void;
   onUserUpdate: (user: AuthUser) => void;
+  onToast: (toast: ToastMessage) => void;
 }) {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [username, setUsername] = useState(session.user.username ?? "");
-  const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSubmittingScan, setIsSubmittingScan] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [profileMessage, setProfileMessage] = useState<string | null>(null);
-  const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [categories, setCategories] = useState<MeCategory[]>([]);
   const [activeTab, setActiveTab] = useState("schedule");
-
-  useEffect(() => {
-    setUsername(session.user.username ?? "");
-  }, [session.user.username]);
 
   useEffect(() => {
     let isActive = true;
@@ -1130,33 +1454,8 @@ function PlayerAttendanceScreen({
     onLogout();
   }
 
-  async function handleSaveUsername() {
-    setIsSavingUsername(true);
-    setErrorMessage(null);
-    setProfileMessage(null);
-
-    try {
-      const payload = await requestJson<{ user: AuthUser }>(apiBaseUrl, "/auth/profile", {
-        method: "PATCH",
-        token: session.token,
-        body: JSON.stringify({
-          username,
-        }),
-      });
-      onUserUpdate(payload.user);
-      setProfileMessage("Korisničko ime je uspješno ažurirano.");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Korisničko ime nije moguće spremiti.",
-      );
-    } finally {
-      setIsSavingUsername(false);
-    }
-  }
-
   async function handleOpenScanner() {
     setErrorMessage(null);
-    setScanMessage(null);
 
     if (!cameraPermission?.granted) {
       const permissionResult = await requestCameraPermission();
@@ -1192,9 +1491,10 @@ function PlayerAttendanceScreen({
       );
 
       setIsScannerOpen(false);
-      setScanMessage(
-        `${payload.message} ${payload.categoryName} • ${formatPracticeDate(payload.occurrenceDate)} • ${formatTimeRange(payload.startTime, payload.endTime)}`,
-      );
+      onToast({
+        tone: "success",
+        message: `${payload.message} ${payload.categoryName} • ${formatPracticeDate(payload.occurrenceDate)} • ${formatTimeRange(payload.startTime, payload.endTime)}`,
+      });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Skeniranje nije uspjelo.");
     } finally {
@@ -1222,7 +1522,6 @@ function PlayerAttendanceScreen({
           <WeeklySchedulePanel apiBaseUrl={apiBaseUrl} token={session.token} endpoint="/me/schedule" />
         ) : activeTab === "checkin" ? (
           <TabScrollView>
-            {scanMessage ? <MessageBanner tone="success" message={scanMessage} /> : null}
             {errorMessage ? <MessageBanner tone="error" message={errorMessage} /> : null}
 
             <View style={styles.card}>
@@ -1269,41 +1568,14 @@ function PlayerAttendanceScreen({
           </TabScrollView>
         ) : (
           <TabScrollView>
-            {successMessage ? <MessageBanner tone="success" message={successMessage} /> : null}
-            {profileMessage ? <MessageBanner tone="success" message={profileMessage} /> : null}
-            {errorMessage ? <MessageBanner tone="error" message={errorMessage} /> : null}
-
-            <View style={styles.card}>
-              <Text style={styles.sectionEyebrow}>Moj račun</Text>
-              <Text style={styles.sectionTitle}>Korisničko ime za prijavu</Text>
-              <Text style={styles.sectionCopy}>
-                Trenutna prijava: {session.user.username ?? "nije postavljeno"}.
-              </Text>
-
-              <LabeledInput
-                label="Korisničko ime"
-                value={username}
-                autoCapitalize="none"
-                autoCorrect={false}
-                onChangeText={setUsername}
-              />
-
-              <Pressable
-                disabled={isSavingUsername}
-                style={[styles.primaryButton, isSavingUsername && styles.buttonDisabled]}
-                onPress={handleSaveUsername}
-              >
-                {isSavingUsername ? (
-                  <ActivityIndicator color="#ffffff" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>Spremi korisničko ime</Text>
-                )}
-              </Pressable>
-            </View>
-
-            <Pressable style={styles.secondaryButton} onPress={handleLogout}>
-              <Text style={styles.secondaryButtonText}>Odjava</Text>
-            </Pressable>
+            <AccountProfilePanel
+              apiBaseUrl={apiBaseUrl}
+              session={session}
+              successMessage={successMessage}
+              onLogout={handleLogout}
+              onUserUpdate={onUserUpdate}
+              onToast={onToast}
+            />
           </TabScrollView>
         )}
       </View>
@@ -1319,12 +1591,16 @@ function ParentDashboardScreen({
   headline,
   successMessage,
   onLogout,
+  onUserUpdate,
+  onToast,
 }: {
   apiBaseUrl: string;
   session: AuthResponse;
   headline: (typeof roleContent)[UserRole];
   successMessage: string | null;
   onLogout: () => void;
+  onUserUpdate: (user: AuthUser) => void;
+  onToast: (toast: ToastMessage) => void;
 }) {
   const [children, setChildren] = useState<ParentChildSummary[]>([]);
   const [isLoadingChildren, setIsLoadingChildren] = useState(true);
@@ -1534,17 +1810,14 @@ function ParentDashboardScreen({
               </TabScrollView>
             ) : (
               <TabScrollView>
-                {successMessage ? <MessageBanner tone="success" message={successMessage} /> : null}
-                <View style={styles.card}>
-                  <Text style={styles.sectionEyebrow}>Račun</Text>
-                  <Text style={styles.sectionTitle}>
-                    {session.user.firstName} {session.user.lastName}
-                  </Text>
-                  <Text style={styles.sectionCopy}>Prijava: {session.user.email ?? "-"}</Text>
-                </View>
-                <Pressable style={styles.secondaryButton} onPress={handleLogout}>
-                  <Text style={styles.secondaryButtonText}>Odjava</Text>
-                </Pressable>
+                <AccountProfilePanel
+                  apiBaseUrl={apiBaseUrl}
+                  session={session}
+                  successMessage={successMessage}
+                  onLogout={handleLogout}
+                  onUserUpdate={onUserUpdate}
+                  onToast={onToast}
+                />
               </TabScrollView>
             )}
           </View>
@@ -1613,9 +1886,11 @@ function ParentChildPicker({
 function NotificationsInbox({
   apiBaseUrl,
   token,
+  treatForbiddenAsEmpty = false,
 }: {
   apiBaseUrl: string;
   token: string;
+  treatForbiddenAsEmpty?: boolean;
 }) {
   const [notifications, setNotifications] = useState<InboxNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -1632,7 +1907,16 @@ function NotificationsInbox({
       setUnreadCount(payload.unreadCount);
       setError(null);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Obavijesti nije moguće učitati.");
+      const message =
+        loadError instanceof Error ? loadError.message : "Obavijesti nije moguće učitati.";
+
+      if (treatForbiddenAsEmpty && isPermissionErrorMessage(message)) {
+        setNotifications([]);
+        setUnreadCount(0);
+        setError(null);
+      } else {
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -1839,10 +2123,12 @@ function LeaderboardCard({
   apiBaseUrl,
   token,
   categories,
+  usePublicLeaderboard = false,
 }: {
   apiBaseUrl: string;
   token: string;
   categories: MeCategory[];
+  usePublicLeaderboard?: boolean;
 }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     categories[0]?.id ?? null,
@@ -1885,7 +2171,9 @@ function LeaderboardCard({
           .join("&");
         const payload = await requestJson<LeaderboardResponse>(
           apiBaseUrl,
-          `/me/leaderboard?${query}`,
+          usePublicLeaderboard
+            ? `/categories/${encodeURIComponent(selectedCategoryId!)}/leaderboard?${query}`
+            : `/me/leaderboard?${query}`,
           { method: "GET", token },
         );
 
@@ -1908,10 +2196,15 @@ function LeaderboardCard({
     return () => {
       isActive = false;
     };
-  }, [apiBaseUrl, token, selectedCategoryId, window, page]);
+  }, [apiBaseUrl, token, selectedCategoryId, window, page, usePublicLeaderboard]);
 
   if (categories.length === 0) {
-    return null;
+    return (
+      <View style={styles.card}>
+        <Text style={styles.sectionEyebrow}>Poredak</Text>
+        <Text style={styles.sectionTitle}>Nema dostupnih kategorija</Text>
+      </View>
+    );
   }
 
   const highlightIds = new Set(leaderboard?.highlightPlayerIds ?? []);
@@ -2377,6 +2670,16 @@ function MessageBanner({
   );
 }
 
+function ToastOverlay({ toast }: { toast: ToastMessage }) {
+  return (
+    <View pointerEvents="none" style={styles.toastOverlay}>
+      <View style={[styles.toastCard, toast.tone === "success" ? styles.toastSuccess : styles.toastError]}>
+        <Text style={styles.toastText}>{toast.message}</Text>
+      </View>
+    </View>
+  );
+}
+
 function PracticeTypePill({ practiceType }: { practiceType: PracticeType }) {
   return (
     <View
@@ -2389,6 +2692,15 @@ function PracticeTypePill({ practiceType }: { practiceType: PracticeType }) {
         {practiceType === "DRYLAND" ? "Suhi trening" : "Trening u vodi"}
       </Text>
     </View>
+  );
+}
+
+function isPermissionErrorMessage(message: string) {
+  const normalizedMessage = message.toLowerCase();
+  return (
+    normalizedMessage.includes("ovlasti") ||
+    normalizedMessage.includes("pristup ovom resursu") ||
+    normalizedMessage.includes("forbidden")
   );
 }
 
@@ -2683,6 +2995,42 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+  quickLoginPanel: {
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#d6e0eb",
+    paddingTop: 16,
+    gap: 10,
+  },
+  quickLoginTitle: {
+    color: "#5f6f82",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+  },
+  quickLoginActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  quickLoginButton: {
+    minHeight: 42,
+    minWidth: 92,
+    flexGrow: 1,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef5fc",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  quickLoginButtonText: {
+    color: "#123d75",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   secondaryButton: {
     minHeight: 50,
     borderRadius: 18,
@@ -2736,6 +3084,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     fontWeight: "600",
+  },
+  toastOverlay: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 58 : 24,
+    left: 16,
+    right: 16,
+    alignItems: "center",
+    zIndex: 20,
+  },
+  toastCard: {
+    maxWidth: 520,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    shadowColor: "#102347",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  toastSuccess: {
+    backgroundColor: "#dff6ea",
+  },
+  toastError: {
+    backgroundColor: "#ffe3e4",
+  },
+  toastText: {
+    color: "#102347",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+    textAlign: "center",
   },
   summaryRow: {
     marginTop: 16,

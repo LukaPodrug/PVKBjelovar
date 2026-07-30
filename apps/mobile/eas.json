@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://127.0.0.1:4000/api"
+        "EXPO_PUBLIC_API_URL": "https://pvkbjelovar.onrender.com/api"
       }
     },
     "preview": {
@@ -17,13 +17,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-YOUR-API-HOST/api"
+        "EXPO_PUBLIC_API_URL": "https://pvkbjelovar.onrender.com/api"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-YOUR-API-HOST/api"
+        "EXPO_PUBLIC_API_URL": "https://pvkbjelovar.onrender.com/api"
       }
     }
   },

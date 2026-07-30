@@ -24,8 +24,8 @@ These production-enabling changes are committed:
 - Netlify SPA fallback: `apps/admin-web/public/_redirects` and `apps/landing-page/public/_redirects`.
 - Mobile EAS config: `apps/mobile/eas.json` (build profiles) and `app.json` now has iOS
   `bundleIdentifier` + Android `package` + the `expo-notifications` plugin.
-- Mobile API URL is read from `EXPO_PUBLIC_API_URL` (per EAS profile); local dev still defaults to
-  `http://127.0.0.1:4000/api`.
+- Mobile API URL is read from `EXPO_PUBLIC_API_URL` (per EAS profile); the runtime fallback also
+  points to `https://pvkbjelovar.onrender.com/api`.
 - `apps/api/.env.example` documents `FRONTEND_URLS` (multi-origin CORS) and `MAX_UPLOAD_SIZE_MB`.
 
 ## 1. Must-fix before go-live (not yet done — decide + implement)
@@ -74,7 +74,7 @@ These production-enabling changes are committed:
 | `DATABASE_URL` | yes | Neon pooled URL, `sslmode=require` |
 | `JWT_SECRET` | yes | long random string |
 | `JWT_EXPIRES_IN` | no | default `7d` |
-| `FRONTEND_URLS` | yes | comma-separated: admin-web + landing-page prod URLs (CORS allow-list) |
+| `FRONTEND_URLS` | yes | comma-separated CORS allow-list: admin-web + landing-page prod URLs; add `http://localhost:8081` while testing Expo Web locally |
 | `CONTENTFUL_MANAGEMENT_TOKEN` | for uploads | profile/logo image uploads |
 | `CONTENTFUL_SPACE_ID` | for uploads | |
 | `CONTENTFUL_ENVIRONMENT` | no | default `master` |
@@ -111,6 +111,7 @@ new password.
   - `VITE_CONTENTFUL_SPACE_ID`, `VITE_CONTENTFUL_ACCESS_TOKEN` (Content **Delivery** token, read-only),
     `VITE_CONTENTFUL_ENVIRONMENT`, `VITE_CONTENTFUL_NEWS_CONTENT_TYPE`, `VITE_CONTENTFUL_NEWS_LIMIT`.
 - Add both Netlify prod URLs to the API's `FRONTEND_URLS`.
+- For local Expo Web testing against Render, also add `http://localhost:8081` to `FRONTEND_URLS`.
 
 ## 6. Mobile on EAS (this is the "wire EAS build" part)
 
@@ -121,8 +122,8 @@ account (Android). Run all commands from `apps/mobile`.
 2. **Link the project:** `eas init` — this creates the EAS project and writes
    `extra.eas.projectId` into `app.json`. (The push-token code in `App.tsx` already reads that
    projectId; until this runs, `getExpoPushTokenAsync` no-ops.)
-3. **Set the production API URL:** edit `eas.json` and replace `REPLACE-WITH-YOUR-API-HOST` in the
-   `preview` and `production` profiles with your Render API host.
+3. **Confirm the production API URL:** `eas.json` sets `EXPO_PUBLIC_API_URL` to
+   `https://pvkbjelovar.onrender.com/api` for the `preview` and `production` profiles.
 4. **Push credentials** (required for real delivery):
    - Android: `eas credentials` → set up **FCM V1** (upload the service-account JSON from your
      Firebase project). Expo uses this to deliver to Android.

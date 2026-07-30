@@ -1,4 +1,4 @@
-import { AccountStatus, UserRole } from "@prisma/client";
+import { AccountStatus } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
@@ -140,10 +140,6 @@ authRouter.patch(
 
     if (!usernameInput) {
       throw new AppError("Nema podataka za ažuriranje profila.", 400);
-    }
-
-    if (request.auth!.role !== UserRole.PLAYER) {
-      throw new AppError("Samo igrači trenutno mogu mijenjati korisničko ime kroz mobilnu aplikaciju.", 403);
     }
 
     const username = parseUsernameInput(usernameInput);

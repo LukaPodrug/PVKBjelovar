@@ -116,15 +116,16 @@ export async function notifyCategoryParents(
 
 /**
  * Notifies the full audience of a category — every parent linked to a player in the category AND
- * the players themselves. Used for practice changes/cancellations that both kids and parents care
- * about. A user linked in multiple ways is deduplicated by `dispatchNotificationToUsers`.
+ * the players themselves, assigned coaches, and admins. Used for practice changes/cancellations
+ * that the whole category audience cares about. A user linked in multiple ways is deduplicated by
+ * `dispatchNotificationToUsers`.
  */
 export async function notifyCategoryAudience(
   categoryId: string,
   payload: NotificationPayload,
 ): Promise<void> {
   try {
-    const [parents, players] = await Promise.all([
+    const [parents, players, coaches, admins] = await Promise.all([
       prisma.parent.findMany({
         where: {
           players: {
@@ -147,10 +148,27 @@ export async function notifyCategoryAudience(
         },
         select: { userId: true },
       }),
+      prisma.coach.findMany({
+        where: {
+          categories: {
+            some: { categoryId },
+          },
+        },
+        select: { userId: true },
+      }),
+      prisma.user.findMany({
+        where: { role: "ADMIN" },
+        select: { id: true },
+      }),
     ]);
 
     await dispatchNotificationToUsers(
-      [...parents.map((parent) => parent.userId), ...players.map((player) => player.userId)],
+      [
+        ...parents.map((parent) => parent.userId),
+        ...players.map((player) => player.userId),
+        ...coaches.map((coach) => coach.userId),
+        ...admins.map((admin) => admin.id),
+      ],
       payload,
     );
   } catch (error) {
@@ -158,20 +176,32 @@ export async function notifyCategoryAudience(
   }
 }
 
-/** Notifies every parent and every player, used for practices that apply to all categories. */
+/** Notifies every parent, player, coach, and admin, used for practices that apply to all categories. */
 export async function notifyAllPracticeAudience(payload: NotificationPayload): Promise<void> {
   try {
-    const [parents, players] = await Promise.all([
+    const [parents, players, coaches, admins] = await Promise.all([
       prisma.parent.findMany({
         select: { userId: true },
       }),
       prisma.player.findMany({
         select: { userId: true },
       }),
+      prisma.coach.findMany({
+        select: { userId: true },
+      }),
+      prisma.user.findMany({
+        where: { role: "ADMIN" },
+        select: { id: true },
+      }),
     ]);
 
     await dispatchNotificationToUsers(
-      [...parents.map((parent) => parent.userId), ...players.map((player) => player.userId)],
+      [
+        ...parents.map((parent) => parent.userId),
+        ...players.map((player) => player.userId),
+        ...coaches.map((coach) => coach.userId),
+        ...admins.map((admin) => admin.id),
+      ],
       payload,
     );
   } catch (error) {

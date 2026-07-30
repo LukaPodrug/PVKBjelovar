@@ -130,6 +130,7 @@ parentsRouter.post(
             profileImageUrl,
             accountStatus:
               parseOptionalAccountStatusInput(request.body.accountStatus) ?? AccountStatus.ACTIVE,
+            mustChangePassword: true,
           },
         },
         players:

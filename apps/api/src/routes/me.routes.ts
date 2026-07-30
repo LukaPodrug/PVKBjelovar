@@ -16,13 +16,13 @@ import {
 
 export const meRouter = Router();
 
-// Every /me route requires authentication. Child-scoped endpoints are parent-only; the
-// notifications inbox and push-device registration are shared by parents and players.
+// Every /me route requires authentication. Child-scoped endpoints are parent-only; profile-level
+// helpers such as notifications, push devices, categories, and leaderboard are shared by every role.
 meRouter.use(authenticateRequest);
 
 const parentOnly = authorizeRoles(UserRole.PARENT);
 const playerOnly = authorizeRoles(UserRole.PLAYER);
-const parentOrPlayer = authorizeRoles(UserRole.PARENT, UserRole.PLAYER);
+const allRoles = authorizeRoles(UserRole.ADMIN, UserRole.COACH, UserRole.PARENT, UserRole.PLAYER);
 
 interface ResolvedChild {
   playerId: string;
@@ -394,7 +394,7 @@ function parseDevicePlatform(value: unknown): DevicePlatform {
 
 meRouter.post(
   "/push-devices",
-  parentOrPlayer,
+  allRoles,
   asyncHandler(async (request, response) => {
     const expoPushToken = requireString(request.body.expoPushToken, "expoPushToken");
 
@@ -428,7 +428,7 @@ meRouter.post(
 
 meRouter.delete(
   "/push-devices/:token",
-  parentOrPlayer,
+  allRoles,
   asyncHandler(async (request, response) => {
     const expoPushToken = requireString(request.params.token, "token");
 
@@ -445,7 +445,7 @@ meRouter.delete(
 
 meRouter.get(
   "/notifications",
-  parentOrPlayer,
+  allRoles,
   asyncHandler(async (request, response) => {
     const [notifications, unreadCount] = await Promise.all([
       prisma.notification.findMany({
@@ -480,7 +480,7 @@ meRouter.get(
 
 meRouter.patch(
   "/notifications/read-all",
-  parentOrPlayer,
+  allRoles,
   asyncHandler(async (request, response) => {
     await prisma.notification.updateMany({
       where: { userId: request.auth!.userId, readAt: null },
@@ -493,7 +493,7 @@ meRouter.patch(
 
 meRouter.patch(
   "/notifications/:id/read",
-  parentOrPlayer,
+  allRoles,
   asyncHandler(async (request, response) => {
     const notificationId = requireString(request.params.id, "id");
 
@@ -512,12 +512,30 @@ meRouter.patch(
 
 meRouter.get(
   "/categories",
-  parentOrPlayer,
+  allRoles,
   asyncHandler(async (request, response) => {
     const { userId, role } = request.auth!;
     const categoryMap = new Map<string, { id: string; name: string }>();
 
-    if (role === UserRole.PLAYER) {
+    if (role === UserRole.ADMIN) {
+      const categories = await prisma.category.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      });
+      categories.forEach((category) => categoryMap.set(category.id, category));
+    } else if (role === UserRole.COACH) {
+      const coach = await prisma.coach.findUnique({
+        where: { userId },
+        select: {
+          categories: {
+            select: { category: { select: { id: true, name: true } } },
+          },
+        },
+      });
+      coach?.categories.forEach((assignment) =>
+        categoryMap.set(assignment.category.id, assignment.category),
+      );
+    } else if (role === UserRole.PLAYER) {
       const player = await prisma.player.findUnique({
         where: { userId },
         select: {
@@ -563,13 +581,42 @@ meRouter.get(
 
 /**
  * Resolves which player rows the requester is allowed to see highlighted on a category leaderboard,
- * and doubles as the access guard: a player must belong to the category, a parent must have at least
- * one child in it.
+ * and doubles as the access guard. Admins can see every category, coaches can see assigned
+ * categories, players must belong to the category, and parents must have at least one child in it.
  */
 async function resolveLeaderboardHighlight(
   auth: { userId: string; role: UserRole },
   categoryId: string,
 ): Promise<string[]> {
+  if (auth.role === UserRole.ADMIN) {
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { id: true },
+    });
+
+    if (!category) {
+      throw new AppError("Kategorija nije pronađena.", 404);
+    }
+
+    return [];
+  }
+
+  if (auth.role === UserRole.COACH) {
+    const coachCategory = await prisma.coachCategory.findFirst({
+      where: {
+        categoryId,
+        coach: { userId: auth.userId },
+      },
+      select: { coachId: true },
+    });
+
+    if (!coachCategory) {
+      throw new AppError("Nemate pristup poretku ove kategorije.", 403);
+    }
+
+    return [];
+  }
+
   if (auth.role === UserRole.PLAYER) {
     const player = await prisma.player.findFirst({
       where: { userId: auth.userId, categories: { some: { categoryId } } },
@@ -609,7 +656,7 @@ async function resolveLeaderboardHighlight(
 
 meRouter.get(
   "/leaderboard",
-  parentOrPlayer,
+  allRoles,
   asyncHandler(async (request, response) => {
     const categoryId = requireString(request.query.categoryId, "categoryId");
     const highlightPlayerIds = await resolveLeaderboardHighlight(request.auth!, categoryId);
