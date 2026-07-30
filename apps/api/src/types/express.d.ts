@@ -10,6 +10,7 @@ declare global {
         username: string | null;
         firstName: string;
         lastName: string;
+        profileImageUrl: string | null;
         mustChangePassword: boolean;
       };
     }

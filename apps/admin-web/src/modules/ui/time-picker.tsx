@@ -24,11 +24,9 @@ export function TimePicker({
 }: TimePickerProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
-  const hourListRef = useRef<HTMLDivElement | null>(null);
-  const minuteListRef = useRef<HTMLDivElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [draftValue, setDraftValue] = useState(value);
-  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0, width: 360 });
+  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0, width: 400 });
   const parsedTime = useMemo(() => parseTime(value), [value]);
 
   useEffect(() => {
@@ -47,10 +45,10 @@ export function TimePicker({
         return;
       }
 
-      const width = Math.min(360, window.innerWidth - 24);
+      const width = Math.min(400, window.innerWidth - 24);
       const left = Math.min(Math.max(12, controlRect.left), window.innerWidth - width - 12);
       const preferredTop = controlRect.bottom + 8;
-      const estimatedHeight = 420;
+      const estimatedHeight = 520;
       const shouldOpenAbove = preferredTop + estimatedHeight > window.innerHeight - 12;
       const top = shouldOpenAbove
         ? Math.max(12, controlRect.top - estimatedHeight - 8)
@@ -81,21 +79,6 @@ export function TimePicker({
       window.removeEventListener("scroll", updatePopoverPosition, true);
     };
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || !parsedTime) {
-      return;
-    }
-
-    window.requestAnimationFrame(() => {
-      hourListRef.current
-        ?.querySelector(`[data-time-value="${parsedTime.hour}"]`)
-        ?.scrollIntoView({ block: "center" });
-      minuteListRef.current
-        ?.querySelector(`[data-time-value="${parsedTime.minute}"]`)
-        ?.scrollIntoView({ block: "center" });
-    });
-  }, [isOpen, parsedTime]);
 
   const handleDraftChange = (nextDraftValue: string) => {
     setDraftValue(nextDraftValue);
@@ -240,47 +223,21 @@ export function TimePicker({
                   ))}
                 </div>
 
-                <div className="time-picker-wheels">
-                  <div className="time-picker-wheel">
-                    <div className="time-picker-wheel-header">
-                      <span>Sati</span>
-                    </div>
-                    <div ref={hourListRef} className="time-picker-wheel-list">
-                      {hourOptions.map((hour) => (
-                        <button
-                          key={hour}
-                          className={`time-picker-wheel-option ${
-                            parsedTime?.hour === hour ? "is-selected" : ""
-                          }`}
-                          data-time-value={hour}
-                          type="button"
-                          onClick={() => selectTimePart("hour", hour)}
-                        >
-                          {String(hour).padStart(2, "0")}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="time-picker-wheel">
-                    <div className="time-picker-wheel-header">
-                      <span>Minute</span>
-                    </div>
-                    <div ref={minuteListRef} className="time-picker-wheel-list">
-                      {minuteOptions.map((minute) => (
-                        <button
-                          key={minute}
-                          className={`time-picker-wheel-option ${
-                            parsedTime?.minute === minute ? "is-selected" : ""
-                          }`}
-                          data-time-value={minute}
-                          type="button"
-                          onClick={() => selectTimePart("minute", minute)}
-                        >
-                          {String(minute).padStart(2, "0")}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                <div className="time-picker-dials">
+                  <TimeDial
+                    label="Sati"
+                    kind="hours"
+                    options={hourOptions}
+                    selectedValue={parsedTime?.hour ?? null}
+                    onSelect={(hour) => selectTimePart("hour", hour)}
+                  />
+                  <TimeDial
+                    label="Minute"
+                    kind="minutes"
+                    options={minuteOptions}
+                    selectedValue={parsedTime?.minute ?? null}
+                    onSelect={(minute) => selectTimePart("minute", minute)}
+                  />
                 </div>
 
                 <button
@@ -295,6 +252,57 @@ export function TimePicker({
             document.body,
           )
         : null}
+    </div>
+  );
+}
+
+function TimeDial({
+  label,
+  kind,
+  options,
+  selectedValue,
+  onSelect,
+}: {
+  label: string;
+  kind: "hours" | "minutes";
+  options: number[];
+  selectedValue: number | null;
+  onSelect: (value: number) => void;
+}) {
+  const isHourDial = kind === "hours";
+  const centerValue =
+    selectedValue === null ? "--" : String(selectedValue).padStart(2, "0");
+
+  return (
+    <div className={`time-picker-dial time-picker-dial--${kind}`} role="group" aria-label={label}>
+      <div className="time-picker-dial-center" aria-hidden="true">
+        <strong>{centerValue}</strong>
+        <span>{label}</span>
+      </div>
+
+      {options.map((option) => {
+        const isSelected = selectedValue === option;
+        const showLabel = isHourDial || option % 5 === 0 || isSelected;
+        const angle = ((option / options.length) * 360) - 90;
+        const hourRadius = option < 12 ? 0.38 : 0.5;
+        const radius = isHourDial ? hourRadius : 0.45;
+        const transform = `rotate(${angle}deg) translate(calc(var(--dial-size) * ${radius})) rotate(${-angle}deg)`;
+
+        return (
+          <button
+            key={option}
+            className={`time-picker-dial-option ${
+              isSelected ? "is-selected" : ""
+            } ${showLabel ? "has-label" : "is-tick"}`}
+            style={{ transform }}
+            type="button"
+            aria-label={`${label}: ${String(option).padStart(2, "0")}`}
+            onClick={() => onSelect(option)}
+          >
+            {showLabel ? String(option).padStart(2, "0") : ""}
+          </button>
+        );
+      })}
     </div>
   );
 }

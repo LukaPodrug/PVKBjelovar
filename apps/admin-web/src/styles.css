@@ -442,74 +442,118 @@ textarea {
   color: var(--surface);
 }
 
-.admin-shell .time-picker-wheels,
-.admin-login .time-picker-wheels {
+.admin-shell .time-picker-dials,
+.admin-login .time-picker-dials {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 6px 4px 2px;
 }
 
-.admin-shell .time-picker-wheel,
-.admin-login .time-picker-wheel {
-  overflow: hidden;
+.admin-shell .time-picker-dial,
+.admin-login .time-picker-dial {
+  --dial-size: 150px;
+  position: relative;
+  width: var(--dial-size);
+  height: var(--dial-size);
+  margin: 0 auto;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 999px;
   background: white;
+  box-shadow: inset 0 0 0 12px rgba(243, 247, 251, 0.72);
 }
 
-.admin-shell .time-picker-wheel-header,
-.admin-login .time-picker-wheel-header {
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-  padding: 10px 12px;
+.admin-shell .time-picker-dial--minutes,
+.admin-login .time-picker-dial--minutes {
+  --dial-size: min(218px, calc(100vw - 176px));
+  min-width: 190px;
+  min-height: 190px;
 }
 
-.admin-shell .time-picker-wheel-header span,
-.admin-login .time-picker-wheel-header span {
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
+.admin-shell .time-picker-dial-center,
+.admin-login .time-picker-dial-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: grid;
+  width: 42%;
+  height: 42%;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(34, 91, 166, 0.1), rgba(255, 255, 255, 0.95)),
+    var(--surface);
+  color: var(--accent);
+  transform: translate(-50%, -50%);
+}
+
+.admin-shell .time-picker-dial-center strong,
+.admin-login .time-picker-dial-center strong {
+  align-self: end;
+  font-size: 1.05rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.admin-shell .time-picker-dial-center span,
+.admin-login .time-picker-dial-center span {
+  align-self: start;
   color: var(--muted);
-}
-
-.admin-shell .time-picker-wheel-list,
-.admin-login .time-picker-wheel-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 188px;
-  overflow-y: auto;
-  padding: 10px;
-  scroll-snap-type: y proximity;
-  scrollbar-width: none;
-}
-
-.admin-shell .time-picker-wheel-list::-webkit-scrollbar,
-.admin-login .time-picker-wheel-list::-webkit-scrollbar {
-  display: none;
-}
-
-.admin-shell .time-picker-wheel-option,
-.admin-login .time-picker-wheel-option {
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: white;
-  padding: 10px 0;
-  font-size: 16px;
+  font-size: 0.54rem;
   font-weight: 900;
-  letter-spacing: 0.14em;
-  color: var(--ink);
-  scroll-snap-align: center;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
-.admin-shell .time-picker-wheel-option:hover,
-.admin-login .time-picker-wheel-option:hover {
+.admin-shell .time-picker-dial-option,
+.admin-login .time-picker-dial-option {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: inline-grid;
+  width: 1.45rem;
+  height: 1.45rem;
+  place-items: center;
+  margin: -0.725rem 0 0 -0.725rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.admin-shell .time-picker-dial--minutes .time-picker-dial-option,
+.admin-login .time-picker-dial--minutes .time-picker-dial-option {
+  width: 1.65rem;
+  height: 1.65rem;
+  margin: -0.825rem 0 0 -0.825rem;
+  font-size: 0.6rem;
+}
+
+.admin-shell .time-picker-dial-option.is-tick,
+.admin-login .time-picker-dial-option.is-tick {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin: -0.225rem 0 0 -0.225rem;
+  background: var(--panel-strong);
+}
+
+.admin-shell .time-picker-dial-option:hover,
+.admin-login .time-picker-dial-option:hover {
+  border-color: var(--accent);
   background: var(--bg);
 }
 
-.admin-shell .time-picker-wheel-option.is-selected,
-.admin-login .time-picker-wheel-option.is-selected {
+.admin-shell .time-picker-dial-option.is-selected,
+.admin-login .time-picker-dial-option.is-selected {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--surface);
@@ -540,6 +584,19 @@ textarea {
   .admin-shell .time-picker-step-grid,
   .admin-login .time-picker-step-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .admin-shell .time-picker-dials,
+  .admin-login .time-picker-dials {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .admin-shell .time-picker-dial--minutes,
+  .admin-login .time-picker-dial--minutes {
+    --dial-size: min(218px, calc(100vw - 76px));
+    min-width: 0;
+    min-height: 0;
   }
 }
 

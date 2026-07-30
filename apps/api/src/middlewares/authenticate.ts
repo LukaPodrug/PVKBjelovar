@@ -30,6 +30,7 @@ export async function authenticateRequest(
       username: true,
       firstName: true,
       lastName: true,
+      profileImageUrl: true,
       accountStatus: true,
       mustChangePassword: true,
     },
@@ -52,6 +53,7 @@ export async function authenticateRequest(
     username: user.username,
     firstName: user.firstName,
     lastName: user.lastName,
+    profileImageUrl: user.profileImageUrl,
     mustChangePassword: user.mustChangePassword,
   };
 

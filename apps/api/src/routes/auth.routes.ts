@@ -36,6 +36,7 @@ authRouter.post(
         passwordHash: true,
         firstName: true,
         lastName: true,
+        profileImageUrl: true,
         accountStatus: true,
         mustChangePassword: true,
       },
@@ -78,6 +79,7 @@ authRouter.post(
         username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
         mustChangePassword: user.mustChangePassword,
       },
     });
@@ -170,6 +172,7 @@ authRouter.patch(
         username: true,
         firstName: true,
         lastName: true,
+        profileImageUrl: true,
         mustChangePassword: true,
       },
     });
@@ -182,6 +185,7 @@ authRouter.patch(
         username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
         mustChangePassword: user.mustChangePassword,
       },
     });

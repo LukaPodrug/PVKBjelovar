@@ -549,7 +549,7 @@ export function SchedulesPage() {
     setFeedback(null);
     setSelectedPracticeId(null);
     setDrawerMode("practice-create");
-    setPracticeForm(createEmptySpecialPracticeForm(defaultCategoryId, accessibleCategories, weekStartDate));
+    setPracticeForm(createEmptySpecialPracticeForm(defaultCategoryId, accessibleCategories));
     setAttendancePlayerIds([]);
     setIsDrawerOpen(true);
   };
@@ -726,12 +726,14 @@ export function SchedulesPage() {
                       >
                         <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
                           <div className="flex min-w-0 flex-wrap items-center gap-3">
-                            <h4 className="min-w-0 text-base font-bold uppercase leading-tight">
-                              {weeklySchedule.name}
-                            </h4>
-                            <span className="ui-pill ui-pill--panel">
-                              {weeklySchedule.category.name}
-                            </span>
+                            <div className="min-w-0">
+                              <h4 className="min-w-0 text-base font-bold uppercase leading-tight">
+                                {weeklySchedule.name}
+                              </h4>
+                              <p className="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                                Kategorija: {weeklySchedule.category.name}
+                              </p>
+                            </div>
                           </div>
 
                           <button
@@ -1523,11 +1525,10 @@ function createWeeklyScheduleForm(weeklySchedule: WeeklyScheduleRecord): WeeklyS
 function createEmptySpecialPracticeForm(
   categoryId: string,
   categories: CategoryRecord[],
-  weekStartDate: string,
 ): SpecialPracticeFormState {
   return {
     categoryId,
-    date: weekStartDate,
+    date: getTodayDateKey(),
     practiceType: "WATER",
     startTime: "18:00",
     endTime: "19:15",
@@ -1667,13 +1668,17 @@ function formatPracticeType(practiceType: PracticeType) {
 }
 
 function getCurrentWeekStartDateKey() {
-  return normaliseWeekStartDateKey(
-    [
-      new Date().getFullYear(),
-      `${new Date().getMonth() + 1}`.padStart(2, "0"),
-      `${new Date().getDate()}`.padStart(2, "0"),
-    ].join("-"),
-  );
+  return normaliseWeekStartDateKey(getTodayDateKey());
+}
+
+function getTodayDateKey() {
+  const today = new Date();
+
+  return [
+    today.getFullYear(),
+    `${today.getMonth() + 1}`.padStart(2, "0"),
+    `${today.getDate()}`.padStart(2, "0"),
+  ].join("-");
 }
 
 function normaliseWeekStartDateKey(dateKey: string) {

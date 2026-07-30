@@ -1,13 +1,15 @@
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
+import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { StatusBar } from "expo-status-bar";
 import QRCode from "react-native-qrcode-svg";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -30,6 +32,8 @@ Notifications.setNotificationHandler({
 
 type UserRole = "ADMIN" | "COACH" | "PARENT" | "PLAYER";
 type PracticeType = "WATER" | "DRYLAND";
+type TabIconName = ComponentProps<typeof Ionicons>["name"];
+const clubLogoSource = require("./assets/icon.png");
 
 interface AuthUser {
   userId: string;
@@ -38,6 +42,7 @@ interface AuthUser {
   username: string | null;
   firstName: string;
   lastName: string;
+  profileImageUrl: string | null;
   mustChangePassword: boolean;
 }
 
@@ -170,6 +175,30 @@ interface ChildScheduleItem {
   }>;
 }
 
+type PracticeDetailItem = {
+  occurrenceDate: string;
+  practiceType: PracticeType;
+  startTime: string;
+  endTime: string;
+  notes: string | null;
+  isCancelled: boolean;
+  sourceType?: "WEEKLY_TEMPLATE" | "SPECIAL_PRACTICE";
+  attended?: boolean;
+  category: {
+    id: string;
+    name: string;
+  };
+  coaches: Array<{
+    coachId: string;
+    coach: {
+      user: {
+        firstName: string;
+        lastName: string;
+      };
+    };
+  }>;
+};
+
 type MembershipTone = "active" | "warning" | "expired" | "unset";
 
 interface InboxNotification {
@@ -196,6 +225,7 @@ interface LeaderboardEntry {
   playerId: string;
   firstName: string;
   lastName: string;
+  profileImageUrl: string | null;
   attended: number;
   total: number;
   percentage: number;
@@ -470,8 +500,8 @@ function LoginScreen({
   return (
     <ScrollView contentContainerStyle={styles.screenContent} keyboardShouldPersistTaps="handled">
       <View style={styles.heroPanel}>
+        <Image source={clubLogoSource} style={styles.loginLogo} resizeMode="contain" />
         <Text style={styles.heroBadge}>PVK Mladost Bjelovar</Text>
-        <Text style={styles.heroTitle}>Mobilna aplikacija kluba</Text>
       </View>
 
       <View style={styles.card}>
@@ -681,6 +711,7 @@ function StaffAttendanceScreen({
   const [isLoadingQr, setIsLoadingQr] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedPractice, setSelectedPractice] = useState<ScheduleCalendarItem | null>(null);
+  const [practiceDetails, setPracticeDetails] = useState<PracticeDetailItem | null>(null);
   const [qrSession, setQrSession] = useState<AttendanceQrSessionResponse | null>(null);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [categories, setCategories] = useState<MeCategory[]>([]);
@@ -821,10 +852,10 @@ function StaffAttendanceScreen({
   }
 
   const staffTabs: TabItem[] = [
-    { key: "practices", label: "Treninzi", icon: "📅" },
-    { key: "leaderboard", label: "Poredak", icon: "🏆" },
-    { key: "notifications", label: "Obavijesti", icon: "🔔" },
-    { key: "profile", label: "Profil", icon: "👤" },
+    { key: "practices", label: "Treninzi", icon: "calendar-outline" },
+    { key: "leaderboard", label: "Poredak", icon: "trophy-outline" },
+    { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
+    { key: "profile", label: "Profil", icon: "person-circle-outline" },
   ];
 
   return (
@@ -832,7 +863,9 @@ function StaffAttendanceScreen({
       <CompactHeader
         badge={headline.badge}
         name={`${session.user.firstName} ${session.user.lastName}`}
+        imageUrl={session.user.profileImageUrl}
         subtitle={headline.title}
+        onLogout={handleLogout}
       />
 
       <View style={styles.tabBody}>
@@ -841,32 +874,27 @@ function StaffAttendanceScreen({
             {successMessage ? <MessageBanner tone="success" message={successMessage} /> : null}
             {errorMessage ? <MessageBanner tone="error" message={errorMessage} /> : null}
 
-            <View style={styles.card}>
-              <Text style={styles.sectionEyebrow}>Odabrani dan</Text>
-              <Text style={styles.sectionTitle}>{formatSelectedDayLabel(selectedDateKey)}</Text>
-              <View style={styles.inlineActions}>
-                <Pressable
-                  style={styles.outlineChip}
-                  onPress={() => {
-                    setSelectedDateKey((currentValue) => shiftDayKey(currentValue, -1));
-                    setSelectedPractice(null);
-                    setQrSession(null);
-                  }}
-                >
-                  <Text style={styles.outlineChipText}>Prethodni dan</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.outlineChip}
-                  onPress={() => {
-                    setSelectedDateKey((currentValue) => shiftDayKey(currentValue, 1));
-                    setSelectedPractice(null);
-                    setQrSession(null);
-                  }}
-                >
-                  <Text style={styles.outlineChipText}>Sljedeći dan</Text>
-                </Pressable>
-              </View>
-            </View>
+            <DateSwitcher
+              dateKey={selectedDateKey}
+              onSelectDate={(nextDateKey) => {
+                setSelectedDateKey(nextDateKey);
+                setSelectedPractice(null);
+                setPracticeDetails(null);
+                setQrSession(null);
+              }}
+              onPrevious={() => {
+                setSelectedDateKey((currentValue) => shiftDayKey(currentValue, -1));
+                setSelectedPractice(null);
+                setPracticeDetails(null);
+                setQrSession(null);
+              }}
+              onNext={() => {
+                setSelectedDateKey((currentValue) => shiftDayKey(currentValue, 1));
+                setSelectedPractice(null);
+                setPracticeDetails(null);
+                setQrSession(null);
+              }}
+            />
 
             <View style={styles.card}>
               <Text style={styles.sectionEyebrow}>Treninzi</Text>
@@ -887,9 +915,10 @@ function StaffAttendanceScreen({
                     selectedPractice.occurrenceDate === practice.occurrenceDate;
 
                   return (
-                    <View
+                    <Pressable
                       key={`${practice.scheduleId}-${practice.occurrenceDate}`}
                       style={[styles.practiceCard, isSelected && styles.practiceCardSelected]}
+                      onPress={() => setPracticeDetails(practice)}
                     >
                       <View style={styles.practiceCardHeader}>
                         <View style={styles.practiceCardMeta}>
@@ -916,7 +945,10 @@ function StaffAttendanceScreen({
                       <Pressable
                         style={styles.primaryInlineButton}
                         disabled={isLoadingQr}
-                        onPress={() => handleGenerateQr(practice)}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          void handleGenerateQr(practice);
+                        }}
                       >
                         {isLoadingQr && isSelected ? (
                           <ActivityIndicator color="#ffffff" />
@@ -924,7 +956,7 @@ function StaffAttendanceScreen({
                           <Text style={styles.primaryInlineButtonText}>Prikaži QR kod</Text>
                         )}
                       </Pressable>
-                    </View>
+                    </Pressable>
                   );
                 })
               )}
@@ -949,7 +981,6 @@ function StaffAttendanceScreen({
               apiBaseUrl={apiBaseUrl}
               session={session}
               successMessage={successMessage}
-              onLogout={handleLogout}
               onUserUpdate={onUserUpdate}
               onToast={onToast}
             />
@@ -1021,6 +1052,10 @@ function StaffAttendanceScreen({
           </View>
         </View>
       </Modal>
+      <PracticeDetailsModal
+        practice={practiceDetails}
+        onClose={() => setPracticeDetails(null)}
+      />
       <TabBar items={staffTabs} activeKey={activeTab} onSelect={setActiveTab} />
     </View>
   );
@@ -1029,23 +1064,77 @@ function StaffAttendanceScreen({
 interface TabItem {
   key: string;
   label: string;
-  icon: string;
+  icon: TabIconName;
 }
 
 function CompactHeader({
   badge,
   name,
+  imageUrl,
   subtitle,
+  onLogout,
 }: {
   badge: string;
   name: string;
+  imageUrl?: string | null;
   subtitle?: string;
+  onLogout: () => void;
 }) {
   return (
     <View style={styles.tabHeader}>
-      <Text style={styles.tabHeaderBadge}>{badge}</Text>
-      <Text style={styles.tabHeaderName}>{name}</Text>
-      {subtitle ? <Text style={styles.tabHeaderSub}>{subtitle}</Text> : null}
+      <ImageFirstAvatar
+        name={name}
+        imageUrl={imageUrl}
+        containerStyle={styles.tabHeaderAvatar}
+        textStyle={styles.tabHeaderAvatarText}
+      />
+      <View style={styles.tabHeaderCopy}>
+        <Text style={styles.tabHeaderBadge}>{badge}</Text>
+        <Text style={styles.tabHeaderName} numberOfLines={1}>{name}</Text>
+        {subtitle ? <Text style={styles.tabHeaderSub} numberOfLines={1}>{subtitle}</Text> : null}
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Odjava"
+        style={styles.headerLogoutButton}
+        onPress={onLogout}
+      >
+        <Ionicons name="log-out-outline" size={21} color="#123d75" />
+      </Pressable>
+    </View>
+  );
+}
+
+function ImageFirstAvatar({
+  name,
+  imageUrl,
+  containerStyle,
+  textStyle,
+}: {
+  name: string;
+  imageUrl?: string | null;
+  containerStyle: object;
+  textStyle: object;
+}) {
+  const [hasImageError, setHasImageError] = useState(false);
+  const normalizedImageUrl = imageUrl?.trim();
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [normalizedImageUrl]);
+
+  return (
+    <View style={[containerStyle, styles.avatarImageFrame]}>
+      {normalizedImageUrl && !hasImageError ? (
+        <Image
+          source={{ uri: normalizedImageUrl }}
+          style={styles.avatarImage}
+          resizeMode="cover"
+          onError={() => setHasImageError(true)}
+        />
+      ) : (
+        <Text style={textStyle}>{buildInitials(name)}</Text>
+      )}
     </View>
   );
 }
@@ -1065,8 +1154,20 @@ function TabBar({
         const isActive = item.key === activeKey;
 
         return (
-          <Pressable key={item.key} style={styles.tabBarItem} onPress={() => onSelect(item.key)}>
-            <Text style={[styles.tabBarIcon, isActive && styles.tabBarIconActive]}>{item.icon}</Text>
+          <Pressable
+            key={item.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            style={[styles.tabBarItem, isActive && styles.tabBarItemActive]}
+            onPress={() => onSelect(item.key)}
+          >
+            <View style={[styles.tabBarIconWrap, isActive && styles.tabBarIconWrapActive]}>
+              <Ionicons
+                name={isActive ? activeTabIconName(item.icon) : item.icon}
+                size={21}
+                color={isActive ? "#ffffff" : "#6f7f90"}
+              />
+            </View>
             <Text
               numberOfLines={1}
               style={[styles.tabBarLabel, isActive && styles.tabBarLabelActive]}
@@ -1080,22 +1181,224 @@ function TabBar({
   );
 }
 
+function activeTabIconName(iconName: TabIconName): TabIconName {
+  const activeIconMap: Partial<Record<TabIconName, TabIconName>> = {
+    "calendar-outline": "calendar",
+    "home-outline": "home",
+    "notifications-outline": "notifications",
+    "person-circle-outline": "person-circle",
+    "scan-outline": "scan",
+    "trophy-outline": "trophy",
+  };
+
+  return activeIconMap[iconName] ?? iconName;
+}
+
 function TabScrollView({ children }: { children: ReactNode }) {
   return <ScrollView contentContainerStyle={styles.tabContent}>{children}</ScrollView>;
+}
+
+const calendarWeekdayLabels = ["Pon", "Uto", "Sri", "Cet", "Pet", "Sub", "Ned"];
+
+function DateSwitcher({
+  dateKey,
+  onSelectDate,
+  onPrevious,
+  onNext,
+}: {
+  dateKey: string;
+  onSelectDate: (dateKey: string) => void;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  return (
+    <>
+      <View style={styles.dateSwitcher}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Prethodni dan"
+          style={styles.dateSwitcherButton}
+          onPress={onPrevious}
+        >
+          <Ionicons name="chevron-back" size={22} color="#123d75" />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Odaberi datum"
+          style={styles.dateSwitcherCenter}
+          onPress={() => setIsCalendarOpen(true)}
+        >
+          <View style={styles.dateSwitcherCopy}>
+            <Text style={styles.dateSwitcherLabel}>{formatSelectedDayName(dateKey)}</Text>
+            <Text style={styles.dateSwitcherDate} numberOfLines={1}>
+              {formatNumericDate(dateKey)}
+            </Text>
+          </View>
+          <View style={styles.dateSwitcherCalendarIcon}>
+            <Ionicons name="calendar-outline" size={19} color="#123d75" />
+          </View>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sljedeći dan"
+          style={styles.dateSwitcherButton}
+          onPress={onNext}
+        >
+          <Ionicons name="chevron-forward" size={22} color="#123d75" />
+        </Pressable>
+      </View>
+
+      <CalendarDatePickerModal
+        visible={isCalendarOpen}
+        selectedDateKey={dateKey}
+        onClose={() => setIsCalendarOpen(false)}
+        onSelectDate={(nextDateKey) => {
+          onSelectDate(nextDateKey);
+          setIsCalendarOpen(false);
+        }}
+      />
+    </>
+  );
+}
+
+function CalendarDatePickerModal({
+  visible,
+  selectedDateKey,
+  onClose,
+  onSelectDate,
+}: {
+  visible: boolean;
+  selectedDateKey: string;
+  onClose: () => void;
+  onSelectDate: (dateKey: string) => void;
+}) {
+  const [viewMonthKey, setViewMonthKey] = useState(selectedDateKey.slice(0, 7));
+  const todayKey = getCurrentDateKey();
+  const calendarDays = getCalendarMonthDays(viewMonthKey);
+
+  useEffect(() => {
+    if (visible) {
+      setViewMonthKey(selectedDateKey.slice(0, 7));
+    }
+  }, [selectedDateKey, visible]);
+
+  return (
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.modalCard, styles.calendarModalCard]}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderCopy}>
+              <Text style={styles.sectionEyebrow}>Kalendar</Text>
+              <Text style={styles.modalTitle}>Odaberi datum</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Zatvori" onPress={onClose}>
+              <Ionicons name="close" size={24} color="#123d75" />
+            </Pressable>
+          </View>
+
+          <View style={styles.calendarMonthBar}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Prethodni mjesec"
+              style={styles.calendarMonthButton}
+              onPress={() => setViewMonthKey((currentValue) => shiftMonthKey(currentValue, -1))}
+            >
+              <Ionicons name="chevron-back" size={20} color="#123d75" />
+            </Pressable>
+            <Text style={styles.calendarMonthTitle}>{formatCalendarMonth(viewMonthKey)}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Sljedeći mjesec"
+              style={styles.calendarMonthButton}
+              onPress={() => setViewMonthKey((currentValue) => shiftMonthKey(currentValue, 1))}
+            >
+              <Ionicons name="chevron-forward" size={20} color="#123d75" />
+            </Pressable>
+          </View>
+
+          <View style={styles.calendarWeekdayRow}>
+            {calendarWeekdayLabels.map((label) => (
+              <Text key={label} style={styles.calendarWeekdayText}>
+                {label}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.calendarGrid}>
+            {calendarDays.map((dayKey, index) =>
+              dayKey ? (
+                <Pressable
+                  key={dayKey}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Odaberi ${formatNumericDate(dayKey)}`}
+                  style={[
+                    styles.calendarDay,
+                    dayKey === todayKey && styles.calendarDayToday,
+                    dayKey === selectedDateKey && styles.calendarDaySelected,
+                  ]}
+                  onPress={() => onSelectDate(dayKey)}
+                >
+                  <View style={styles.calendarDayContent}>
+                    <Text
+                      style={[
+                        styles.calendarDayText,
+                        dayKey === selectedDateKey && styles.calendarDayTextSelected,
+                      ]}
+                    >
+                      {Number(dayKey.slice(8, 10))}
+                    </Text>
+                  </View>
+                </Pressable>
+              ) : (
+                <View key={`empty-${index}`} style={[styles.calendarDay, styles.calendarDayEmpty]} />
+              ),
+            )}
+          </View>
+
+          <Pressable style={styles.calendarTodayButton} onPress={() => onSelectDate(todayKey)}>
+            <Ionicons name="calendar" size={18} color="#123d75" />
+            <Text style={styles.calendarTodayButtonText}>Danas</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function AccountDetailRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: TabIconName;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.accountDetailRow}>
+      <View style={styles.accountDetailIcon}>
+        <Ionicons name={icon} size={18} color="#123d75" />
+      </View>
+      <View style={styles.accountDetailCopy}>
+        <Text style={styles.accountDetailLabel}>{label}</Text>
+        <Text style={styles.accountDetailValue}>{value}</Text>
+      </View>
+    </View>
+  );
 }
 
 function AccountProfilePanel({
   apiBaseUrl,
   session,
   successMessage,
-  onLogout,
   onUserUpdate,
   onToast,
 }: {
   apiBaseUrl: string;
   session: AuthResponse;
   successMessage: string | null;
-  onLogout: () => void;
   onUserUpdate: (user: AuthUser) => void;
   onToast: (toast: ToastMessage) => void;
 }) {
@@ -1156,15 +1459,37 @@ function AccountProfilePanel({
     <>
       {successMessage ? <MessageBanner tone="success" message={successMessage} /> : null}
 
-      <View style={styles.card}>
-        <Text style={styles.sectionEyebrow}>Moj račun</Text>
-        <Text style={styles.sectionTitle}>
-          {session.user.firstName} {session.user.lastName}
-        </Text>
-        <View style={styles.summaryRow}>
-          <SummaryPill label="Uloga" value={roleContent[session.user.role].badge} />
-          <SummaryPill label="E-pošta" value={session.user.email ?? "-"} />
-          <SummaryPill label="Korisničko ime" value={session.user.username ?? "-"} />
+      <View style={styles.accountHeroCard}>
+        <View style={styles.accountHeroTop}>
+          <ImageFirstAvatar
+            name={`${session.user.firstName} ${session.user.lastName}`}
+            imageUrl={session.user.profileImageUrl}
+            containerStyle={styles.accountAvatar}
+            textStyle={styles.accountAvatarText}
+          />
+          <View style={styles.accountHeroCopy}>
+            <Text style={styles.sectionEyebrow}>Moj račun</Text>
+            <Text style={styles.accountHeroName}>
+              {session.user.firstName} {session.user.lastName}
+            </Text>
+            <View style={styles.accountRoleChip}>
+              <Ionicons name="shield-checkmark-outline" size={14} color="#123d75" />
+              <Text style={styles.accountRoleChipText}>{roleContent[session.user.role].badge}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.accountDetailList}>
+          <AccountDetailRow
+            icon="mail-outline"
+            label="E-pošta"
+            value={session.user.email ?? "Nije postavljeno"}
+          />
+          <AccountDetailRow
+            icon="person-outline"
+            label="Korisničko ime"
+            value={session.user.username ?? "Nije postavljeno"}
+          />
         </View>
       </View>
 
@@ -1237,17 +1562,22 @@ function AccountProfilePanel({
           )}
         </Pressable>
       </View>
-
-      <Pressable style={styles.secondaryButton} onPress={onLogout}>
-        <Text style={styles.secondaryButtonText}>Odjava</Text>
-      </Pressable>
     </>
   );
 }
 
-function PracticeRow({ practice }: { practice: ChildScheduleItem }) {
+function PracticeRow({
+  practice,
+  onPress,
+}: {
+  practice: ChildScheduleItem;
+  onPress: () => void;
+}) {
   return (
-    <View style={[styles.practiceCard, practice.isCancelled && styles.practiceCardCancelled]}>
+    <Pressable
+      style={[styles.practiceCard, practice.isCancelled && styles.practiceCardCancelled]}
+      onPress={onPress}
+    >
       <View style={styles.practiceCardHeader}>
         <View style={styles.practiceCardMeta}>
           <Text style={styles.practiceCardTitle}>{practice.category.name}</Text>
@@ -1278,7 +1608,85 @@ function PracticeRow({ practice }: { practice: ChildScheduleItem }) {
           <Text style={styles.statusTagText}>Dolazak evidentiran</Text>
         </View>
       ) : null}
-    </View>
+    </Pressable>
+  );
+}
+
+function PracticeDetailsModal({
+  practice,
+  onClose,
+}: {
+  practice: PracticeDetailItem | null;
+  onClose: () => void;
+}) {
+  if (!practice) {
+    return null;
+  }
+
+  const coachNames = practice.coaches
+    .map((assignment) => `${assignment.coach.user.firstName} ${assignment.coach.user.lastName}`)
+    .join(", ");
+
+  return (
+    <Modal animationType="none" transparent visible onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderCopy}>
+              <Text style={styles.sectionEyebrow}>Detalji treninga</Text>
+              <Text style={styles.modalTitle}>{practice.category.name}</Text>
+              <Text style={styles.modalSubtitle}>
+                {formatPracticeDate(practice.occurrenceDate)} • {formatPracticeTime(practice)}
+              </Text>
+            </View>
+            <Pressable style={styles.modalCloseButton} onPress={onClose}>
+              <Text style={styles.modalCloseButtonText}>Zatvori</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.practiceDetailsContent}>
+            <View style={styles.practiceDetailsBadgeRow}>
+              <PracticeTypePill practiceType={practice.practiceType} />
+              {practice.isCancelled ? (
+                <View style={[styles.statusTag, styles.statusTagCancelled]}>
+                  <Text style={styles.statusTagText}>Otkazano</Text>
+                </View>
+              ) : practice.attended ? (
+                <View style={[styles.statusTag, styles.statusTagAttended]}>
+                  <Text style={styles.statusTagText}>Dolazak evidentiran</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.practiceDetailsSection}>
+              <Text style={styles.detailLabel}>Vrijeme</Text>
+              <Text style={styles.detailValue}>{formatPracticeTime(practice)}</Text>
+            </View>
+
+            <View style={styles.practiceDetailsSection}>
+              <Text style={styles.detailLabel}>Treneri</Text>
+              <Text style={styles.detailValue}>{coachNames || "Trener će biti dodijeljen naknadno"}</Text>
+            </View>
+
+            {practice.sourceType ? (
+              <View style={styles.practiceDetailsSection}>
+                <Text style={styles.detailLabel}>Vrsta unosa</Text>
+                <Text style={styles.detailValue}>
+                  {practice.sourceType === "SPECIAL_PRACTICE" ? "Poseban trening" : "Tjedni raspored"}
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={styles.practiceDetailsSection}>
+              <Text style={styles.detailLabel}>Napomene</Text>
+              <Text style={styles.detailValue}>
+                {practice.notes?.trim() || "Nema dodatnih napomena za ovaj trening."}
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1295,6 +1703,7 @@ function WeeklySchedulePanel({
   const [scheduleItems, setScheduleItems] = useState<ChildScheduleItem[]>([]);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [practiceDetails, setPracticeDetails] = useState<PracticeDetailItem | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -1339,24 +1748,12 @@ function WeeklySchedulePanel({
 
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
-      <View style={styles.card}>
-        <Text style={styles.sectionEyebrow}>Odabrani dan</Text>
-        <Text style={styles.sectionTitle}>{formatSelectedDayLabel(selectedDateKey)}</Text>
-        <View style={styles.inlineActions}>
-          <Pressable
-            style={styles.outlineChip}
-            onPress={() => setSelectedDateKey((currentValue) => shiftDayKey(currentValue, -1))}
-          >
-            <Text style={styles.outlineChipText}>Prethodni dan</Text>
-          </Pressable>
-          <Pressable
-            style={styles.outlineChip}
-            onPress={() => setSelectedDateKey((currentValue) => shiftDayKey(currentValue, 1))}
-          >
-            <Text style={styles.outlineChipText}>Sljedeći dan</Text>
-          </Pressable>
-        </View>
-      </View>
+      <DateSwitcher
+        dateKey={selectedDateKey}
+        onSelectDate={setSelectedDateKey}
+        onPrevious={() => setSelectedDateKey((currentValue) => shiftDayKey(currentValue, -1))}
+        onNext={() => setSelectedDateKey((currentValue) => shiftDayKey(currentValue, 1))}
+      />
 
       <View style={styles.card}>
         <Text style={styles.sectionEyebrow}>Raspored</Text>
@@ -1377,10 +1774,12 @@ function WeeklySchedulePanel({
             <PracticeRow
               key={`${practice.scheduleId}-${practice.occurrenceDate}`}
               practice={practice}
+              onPress={() => setPracticeDetails(practice)}
             />
           ))
         )}
       </View>
+      <PracticeDetailsModal practice={practiceDetails} onClose={() => setPracticeDetails(null)} />
     </ScrollView>
   );
 }
@@ -1491,6 +1890,7 @@ function PlayerAttendanceScreen({
       );
 
       setIsScannerOpen(false);
+      setActiveTab("schedule");
       onToast({
         tone: "success",
         message: `${payload.message} ${payload.categoryName} • ${formatPracticeDate(payload.occurrenceDate)} • ${formatTimeRange(payload.startTime, payload.endTime)}`,
@@ -1503,11 +1903,11 @@ function PlayerAttendanceScreen({
   }
 
   const playerTabs: TabItem[] = [
-    { key: "schedule", label: "Raspored", icon: "📅" },
-    { key: "checkin", label: "Dolazak", icon: "📷" },
-    { key: "leaderboard", label: "Poredak", icon: "🏆" },
-    { key: "notifications", label: "Obavijesti", icon: "🔔" },
-    { key: "profile", label: "Profil", icon: "👤" },
+    { key: "schedule", label: "Raspored", icon: "calendar-outline" },
+    { key: "checkin", label: "Dolazak", icon: "scan-outline" },
+    { key: "leaderboard", label: "Poredak", icon: "trophy-outline" },
+    { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
+    { key: "profile", label: "Profil", icon: "person-circle-outline" },
   ];
 
   return (
@@ -1515,6 +1915,8 @@ function PlayerAttendanceScreen({
       <CompactHeader
         badge={headline.badge}
         name={`${session.user.firstName} ${session.user.lastName}`}
+        imageUrl={session.user.profileImageUrl}
+        onLogout={handleLogout}
       />
 
       <View style={styles.tabBody}>
@@ -1533,7 +1935,7 @@ function PlayerAttendanceScreen({
                   <Text style={styles.primaryButtonText}>Otvori skener</Text>
                 </Pressable>
               ) : (
-                <>
+                <View style={styles.scannerStack}>
                   <View style={styles.scannerWrap}>
                     <CameraView
                       style={styles.scannerView}
@@ -1543,10 +1945,18 @@ function PlayerAttendanceScreen({
                       }}
                       onBarcodeScanned={isSubmittingScan ? undefined : handleBarcodeScanned}
                     />
+                    <View pointerEvents="none" style={styles.scannerFrameLayer}>
+                      <View style={styles.scannerFocusFrame} />
+                    </View>
+                    {isSubmittingScan ? (
+                      <View pointerEvents="none" style={styles.scannerLoadingLayer}>
+                        <ActivityIndicator color="#ffffff" />
+                      </View>
+                    ) : null}
                   </View>
 
                   <Pressable
-                    style={styles.secondaryButton}
+                    style={[styles.secondaryButton, styles.scannerCloseButton]}
                     onPress={() => {
                       setIsScannerOpen(false);
                       setIsSubmittingScan(false);
@@ -1554,7 +1964,7 @@ function PlayerAttendanceScreen({
                   >
                     <Text style={styles.secondaryButtonText}>Zatvori skener</Text>
                   </Pressable>
-                </>
+                </View>
               )}
             </View>
           </TabScrollView>
@@ -1572,7 +1982,6 @@ function PlayerAttendanceScreen({
               apiBaseUrl={apiBaseUrl}
               session={session}
               successMessage={successMessage}
-              onLogout={handleLogout}
               onUserUpdate={onUserUpdate}
               onToast={onToast}
             />
@@ -1686,11 +2095,11 @@ function ParentDashboardScreen({
   const selectedChild = children.find((child) => child.playerId === selectedChildId) ?? null;
 
   const parentTabs: TabItem[] = [
-    { key: "overview", label: "Pregled", icon: "🏠" },
-    { key: "schedule", label: "Raspored", icon: "📅" },
-    { key: "leaderboard", label: "Poredak", icon: "🏆" },
-    { key: "notifications", label: "Obavijesti", icon: "🔔" },
-    { key: "profile", label: "Profil", icon: "👤" },
+    { key: "overview", label: "Pregled", icon: "home-outline" },
+    { key: "schedule", label: "Raspored", icon: "calendar-outline" },
+    { key: "leaderboard", label: "Poredak", icon: "trophy-outline" },
+    { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
+    { key: "profile", label: "Profil", icon: "person-circle-outline" },
   ];
 
   const noChildrenNotice = (
@@ -1750,6 +2159,8 @@ function ParentDashboardScreen({
       <CompactHeader
         badge={headline.badge}
         name={`${session.user.firstName} ${session.user.lastName}`}
+        imageUrl={session.user.profileImageUrl}
+        onLogout={handleLogout}
       />
 
       {isLoadingChildren ? (
@@ -1814,7 +2225,6 @@ function ParentDashboardScreen({
                   apiBaseUrl={apiBaseUrl}
                   session={session}
                   successMessage={successMessage}
-                  onLogout={handleLogout}
                   onUserUpdate={onUserUpdate}
                   onToast={onToast}
                 />
@@ -1859,12 +2269,12 @@ function ParentChildPicker({
                 style={styles.childPickerItem}
                 onPress={() => onSelectChild(child.playerId)}
               >
-                <View style={styles.childPickerAvatar}>
-                  <Text style={styles.childPickerAvatarText}>
-                    {child.firstName.charAt(0)}
-                    {child.lastName.charAt(0)}
-                  </Text>
-                </View>
+                <ImageFirstAvatar
+                  name={`${child.firstName} ${child.lastName}`}
+                  imageUrl={child.profileImageUrl}
+                  containerStyle={styles.childPickerAvatar}
+                  textStyle={styles.childPickerAvatarText}
+                />
                 <View style={styles.childPickerMeta}>
                   <Text style={styles.childPickerName}>
                     {child.firstName} {child.lastName}
@@ -2092,12 +2502,6 @@ const leaderboardWindowOptions: Array<{ value: LeaderboardWindow; label: string 
   { value: "all", label: "Sezona" },
 ];
 
-const rankMedals: Record<number, string> = {
-  1: "🏆",
-  2: "🥈",
-  3: "🥉",
-};
-
 const leaderboardPageSize = 10;
 
 function resolveLeaderboardRange(window: LeaderboardWindow): { from?: string; to?: string } {
@@ -2216,23 +2620,26 @@ function LeaderboardCard({
       <Text style={styles.sectionTitle}>Ljestvica dolazaka</Text>
 
       {categories.length > 1 ? (
-        <View style={styles.leaderboardChipRow}>
+        <View style={styles.leaderboardSegmentedControl}>
           {categories.map((category) => {
             const isSelected = category.id === selectedCategoryId;
 
             return (
               <Pressable
                 key={category.id}
-                style={[styles.leaderboardChip, isSelected && styles.leaderboardChipSelected]}
+                style={[styles.leaderboardSegment, isSelected && styles.leaderboardSegmentSelected]}
                 onPress={() => {
                   setSelectedCategoryId(category.id);
                   setPage(1);
                 }}
               >
                 <Text
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                  numberOfLines={1}
                   style={[
-                    styles.leaderboardChipText,
-                    isSelected && styles.leaderboardChipTextSelected,
+                    styles.leaderboardSegmentText,
+                    isSelected && styles.leaderboardSegmentTextSelected,
                   ]}
                 >
                   {category.name}
@@ -2243,23 +2650,26 @@ function LeaderboardCard({
         </View>
       ) : null}
 
-      <View style={styles.leaderboardChipRow}>
+      <View style={styles.leaderboardSegmentedControl}>
         {leaderboardWindowOptions.map((option) => {
           const isSelected = option.value === window;
 
           return (
             <Pressable
               key={option.value}
-              style={[styles.leaderboardChip, isSelected && styles.leaderboardChipSelected]}
+              style={[styles.leaderboardSegment, isSelected && styles.leaderboardSegmentSelected]}
               onPress={() => {
                 setWindow(option.value);
                 setPage(1);
               }}
             >
               <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+                numberOfLines={1}
                 style={[
-                  styles.leaderboardChipText,
-                  isSelected && styles.leaderboardChipTextSelected,
+                  styles.leaderboardSegmentText,
+                  isSelected && styles.leaderboardSegmentTextSelected,
                 ]}
               >
                 {option.label}
@@ -2333,15 +2743,23 @@ function LeaderboardRow({
   entry: LeaderboardEntry;
   isHighlighted: boolean;
 }) {
+  const playerName = `${entry.firstName} ${entry.lastName}`;
+
   return (
     <View style={[styles.leaderboardRow, isHighlighted && styles.leaderboardRowHighlighted]}>
-      <View style={styles.leaderboardRank}>
-        <Text style={styles.leaderboardRankText}>{rankMedals[entry.rank] ?? `${entry.rank}.`}</Text>
+      <View style={styles.leaderboardAvatarWrap}>
+        <ImageFirstAvatar
+          name={playerName}
+          imageUrl={entry.profileImageUrl}
+          containerStyle={[styles.leaderboardAvatar, isHighlighted && styles.leaderboardAvatarHighlighted]}
+          textStyle={[styles.leaderboardAvatarText, isHighlighted && styles.leaderboardAvatarTextHighlighted]}
+        />
+        <View style={styles.leaderboardRankBadge}>
+          <Text style={styles.leaderboardRankBadgeText}>{entry.rank}</Text>
+        </View>
       </View>
       <View style={styles.leaderboardRowMeta}>
-        <Text style={styles.leaderboardRowName}>
-          {entry.firstName} {entry.lastName}
-        </Text>
+        <Text style={styles.leaderboardRowName}>{playerName}</Text>
         <Text style={styles.leaderboardRowCopy}>
           {entry.attended} / {entry.total} treninga
         </Text>
@@ -2499,24 +2917,12 @@ function ChildOverview({
         </View>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionEyebrow}>Odabrani dan</Text>
-        <Text style={styles.sectionTitle}>{formatSelectedDayLabel(selectedDateKey)}</Text>
-        <View style={styles.inlineActions}>
-          <Pressable
-            style={styles.outlineChip}
-            onPress={() => setSelectedDateKey((currentValue) => shiftDayKey(currentValue, -1))}
-          >
-            <Text style={styles.outlineChipText}>Prethodni dan</Text>
-          </Pressable>
-          <Pressable
-            style={styles.outlineChip}
-            onPress={() => setSelectedDateKey((currentValue) => shiftDayKey(currentValue, 1))}
-          >
-            <Text style={styles.outlineChipText}>Sljedeći dan</Text>
-          </Pressable>
-        </View>
-      </View>
+      <DateSwitcher
+        dateKey={selectedDateKey}
+        onSelectDate={setSelectedDateKey}
+        onPrevious={() => setSelectedDateKey((currentValue) => shiftDayKey(currentValue, -1))}
+        onNext={() => setSelectedDateKey((currentValue) => shiftDayKey(currentValue, 1))}
+      />
 
       <View style={styles.card}>
         <Text style={styles.sectionEyebrow}>Raspored</Text>
@@ -2704,6 +3110,15 @@ function isPermissionErrorMessage(message: string) {
   );
 }
 
+function buildInitials(value: string) {
+  const parts = value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return (parts[0]?.charAt(0) ?? "?") + (parts[1]?.charAt(0) ?? "");
+}
+
 async function requestJson<T>(
   apiBaseUrl: string,
   path: string,
@@ -2766,8 +3181,47 @@ function shiftDayKey(dateKey: string, deltaDays: number) {
   return formatDateKey(nextDate);
 }
 
-function formatSelectedDayLabel(dateKey: string) {
-  return formatLongDate(new Date(`${dateKey}T12:00:00.000Z`));
+function shiftMonthKey(monthKey: string, deltaMonths: number) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const nextMonth = new Date(Date.UTC(year, month - 1 + deltaMonths, 1));
+  return `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function getCalendarMonthDays(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const firstDay = new Date(Date.UTC(year, month - 1, 1));
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const leadingEmptyDays = (firstDay.getUTCDay() + 6) % 7;
+  const days: Array<string | null> = Array.from({ length: leadingEmptyDays }, () => null);
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    days.push(`${monthKey}-${String(day).padStart(2, "0")}`);
+  }
+
+  while (days.length % 7 !== 0) {
+    days.push(null);
+  }
+
+  return days;
+}
+
+function formatSelectedDayName(dateKey: string) {
+  return new Intl.DateTimeFormat("hr-HR", {
+    weekday: "long",
+  }).format(new Date(`${dateKey}T12:00:00.000Z`));
+}
+
+function formatNumericDate(dateKey: string) {
+  const [year, month, day] = dateKey.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+function formatCalendarMonth(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("hr-HR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
 function formatPracticeDate(value: string) {
@@ -2822,39 +3276,82 @@ function formatDateKey(date: Date) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f3f7fb",
+    backgroundColor: "#ffffff",
   },
   tabShell: {
     flex: 1,
     backgroundColor: "#f3f7fb",
   },
   tabHeader: {
+    minHeight: 78,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#d6e0eb",
+    borderBottomColor: "rgba(214, 224, 235, 0.85)",
     backgroundColor: "#ffffff",
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 16,
+    paddingTop: Platform.OS === "ios" ? 14 : 12,
+    paddingBottom: 12,
+    shadowColor: "#102347",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  tabHeaderAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#123d75",
+  },
+  tabHeaderAvatarText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  avatarImageFrame: {
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  tabHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  headerLogoutButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#d6e0eb",
+    backgroundColor: "#f7fbff",
   },
   tabHeaderBadge: {
     color: "#5f6f82",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 1.1,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
   },
   tabHeaderName: {
-    marginTop: 6,
+    marginTop: 3,
     color: "#102347",
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "700",
-    lineHeight: 30,
+    lineHeight: 23,
   },
   tabHeaderSub: {
-    marginTop: 6,
+    marginTop: 2,
     color: "#5f6f82",
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 17,
   },
   tabBody: {
     flex: 1,
@@ -2865,36 +3362,110 @@ const styles = StyleSheet.create({
     paddingBottom: 22,
     gap: 16,
   },
+  dateSwitcher: {
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  dateSwitcherButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#d6e0eb",
+    backgroundColor: "#ffffff",
+    shadowColor: "#102347",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  dateSwitcherCenter: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    borderRadius: 20,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#d6e0eb",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dateSwitcherCopy: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+  },
+  dateSwitcherCalendarIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef5fc",
+  },
+  dateSwitcherLabel: {
+    color: "#5f6f82",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  dateSwitcherDate: {
+    marginTop: 4,
+    color: "#102347",
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "800",
+    textAlign: "center",
+  },
   tabBar: {
-    minHeight: 74,
+    minHeight: Platform.OS === "ios" ? 86 : 76,
     flexDirection: "row",
     alignItems: "stretch",
     borderTopWidth: 1,
-    borderTopColor: "#d6e0eb",
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 8,
-    paddingTop: 6,
-    paddingBottom: Platform.OS === "ios" ? 18 : 10,
+    borderTopColor: "rgba(214, 224, 235, 0.88)",
+    backgroundColor: Platform.OS === "ios" ? "rgba(255, 255, 255, 0.96)" : "#ffffff",
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 20 : 12,
+    shadowColor: "#102347",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: Platform.OS === "ios" ? 0.08 : 0,
+    shadowRadius: 18,
+    elevation: 14,
   },
   tabBarItem: {
     flex: 1,
     minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
-    borderRadius: 16,
+    gap: 4,
+    borderRadius: 18,
     paddingHorizontal: 4,
-    paddingVertical: 6,
+    paddingVertical: 5,
   },
-  tabBarIcon: {
-    color: "#7a899a",
-    fontSize: 19,
+  tabBarItemActive: {
+    backgroundColor: Platform.OS === "android" ? "#f2f7fd" : "transparent",
   },
-  tabBarIconActive: {
-    color: "#123d75",
+  tabBarIconWrap: {
+    width: 34,
+    height: 30,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabBarIconWrapActive: {
+    backgroundColor: "#123d75",
   },
   tabBarLabel: {
-    color: "#7a899a",
+    color: "#6f7f90",
     fontSize: 11,
     fontWeight: "700",
     textAlign: "center",
@@ -2908,13 +3479,27 @@ const styles = StyleSheet.create({
     gap: 18,
   },
   heroPanel: {
+    alignItems: "center",
     borderRadius: 28,
-    backgroundColor: "#123d75",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#d6e0eb",
     paddingHorizontal: 22,
     paddingVertical: 24,
+    shadowColor: "#102347",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  loginLogo: {
+    width: 104,
+    height: 104,
+    borderRadius: 24,
+    marginBottom: 14,
   },
   heroBadge: {
-    color: "#cfe1ff",
+    color: "#123d75",
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1.2,
@@ -2922,7 +3507,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     marginTop: 12,
-    color: "#ffffff",
+    color: "#102347",
     fontSize: 30,
     fontWeight: "700",
     lineHeight: 36,
@@ -2940,6 +3525,104 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     paddingHorizontal: 18,
     paddingVertical: 18,
+  },
+  accountHeroCard: {
+    overflow: "hidden",
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: "#d6e0eb",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    shadowColor: "#102347",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  accountHeroTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  accountAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#123d75",
+  },
+  accountAvatarText: {
+    color: "#ffffff",
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  accountHeroCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  accountHeroName: {
+    marginTop: 6,
+    color: "#102347",
+    fontSize: 24,
+    fontWeight: "800",
+    lineHeight: 29,
+  },
+  accountRoleChip: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: "#eef5fc",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  accountRoleChipText: {
+    color: "#123d75",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  accountDetailList: {
+    marginTop: 18,
+    gap: 10,
+  },
+  accountDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 18,
+    backgroundColor: "#f7fbff",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  accountDetailIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e8f1fb",
+  },
+  accountDetailCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  accountDetailLabel: {
+    color: "#5f6f82",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  accountDetailValue: {
+    marginTop: 3,
+    color: "#102347",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
   },
   sectionEyebrow: {
     color: "#5f6f82",
@@ -3087,31 +3770,35 @@ const styles = StyleSheet.create({
   },
   toastOverlay: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 58 : 24,
+    bottom: Platform.OS === "ios" ? 28 : 20,
     left: 16,
     right: 16,
     alignItems: "center",
     zIndex: 20,
   },
   toastCard: {
+    width: "100%",
     maxWidth: 520,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
     shadowColor: "#102347",
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
-    elevation: 6,
+    shadowOpacity: 0.24,
+    shadowRadius: 22,
+    elevation: 9,
   },
   toastSuccess: {
-    backgroundColor: "#dff6ea",
+    borderColor: "#15803d",
+    backgroundColor: "#16a34a",
   },
   toastError: {
-    backgroundColor: "#ffe3e4",
+    borderColor: "#b91c1c",
+    backgroundColor: "#dc2626",
   },
   toastText: {
-    color: "#102347",
+    color: "#ffffff",
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "700",
@@ -3188,6 +3875,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     gap: 12,
+    shadowColor: "#102347",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    elevation: 2,
   },
   practiceCardSelected: {
     borderColor: "#123d75",
@@ -3258,10 +3950,14 @@ const styles = StyleSheet.create({
   modalCard: {
     width: "100%",
     maxWidth: 420,
+    maxHeight: "88%",
     borderRadius: 28,
     backgroundColor: "#ffffff",
     paddingHorizontal: 20,
     paddingVertical: 20,
+  },
+  calendarModalCard: {
+    maxWidth: 380,
   },
   modalHeader: {
     flexDirection: "row",
@@ -3278,6 +3974,109 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     lineHeight: 30,
+  },
+  calendarMonthBar: {
+    marginTop: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  calendarMonthButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#d6e0eb",
+    backgroundColor: "#f7fbff",
+  },
+  calendarMonthTitle: {
+    flex: 1,
+    color: "#102347",
+    fontSize: 17,
+    fontWeight: "800",
+    textAlign: "center",
+    textTransform: "capitalize",
+  },
+  calendarWeekdayRow: {
+    marginTop: 18,
+    flexDirection: "row",
+    gap: 6,
+  },
+  calendarWeekdayText: {
+    flex: 1,
+    color: "#5f6f82",
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center",
+    textTransform: "uppercase",
+  },
+  calendarGrid: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  calendarDay: {
+    flexBasis: "14.2857%",
+    maxWidth: "14.2857%",
+    height: 46,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderWidth: 1,
+    borderColor: "#d6e0eb",
+    backgroundColor: "#f7fbff",
+  },
+  calendarDayEmpty: {
+    borderColor: "transparent",
+    backgroundColor: "transparent",
+  },
+  calendarDayToday: {
+    borderColor: "#123d75",
+  },
+  calendarDaySelected: {
+    borderColor: "#123d75",
+    backgroundColor: "#123d75",
+  },
+  calendarDayContent: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calendarDayText: {
+    color: "#102347",
+    fontSize: 14,
+    width: "100%",
+    height: 46,
+    lineHeight: 46,
+    fontWeight: "800",
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
+  },
+  calendarDayTextSelected: {
+    color: "#ffffff",
+  },
+  calendarTodayButton: {
+    marginTop: 18,
+    minHeight: 48,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#c8d6e6",
+    backgroundColor: "#eef5fc",
+  },
+  calendarTodayButtonText: {
+    color: "#123d75",
+    fontSize: 14,
+    fontWeight: "800",
   },
   modalSubtitle: {
     marginTop: 10,
@@ -3296,6 +4095,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  practiceDetailsContent: {
+    paddingTop: 18,
+    gap: 12,
+  },
+  practiceDetailsBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  practiceDetailsSection: {
+    borderRadius: 18,
+    backgroundColor: "#f7fbff",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  detailLabel: {
+    color: "#5f6f82",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  detailValue: {
+    color: "#102347",
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: "600",
+  },
   qrCard: {
     marginTop: 18,
     alignItems: "center",
@@ -3305,26 +4133,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 20,
   },
-  scannerWrap: {
+  scannerStack: {
     marginTop: 18,
+    gap: 16,
+  },
+  scannerWrap: {
+    position: "relative",
     overflow: "hidden",
-    borderRadius: 22,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#c6d9ee",
     backgroundColor: "#102347",
+    shadowColor: "#102347",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 5,
   },
   scannerView: {
-    height: 340,
+    aspectRatio: 0.78,
     width: "100%",
   },
-  scannerOverlay: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: "#102347",
+  scannerFrameLayer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(16, 35, 71, 0.08)",
   },
-  scannerOverlayText: {
-    color: "#dbe7f7",
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: "center",
+  scannerFocusFrame: {
+    width: "68%",
+    aspectRatio: 1,
+    borderRadius: 24,
+    borderWidth: 3,
+    borderColor: "rgba(255, 255, 255, 0.92)",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+  },
+  scannerLoadingLayer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(16, 35, 71, 0.42)",
+  },
+  scannerCloseButton: {
+    marginTop: 0,
   },
   selectedChildBar: {
     flexDirection: "row",
@@ -3593,31 +4444,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  leaderboardChipRow: {
+  leaderboardSegmentedControl: {
     marginTop: 16,
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  leaderboardChip: {
-    borderRadius: 999,
+    width: "100%",
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#c8d6e6",
-    backgroundColor: "#f7fbff",
-    paddingHorizontal: 16,
+    backgroundColor: "#edf4fb",
+    padding: 4,
+    gap: 4,
+  },
+  leaderboardSegment: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
     paddingVertical: 10,
   },
-  leaderboardChipSelected: {
-    borderColor: "#123d75",
+  leaderboardSegmentSelected: {
     backgroundColor: "#123d75",
+    shadowColor: "#102347",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  leaderboardChipText: {
+  leaderboardSegmentText: {
     color: "#123d75",
     fontSize: 13,
     fontWeight: "700",
+    textAlign: "center",
   },
-  leaderboardChipTextSelected: {
+  leaderboardSegmentTextSelected: {
     color: "#ffffff",
+  },
+  leaderboardAvatarWrap: {
+    position: "relative",
+    width: 52,
+    height: 52,
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
   },
   leaderboardRow: {
     marginTop: 12,
@@ -3635,14 +4505,46 @@ const styles = StyleSheet.create({
     borderColor: "#123d75",
     backgroundColor: "#eef4fb",
   },
-  leaderboardRank: {
-    minWidth: 34,
+  leaderboardAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e7f0fb",
+    borderWidth: 1,
+    borderColor: "#c6d9ee",
   },
-  leaderboardRankText: {
+  leaderboardAvatarHighlighted: {
+    backgroundColor: "#123d75",
+    borderColor: "#123d75",
+  },
+  leaderboardAvatarText: {
+    color: "#123d75",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  leaderboardAvatarTextHighlighted: {
+    color: "#ffffff",
+  },
+  leaderboardRankBadge: {
+    position: "absolute",
+    right: -5,
+    bottom: -5,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#ffffff",
+    backgroundColor: "#f8c744",
+    paddingHorizontal: 5,
+  },
+  leaderboardRankBadgeText: {
     color: "#102347",
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "800",
   },
   leaderboardRowMeta: {
     flex: 1,
