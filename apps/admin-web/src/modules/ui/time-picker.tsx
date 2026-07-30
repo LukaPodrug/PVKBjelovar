@@ -12,7 +12,6 @@ interface TimePickerProps {
 
 const hourOptions = Array.from({ length: 24 }, (_, index) => index);
 const minuteOptions = Array.from({ length: 60 }, (_, index) => index);
-const quickTimes = ["08:00", "09:00", "12:00", "16:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
 
 export function TimePicker({
   value,
@@ -26,11 +25,17 @@ export function TimePicker({
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [draftValue, setDraftValue] = useState(value);
-  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0, width: 400 });
+  const [activePart, setActivePart] = useState<"hour" | "minute">("hour");
+  const [pickerDraft, setPickerDraft] = useState(() => parseTime(value) ?? { hour: 18, minute: 0 });
+  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0, width: 360 });
   const parsedTime = useMemo(() => parseTime(value), [value]);
 
   useEffect(() => {
     setDraftValue(value);
+
+    if (parsedTime) {
+      setPickerDraft(parsedTime);
+    }
   }, [value]);
 
   useEffect(() => {
@@ -45,7 +50,7 @@ export function TimePicker({
         return;
       }
 
-      const width = Math.min(400, window.innerWidth - 24);
+      const width = Math.min(360, window.innerWidth - 24);
       const left = Math.min(Math.max(12, controlRect.left), window.innerWidth - width - 12);
       const preferredTop = controlRect.bottom + 8;
       const estimatedHeight = 520;
@@ -64,6 +69,8 @@ export function TimePicker({
         !wrapperRef.current?.contains(target) &&
         !popoverRef.current?.contains(target)
       ) {
+        setDraftValue(value);
+        setPickerDraft(parsedTime ?? { hour: 18, minute: 0 });
         setIsOpen(false);
       }
     };
@@ -78,7 +85,16 @@ export function TimePicker({
       window.removeEventListener("resize", updatePopoverPosition);
       window.removeEventListener("scroll", updatePopoverPosition, true);
     };
-  }, [isOpen]);
+  }, [isOpen, parsedTime, value]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setActivePart("hour");
+    setPickerDraft(parsedTime ?? { hour: 18, minute: 0 });
+  }, [isOpen, parsedTime]);
 
   const handleDraftChange = (nextDraftValue: string) => {
     setDraftValue(nextDraftValue);
@@ -92,36 +108,37 @@ export function TimePicker({
 
     if (parsedValue) {
       onChange(parsedValue);
+      setPickerDraft(parseTime(parsedValue) ?? { hour: 18, minute: 0 });
     }
   };
 
   const selectTimePart = (part: "hour" | "minute", nextValue: number) => {
-    const current = parsedTime ?? { hour: 18, minute: 0 };
-    const nextTime =
+    const nextDraft =
       part === "hour"
-        ? formatTime(nextValue, current.minute)
-        : formatTime(current.hour, nextValue);
+        ? { ...pickerDraft, hour: nextValue }
+        : { ...pickerDraft, minute: nextValue };
+    const nextTime = formatTime(nextDraft.hour, nextDraft.minute);
+
+    setPickerDraft(nextDraft);
+    setDraftValue(nextTime);
+
+    if (part === "hour") {
+      setActivePart("minute");
+    }
+  };
+
+  const cancelPicker = () => {
+    setDraftValue(value);
+    setPickerDraft(parsedTime ?? { hour: 18, minute: 0 });
+    setIsOpen(false);
+  };
+
+  const commitPicker = () => {
+    const nextTime = formatTime(pickerDraft.hour, pickerDraft.minute);
 
     onChange(nextTime);
     setDraftValue(nextTime);
-  };
-
-  const selectTime = (nextTime: string) => {
-    onChange(nextTime);
-    setDraftValue(nextTime);
-  };
-
-  const shiftHours = (amount: number) => {
-    const current = parsedTime ?? { hour: 18, minute: 0 };
-    const nextHour = (current.hour + amount + 24) % 24;
-    selectTime(formatTime(nextHour, current.minute));
-  };
-
-  const shiftMinutes = (amount: number) => {
-    const current = parsedTime ?? { hour: 18, minute: 0 };
-    const totalMinutes = (current.hour * 60 + current.minute + amount + 24 * 60) % (24 * 60);
-    const nextTime = formatTime(Math.floor(totalMinutes / 60), totalMinutes % 60);
-    selectTime(nextTime);
+    setIsOpen(false);
   };
 
   return (
@@ -163,90 +180,44 @@ export function TimePicker({
                   width: `${popoverPosition.width}px`,
                 }}
               >
-                <div className="time-picker-hero">
-                  <div className="time-picker-preview">
-                    <span>Odabrano vrijeme</span>
-                    <strong>
-                      {parsedTime ? formatTime(parsedTime.hour, parsedTime.minute) : "--:--"}
-                    </strong>
-                  </div>
-                  <div className="time-picker-step-grid" aria-label="Brzo pomicanje vremena">
+                <div className="time-picker-card-header">
+                  <span>Odabir vremena</span>
+                  <div className="time-picker-time-display" aria-label="Odabrano vrijeme">
                     <button
-                      className="time-picker-step"
+                      className={`time-picker-time-part ${activePart === "hour" ? "is-active" : ""}`}
                       type="button"
-                      aria-label="Smanji vrijeme za jedan sat"
-                      onClick={() => shiftHours(-1)}
+                      aria-label="Odaberi sate"
+                      onClick={() => setActivePart("hour")}
                     >
-                      -1 h
+                      {String(pickerDraft.hour).padStart(2, "0")}
                     </button>
+                    <strong>:</strong>
                     <button
-                      className="time-picker-step"
+                      className={`time-picker-time-part ${activePart === "minute" ? "is-active" : ""}`}
                       type="button"
-                      aria-label="Povećaj vrijeme za jedan sat"
-                      onClick={() => shiftHours(1)}
+                      aria-label="Odaberi minute"
+                      onClick={() => setActivePart("minute")}
                     >
-                      +1 h
-                    </button>
-                    <button
-                      className="time-picker-step"
-                      type="button"
-                      aria-label="Smanji vrijeme za jednu minutu"
-                      onClick={() => shiftMinutes(-1)}
-                    >
-                      -1 min
-                    </button>
-                    <button
-                      className="time-picker-step"
-                      type="button"
-                      aria-label="Povećaj vrijeme za jednu minutu"
-                      onClick={() => shiftMinutes(1)}
-                    >
-                      +1 min
+                      {String(pickerDraft.minute).padStart(2, "0")}
                     </button>
                   </div>
                 </div>
 
-                <div className="time-picker-manual-hint">
-                  Možete i upisati točno vrijeme, npr. 21:37.
-                </div>
+                <TimeClockFace
+                  activePart={activePart}
+                  selectedHour={pickerDraft.hour}
+                  selectedMinute={pickerDraft.minute}
+                  onSelect={(nextValue) => selectTimePart(activePart, nextValue)}
+                />
 
-                <div className="time-picker-presets" aria-label="Brzi odabir vremena">
-                  {quickTimes.map((time) => (
-                    <button
-                      key={time}
-                      className={`time-picker-preset ${value === time ? "is-selected" : ""}`}
-                      type="button"
-                      onClick={() => selectTime(time)}
-                    >
-                      {time}
-                    </button>
-                  ))}
+                <div className="time-picker-actions">
+                  <button className="time-picker-text-button" type="button" onClick={cancelPicker}>
+                    Odustani
+                  </button>
+                  <button className="time-picker-text-button" type="button" onClick={commitPicker}>
+                    OK
+                  </button>
                 </div>
-
-                <div className="time-picker-dials">
-                  <TimeDial
-                    label="Sati"
-                    kind="hours"
-                    options={hourOptions}
-                    selectedValue={parsedTime?.hour ?? null}
-                    onSelect={(hour) => selectTimePart("hour", hour)}
-                  />
-                  <TimeDial
-                    label="Minute"
-                    kind="minutes"
-                    options={minuteOptions}
-                    selectedValue={parsedTime?.minute ?? null}
-                    onSelect={(minute) => selectTimePart("minute", minute)}
-                  />
-                </div>
-
-                <button
-                  className="time-picker-done"
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Gotovo
-                </button>
               </div>
             </div>,
             document.body,
@@ -256,47 +227,56 @@ export function TimePicker({
   );
 }
 
-function TimeDial({
-  label,
-  kind,
-  options,
-  selectedValue,
+function TimeClockFace({
+  activePart,
+  selectedHour,
+  selectedMinute,
   onSelect,
 }: {
-  label: string;
-  kind: "hours" | "minutes";
-  options: number[];
-  selectedValue: number | null;
+  activePart: "hour" | "minute";
+  selectedHour: number;
+  selectedMinute: number;
   onSelect: (value: number) => void;
 }) {
-  const isHourDial = kind === "hours";
-  const centerValue =
-    selectedValue === null ? "--" : String(selectedValue).padStart(2, "0");
+  const isHourMode = activePart === "hour";
+  const options = isHourMode ? hourOptions : minuteOptions;
+  const selectedValue = isHourMode ? selectedHour : selectedMinute;
+  const selectedAngle = getClockAngle(activePart, selectedValue);
+  const selectedRadius = getClockRadius(activePart, selectedValue);
 
   return (
-    <div className={`time-picker-dial time-picker-dial--${kind}`} role="group" aria-label={label}>
-      <div className="time-picker-dial-center" aria-hidden="true">
-        <strong>{centerValue}</strong>
-        <span>{label}</span>
+    <div
+      className={`time-picker-clock-face time-picker-clock-face--${activePart}`}
+      role="group"
+      aria-label={isHourMode ? "Odabir sata" : "Odabir minuta"}
+    >
+      <div className="time-picker-clock-hand-wrap" aria-hidden="true">
+        <span
+          className="time-picker-clock-hand"
+          style={{
+            transform: `rotate(${selectedAngle}deg)`,
+            width: `calc(var(--clock-size) * ${selectedRadius})`,
+          }}
+        />
+        <span className="time-picker-clock-pin" />
       </div>
 
       {options.map((option) => {
         const isSelected = selectedValue === option;
-        const showLabel = isHourDial || option % 5 === 0 || isSelected;
-        const angle = ((option / options.length) * 360) - 90;
-        const hourRadius = option < 12 ? 0.38 : 0.5;
-        const radius = isHourDial ? hourRadius : 0.45;
-        const transform = `rotate(${angle}deg) translate(calc(var(--dial-size) * ${radius})) rotate(${-angle}deg)`;
+        const showLabel = isHourMode || option % 5 === 0 || isSelected;
+        const angle = getClockAngle(activePart, option);
+        const radius = getClockRadius(activePart, option);
+        const transform = `rotate(${angle}deg) translate(calc(var(--clock-size) * ${radius})) rotate(${-angle}deg)`;
 
         return (
           <button
             key={option}
-            className={`time-picker-dial-option ${
+            className={`time-picker-clock-option ${
               isSelected ? "is-selected" : ""
             } ${showLabel ? "has-label" : "is-tick"}`}
             style={{ transform }}
             type="button"
-            aria-label={`${label}: ${String(option).padStart(2, "0")}`}
+            aria-label={`${isHourMode ? "Sat" : "Minute"}: ${String(option).padStart(2, "0")}`}
             onClick={() => onSelect(option)}
           >
             {showLabel ? String(option).padStart(2, "0") : ""}
@@ -305,6 +285,19 @@ function TimeDial({
       })}
     </div>
   );
+}
+
+function getClockAngle(part: "hour" | "minute", value: number) {
+  const units = part === "hour" ? 12 : 60;
+  return (((value % units) / units) * 360) - 90;
+}
+
+function getClockRadius(part: "hour" | "minute", value: number) {
+  if (part === "hour") {
+    return value < 12 ? 0.42 : 0.29;
+  }
+
+  return 0.42;
 }
 
 function parseTime(value: string) {

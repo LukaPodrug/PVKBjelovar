@@ -1124,7 +1124,13 @@ function ImageFirstAvatar({
   }, [normalizedImageUrl]);
 
   return (
-    <View style={[containerStyle, styles.avatarImageFrame]}>
+    <View
+      style={[
+        containerStyle,
+        styles.avatarImageFrame,
+        normalizedImageUrl && !hasImageError && styles.avatarImageFrameWithImage,
+      ]}
+    >
       {normalizedImageUrl && !hasImageError ? (
         <Image
           source={{ uri: normalizedImageUrl }}
@@ -1668,21 +1674,12 @@ function PracticeDetailsModal({
               <Text style={styles.detailValue}>{coachNames || "Trener će biti dodijeljen naknadno"}</Text>
             </View>
 
-            {practice.sourceType ? (
+            {practice.notes?.trim() ? (
               <View style={styles.practiceDetailsSection}>
-                <Text style={styles.detailLabel}>Vrsta unosa</Text>
-                <Text style={styles.detailValue}>
-                  {practice.sourceType === "SPECIAL_PRACTICE" ? "Poseban trening" : "Tjedni raspored"}
-                </Text>
+                <Text style={styles.detailLabel}>Napomene</Text>
+                <Text style={styles.detailValue}>{practice.notes.trim()}</Text>
               </View>
             ) : null}
-
-            <View style={styles.practiceDetailsSection}>
-              <Text style={styles.detailLabel}>Napomene</Text>
-              <Text style={styles.detailValue}>
-                {practice.notes?.trim() || "Nema dodatnih napomena za ovaj trening."}
-              </Text>
-            </View>
           </ScrollView>
         </View>
       </View>
@@ -3314,6 +3311,10 @@ const styles = StyleSheet.create({
   },
   avatarImageFrame: {
     overflow: "hidden",
+  },
+  avatarImageFrameWithImage: {
+    borderWidth: 2,
+    borderColor: "#ffffff",
   },
   avatarImage: {
     width: "100%",
