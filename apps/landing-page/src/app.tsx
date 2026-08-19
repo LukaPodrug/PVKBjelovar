@@ -57,12 +57,18 @@ const emptySignupForm: SignupFormState = {
 };
 
 const initialVisibleNewsCount = 6;
+const privacyContactEmail = "pvkmladostbjelovar@gmail.com";
+const privacyContactPhone = "+385 91 202 2384";
+const privacyLegalName = "PLIVAČKO VATERPOLSKI KLUB MLADOST";
+const privacyLegalAddress = "Petra Zrinskog 3, 43000 Bjelovar, Hrvatska";
 
 export function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingHomePage />} />
       <Route path="/novosti/:slug" element={<ArticlePage />} />
+      <Route path="/pravila-privatnosti" element={<PrivacyPolicyPage />} />
+      <Route path="/brisanje-racuna" element={<AccountDeletionPage />} />
       <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>
   );
@@ -1063,6 +1069,14 @@ function LandingFooter({
             </div>
           </section>
         ) : null}
+
+        <section className="landing-footer-column">
+          <p className="landing-kicker text-muted">Dokumenti</p>
+          <div className="landing-footer-list mt-4">
+            <Link to="/pravila-privatnosti">Pravila privatnosti</Link>
+            <Link to="/brisanje-racuna">Brisanje računa</Link>
+          </div>
+        </section>
       </div>
     </footer>
   );
@@ -1169,6 +1183,328 @@ function CategoryShowcaseCard({
         </div>
       </div>
     </button>
+  );
+}
+
+function PrivacyPolicyPage() {
+  const clubSettingsQuery = useQuery({
+    queryKey: ["public-club-settings"],
+    queryFn: fetchClubSettings,
+  });
+  const boardMembersQuery = useQuery({
+    queryKey: ["public-board-members"],
+    queryFn: fetchPublicBoardMembers,
+  });
+  const sponsorsQuery = useQuery({
+    queryKey: ["public-sponsors"],
+    queryFn: fetchPublicSponsors,
+  });
+  const clubSettings = clubSettingsQuery.data;
+  const boardMembers = boardMembersQuery.data ?? [];
+  const sponsors = sponsorsQuery.data ?? [];
+  const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
+  const clubSubtitle = resolveSettingValue(
+    clubSettings?.clubSubtitle,
+    landingClubSettingsDefaults.clubSubtitle,
+  );
+  const contactEmail = resolveSettingValue(
+    clubSettings?.contactEmail,
+    landingClubSettingsDefaults.contactEmail,
+  );
+  const contactPhone = resolveSettingValue(
+    clubSettings?.contactPhone,
+    landingClubSettingsDefaults.contactPhone,
+  );
+
+  useEffect(() => {
+    applyBrowserBranding({
+      title: `Pravila privatnosti | ${clubName}`,
+      iconUrl: clubSettings?.logoUrl,
+    });
+  }, [clubName, clubSettings?.logoUrl]);
+
+  return (
+    <div className="landing-page bg-bg text-ink">
+      <LandingHeader
+        clubName={clubName}
+        clubSubtitle={clubSubtitle}
+        logoUrl={clubSettings?.logoUrl ?? null}
+        showBoardMembersLink={boardMembers.length > 0}
+        showSponsorsLink={sponsors.length > 0}
+      />
+
+      <main className="border-b-2 border-line bg-bg">
+        <section className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+          <article className="landing-privacy-shell landing-surface border-2 border-line bg-surface p-5 sm:p-7 lg:p-9">
+            <p className="landing-kicker text-muted">Pravila privatnosti</p>
+            <h1 className="mt-3 text-4xl leading-tight">{clubName}</h1>
+            <p className="landing-copy mt-4 text-sm">Zadnje ažuriranje: 19.08.2026.</p>
+
+            <div className="landing-privacy-content mt-7">
+              <section>
+                <h2>1. Tko upravlja podacima</h2>
+                <p>
+                  Ovim pravilima opisujemo kako {clubName} obrađuje osobne podatke u
+                  mobilnoj aplikaciji i povezanim klupskim sustavima za članove,
+                  roditelje, igrače, trenere i administratore.
+                </p>
+                <p>
+                  Za pitanja o privatnosti obratite nam se putem službenih kontakt
+                  podataka kluba{contactEmail ? ` ili na ${contactEmail}` : ""}.
+                </p>
+                <div className="landing-privacy-contact">
+                  <p>
+                    <strong>Voditelj obrade:</strong> {privacyLegalName}
+                  </p>
+                  <p>
+                    <strong>Adresa:</strong> {privacyLegalAddress}
+                  </p>
+                  <p>
+                    <strong>E-pošta:</strong> {privacyContactEmail}
+                  </p>
+                  <p>
+                    <strong>Telefon:</strong> {privacyContactPhone}
+                  </p>
+                </div>
+              </section>
+
+              <section>
+                <h2>2. Koje podatke obrađujemo</h2>
+                <ul>
+                  <li>Podatke računa: ime, prezime, e-pošta, korisničko ime, lozinka u zaštićenom obliku i uloga korisnika.</li>
+                  <li>Kontakt podatke: e-pošta i telefonski broj kada su uneseni u klupski sustav.</li>
+                  <li>Podatke o igračima i članstvu: datum rođenja, OIB, kategorija, povezani roditelji, status članstva i evidencija dolazaka.</li>
+                  <li>Raspored i sportske podatke: termini treninga, dodijeljeni treneri, prisutnosti, poredak i obavijesti vezane uz treninge.</li>
+                  <li>Tehničke podatke: token za push obavijesti i osnovne podatke potrebne za sigurnu prijavu i rad aplikacije.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2>3. Kamera, QR kodovi i uplate</h2>
+                <p>
+                  Aplikacija koristi kameru samo za skeniranje QR kodova za evidenciju
+                  dolazaka. Slike ili video zapisi s kamere ne spremaju se u aplikaciji.
+                </p>
+                <p>
+                  Roditeljski QR nalog za uplatu služi za izradu bankovnog predloška.
+                  Aplikacija ne obrađuje kartice, ne provodi naplatu i ne prima podatke
+                  o izvršenoj bankovnoj transakciji.
+                </p>
+              </section>
+
+              <section>
+                <h2>4. Zašto koristimo podatke</h2>
+                <ul>
+                  <li>Za prijavu korisnika i prikaz podataka prema ulozi korisnika.</li>
+                  <li>Za vođenje rasporeda treninga, evidencije dolazaka i klupskih obavijesti.</li>
+                  <li>Za komunikaciju s roditeljima, igračima i trenerima.</li>
+                  <li>Za sigurnost računa, administraciju članstva i ispunjavanje zakonskih obveza kluba.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2>5. Dijeljenje podataka</h2>
+                <p>
+                  Podatke ne prodajemo i ne koristimo za oglašavanje. Podaci se mogu
+                  obrađivati putem pružatelja usluga koji omogućuju hosting, bazu
+                  podataka, slanje e-pošte, push obavijesti i distribuciju aplikacije.
+                  Ti pružatelji smiju obrađivati podatke samo u svrhu rada klupskog sustava.
+                </p>
+              </section>
+
+              <section>
+                <h2>6. Djeca i roditelji</h2>
+                <p>
+                  Aplikacija može prikazivati podatke djece koja su članovi kluba.
+                  Roditelji imaju pristup podacima svoje djece, a igrači imaju pristup
+                  podacima potrebnima za raspored, dolaske i obavijesti.
+                </p>
+              </section>
+
+              <section>
+                <h2>7. Brisanje računa i prava korisnika</h2>
+                <p>
+                  Korisnici mogu zatražiti brisanje računa kroz mobilnu aplikaciju ili
+                  kontaktiranjem kluba. Određene podatke klub može zadržati kada je to
+                  potrebno zbog zakonskih obveza, sigurnosti, evidencije članstva ili
+                  legitimnog interesa kluba.
+                </p>
+              </section>
+
+              <section>
+                <h2>8. Sigurnost i čuvanje podataka</h2>
+                <p>
+                  Podaci se prenose putem zaštićenih veza, a lozinke se ne čuvaju u
+                  izvornom obliku. Podatke čuvamo onoliko dugo koliko je potrebno za
+                  rad kluba, članstvo, sigurnost i zakonske obveze.
+                </p>
+              </section>
+
+              <section>
+                <h2>9. Izmjene pravila</h2>
+                <p>
+                  Ova pravila možemo povremeno ažurirati. Nova verzija bit će objavljena
+                  na ovoj stranici.
+                </p>
+              </section>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <LandingFooter
+        bankName={resolveSettingValue(clubSettings?.bankName, landingClubSettingsDefaults.bankName)}
+        bankIban={resolveSettingValue(clubSettings?.bankIban, landingClubSettingsDefaults.bankIban)}
+        bankRecipient={resolveSettingValue(
+          clubSettings?.bankRecipient,
+          landingClubSettingsDefaults.bankRecipient,
+        )}
+        contactEmail={contactEmail}
+        contactPhone={contactPhone}
+        facebookUrl={resolveSettingValue(
+          clubSettings?.facebookUrl,
+          landingClubSettingsDefaults.facebookUrl,
+        )}
+        instagramUrl={resolveSettingValue(
+          clubSettings?.instagramUrl,
+          landingClubSettingsDefaults.instagramUrl,
+        )}
+        youtubeUrl={resolveSettingValue(
+          clubSettings?.youtubeUrl,
+          landingClubSettingsDefaults.youtubeUrl,
+        )}
+      />
+    </div>
+  );
+}
+
+function AccountDeletionPage() {
+  const clubSettingsQuery = useQuery({
+    queryKey: ["public-club-settings"],
+    queryFn: fetchClubSettings,
+  });
+  const boardMembersQuery = useQuery({
+    queryKey: ["public-board-members"],
+    queryFn: fetchPublicBoardMembers,
+  });
+  const sponsorsQuery = useQuery({
+    queryKey: ["public-sponsors"],
+    queryFn: fetchPublicSponsors,
+  });
+  const clubSettings = clubSettingsQuery.data;
+  const boardMembers = boardMembersQuery.data ?? [];
+  const sponsors = sponsorsQuery.data ?? [];
+  const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
+  const clubSubtitle = resolveSettingValue(
+    clubSettings?.clubSubtitle,
+    landingClubSettingsDefaults.clubSubtitle,
+  );
+  const contactEmail = resolveSettingValue(
+    clubSettings?.contactEmail,
+    landingClubSettingsDefaults.contactEmail,
+  );
+  const contactPhone = resolveSettingValue(
+    clubSettings?.contactPhone,
+    landingClubSettingsDefaults.contactPhone,
+  );
+
+  useEffect(() => {
+    applyBrowserBranding({
+      title: `Brisanje računa | ${clubName}`,
+      iconUrl: clubSettings?.logoUrl,
+    });
+  }, [clubName, clubSettings?.logoUrl]);
+
+  return (
+    <div className="landing-page bg-bg text-ink">
+      <LandingHeader
+        clubName={clubName}
+        clubSubtitle={clubSubtitle}
+        logoUrl={clubSettings?.logoUrl ?? null}
+        showBoardMembersLink={boardMembers.length > 0}
+        showSponsorsLink={sponsors.length > 0}
+      />
+
+      <main className="border-b-2 border-line bg-bg">
+        <section className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+          <article className="landing-privacy-shell landing-surface border-2 border-line bg-surface p-5 sm:p-7 lg:p-9">
+            <p className="landing-kicker text-muted">Korisnički račun</p>
+            <h1 className="mt-3 text-4xl leading-tight">Brisanje računa</h1>
+            <p className="landing-copy mt-4 text-sm">Zadnje ažuriranje: 19.08.2026.</p>
+
+            <div className="landing-privacy-content mt-7">
+              <section>
+                <h2>Kako zatražiti brisanje</h2>
+                <p>
+                  Korisnici mogu zatražiti brisanje računa iz mobilne aplikacije u
+                  profilu korisnika. Ako nemate pristup aplikaciji, zahtjev možete
+                  poslati klubu na {privacyContactEmail}.
+                </p>
+              </section>
+
+              <section>
+                <h2>Što se briše</h2>
+                <p>
+                  Nakon odobrenog zahtjeva briše se ili deaktivira korisnički račun i
+                  osobni podaci koji više nisu potrebni za rad kluba, sigurnost računa
+                  ili zakonske obveze.
+                </p>
+              </section>
+
+              <section>
+                <h2>Što se može zadržati</h2>
+                <p>
+                  Klub može zadržati podatke koji su potrebni zbog zakonskih obveza,
+                  evidencije članstva, sigurnosti sustava, financijskih evidencija ili
+                  legitimnog interesa kluba.
+                </p>
+              </section>
+
+              <section>
+                <h2>Kontakt</h2>
+                <div className="landing-privacy-contact">
+                  <p>
+                    <strong>Voditelj obrade:</strong> {privacyLegalName}
+                  </p>
+                  <p>
+                    <strong>Adresa:</strong> {privacyLegalAddress}
+                  </p>
+                  <p>
+                    <strong>E-pošta:</strong> {privacyContactEmail}
+                  </p>
+                  <p>
+                    <strong>Telefon:</strong> {privacyContactPhone}
+                  </p>
+                </div>
+              </section>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <LandingFooter
+        bankName={resolveSettingValue(clubSettings?.bankName, landingClubSettingsDefaults.bankName)}
+        bankIban={resolveSettingValue(clubSettings?.bankIban, landingClubSettingsDefaults.bankIban)}
+        bankRecipient={resolveSettingValue(
+          clubSettings?.bankRecipient,
+          landingClubSettingsDefaults.bankRecipient,
+        )}
+        contactEmail={contactEmail}
+        contactPhone={contactPhone}
+        facebookUrl={resolveSettingValue(
+          clubSettings?.facebookUrl,
+          landingClubSettingsDefaults.facebookUrl,
+        )}
+        instagramUrl={resolveSettingValue(
+          clubSettings?.instagramUrl,
+          landingClubSettingsDefaults.instagramUrl,
+        )}
+        youtubeUrl={resolveSettingValue(
+          clubSettings?.youtubeUrl,
+          landingClubSettingsDefaults.youtubeUrl,
+        )}
+      />
+    </div>
   );
 }
 

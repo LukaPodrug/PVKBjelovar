@@ -10,7 +10,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.pvkmladostbjelovar.mobile",
       "infoPlist": {
-        "NSCameraUsageDescription": "Kamera se koristi za skeniranje QR kodova za evidenciju dolazaka na trening."
+        "NSCameraUsageDescription": "Kamera se koristi za skeniranje QR kodova za evidenciju dolazaka na trening.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -42,6 +43,12 @@
     ],
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bd4bca97-c580-440a-9862-da2108066066"
+      }
+    },
+    "owner": "podra01"
   }
 }
