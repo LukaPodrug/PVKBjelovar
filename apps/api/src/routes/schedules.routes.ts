@@ -7,7 +7,13 @@ import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
 import { deriveDayOfWeek, resolveScheduleCoachIds } from "../services/category.service";
-import { notifyAllPracticeAudience, notifyCategoryAudience } from "../services/notification.service";
+import {
+  notifyAllParents,
+  notifyAllPracticeAudience,
+  notifyCategoryAudience,
+  notifyCategoryParents,
+} from "../services/notification.service";
+import { notifyAbsentPlayersForStartedPractice } from "../services/practice-notification.service";
 import { attendanceQrTokenPrefix, parseAttendanceQrToken } from "../services/username.service";
 import { formatDateHr, formatTimeRangeHr } from "../utils/datetime";
 import {
@@ -72,6 +78,7 @@ const scheduleOccurrenceSelect = {
   startTime: true,
   endTime: true,
   notes: true,
+  finishedAt: true,
 } as const;
 
 const scheduleInclude = {
@@ -145,6 +152,7 @@ const specialOccurrenceInclude = {
   startTime: true,
   endTime: true,
   notes: true,
+  finishedAt: true,
   coaches: occurrenceCoachInclude,
 } as const;
 
@@ -192,6 +200,7 @@ export interface CalendarItem {
   endTime: string;
   notes: string | null;
   isCancelled: boolean;
+  finishedAt: string | null;
   sourceType: "WEEKLY_TEMPLATE" | "SPECIAL_PRACTICE";
   weeklyScheduleId: string | null;
   weeklyScheduleName: string | null;
@@ -522,6 +531,132 @@ schedulesRouter.post(
       expiresAt: qrContext.qrSession.expiresAt.toISOString(),
       qrValue: `${attendanceQrTokenPrefix}${qrContext.qrSession.token}`,
     });
+
+    void notifyAbsentPlayersForStartedPractice(qrContext.occurrence.id, now);
+  }),
+);
+
+schedulesRouter.post(
+  "/:id/finish-practice",
+  asyncHandler(async (request, response) => {
+    const access = await getScheduleAccessContext(request);
+    const scheduleId = requireString(request.params.id, "id");
+    const occurrenceDate = parseOccurrenceDateInput(request.body.occurrenceDate);
+    const schedule = await prisma.schedule.findUnique({
+      where: {
+        id: scheduleId,
+      },
+      select: {
+        id: true,
+        categoryId: true,
+        isWeeklyTemplate: true,
+        isArchived: true,
+        dayOfWeek: true,
+        practiceType: true,
+        startTime: true,
+        endTime: true,
+        notes: true,
+        category: {
+          select: {
+            name: true,
+          },
+        },
+        coaches: {
+          select: {
+            coachId: true,
+          },
+        },
+      },
+    });
+
+    if (!schedule || schedule.isArchived) {
+      throw new AppError("Termin nije pronađen.", 404);
+    }
+
+    assertCategoryAccess(access, schedule.categoryId);
+    assertOccurrenceDateMatchesSchedule(schedule, occurrenceDate);
+
+    const existingOccurrence = await prisma.scheduleOccurrence.findUnique({
+      where: {
+        scheduleId_occurrenceDate: {
+          scheduleId,
+          occurrenceDate,
+        },
+      },
+      select: {
+        id: true,
+        isCancelled: true,
+        finishedAt: true,
+        coaches: {
+          select: {
+            coachId: true,
+          },
+        },
+      },
+    });
+
+    assertPracticeAssignmentAccess(access, {
+      scheduleCoachIds: schedule.coaches.map((assignment) => assignment.coachId),
+      occurrenceCoachIds: existingOccurrence?.coaches.map((assignment) => assignment.coachId) ?? [],
+    });
+
+    if (existingOccurrence?.isCancelled) {
+      throw new AppError("Otkazani trening nije moguće označiti završenim.", 400);
+    }
+
+    const now = new Date();
+    const occurrence = existingOccurrence
+      ? await prisma.scheduleOccurrence.update({
+          where: {
+            id: existingOccurrence.id,
+          },
+          data: {
+            finishedAt: existingOccurrence.finishedAt ?? now,
+          },
+          select: {
+            id: true,
+            finishedAt: true,
+          },
+        })
+      : await prisma.scheduleOccurrence.create({
+          data: {
+            ...buildOccurrenceCreateData(schedule, occurrenceDate, false),
+            finishedAt: now,
+          },
+          select: {
+            id: true,
+            finishedAt: true,
+          },
+        });
+
+    response.json({
+      message: existingOccurrence?.finishedAt
+        ? "Trening je već označen kao završen."
+        : "Roditelji su obaviješteni da je trening završen.",
+      scheduleId,
+      occurrenceId: occurrence.id,
+      occurrenceDate: getOccurrenceDateKey(occurrenceDate),
+      finishedAt: occurrence.finishedAt?.toISOString() ?? null,
+    });
+
+    if (!existingOccurrence?.finishedAt) {
+      const notificationPayload = {
+        type: NotificationType.PRACTICE_FINISHED,
+        title: "Trening završen",
+        body: `Trening za ${schedule.category?.name ?? "sve kategorije"} je završen. Možete doći po djecu.`,
+        dedupeKey: `practice-finished:${occurrence.id}`,
+        data: {
+          scheduleId,
+          occurrenceId: occurrence.id,
+          occurrenceDate: getOccurrenceDateKey(occurrenceDate),
+          categoryId: schedule.categoryId,
+        },
+      };
+      void (schedule.categoryId
+        ? notifyCategoryParents(schedule.categoryId, notificationPayload)
+        : notifyAllParents(notificationPayload));
+      void notifyAbsentPlayersForStartedPractice(occurrence.id, now);
+    }
   }),
 );
 
@@ -1791,6 +1926,7 @@ function mapWeeklyOccurrenceToCalendarItem(
     practiceType: occurrence.practiceType,
     notes: occurrence.notes ?? schedule.notes,
     isCancelled: occurrence.isCancelled,
+    finishedAt: occurrence.finishedAt?.toISOString() ?? null,
     sourceType: "WEEKLY_TEMPLATE",
     weeklyScheduleId: schedule.weeklySchedule?.id ?? null,
     weeklyScheduleName: schedule.weeklySchedule?.name ?? null,
@@ -1823,6 +1959,7 @@ function mapSpecialScheduleToCalendarItem(
       practiceType: occurrence.practiceType,
       notes: schedule.notes,
       isCancelled: true,
+      finishedAt: occurrence.finishedAt?.toISOString() ?? null,
       sourceType: "SPECIAL_PRACTICE",
       weeklyScheduleId: null,
       weeklyScheduleName: null,
@@ -1847,6 +1984,7 @@ function mapSpecialScheduleToCalendarItem(
     practiceType: schedule.practiceType,
     notes: schedule.notes,
     isCancelled: false,
+    finishedAt: occurrence?.finishedAt?.toISOString() ?? null,
     sourceType: "SPECIAL_PRACTICE",
     weeklyScheduleId: null,
     weeklyScheduleName: null,

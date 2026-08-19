@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./modules/layout/app-shell";
+import { BoardMembersPage } from "./modules/board-members/board-members-page";
 import { RequireAuth } from "./modules/auth/require-auth";
 import { RequireRole } from "./modules/auth/require-role";
 import { DashboardPage } from "./modules/dashboard/dashboard-page";
@@ -12,6 +13,7 @@ import { ParentsPage } from "./modules/parents/parents-page";
 import { PlayersPage } from "./modules/players/players-page";
 import { SchedulesPage } from "./modules/schedules/schedules-page";
 import { SettingsPage } from "./modules/settings/settings-page";
+import { SponsorsPage } from "./modules/sponsors/sponsors-page";
 
 export function App() {
   return (
@@ -56,6 +58,22 @@ export function App() {
           <Route
             path="/leaderboard"
             element={<LeaderboardPage />}
+          />
+          <Route
+            path="/sponsors"
+            element={
+              <RequireRole allowedRoles={["ADMIN"]}>
+                <SponsorsPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/board-members"
+            element={
+              <RequireRole allowedRoles={["ADMIN"]}>
+                <BoardMembersPage />
+              </RequireRole>
+            }
           />
           <Route
             path="/settings"

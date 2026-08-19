@@ -88,6 +88,7 @@ interface ScheduleCalendarItem {
   endTime: string;
   notes: string | null;
   isCancelled: boolean;
+  finishedAt: string | null;
   sourceType: "WEEKLY_TEMPLATE" | "SPECIAL_PRACTICE";
   category: {
     id: string;
@@ -125,6 +126,14 @@ interface AttendanceScanResponse {
   practiceType: PracticeType;
   startTime: string;
   endTime: string;
+}
+
+interface PracticeFinishResponse {
+  message: string;
+  scheduleId: string;
+  occurrenceId: string;
+  occurrenceDate: string;
+  finishedAt: string | null;
 }
 
 interface ChildCategory {
@@ -176,6 +185,8 @@ interface ChildScheduleItem {
 }
 
 type PracticeDetailItem = {
+  scheduleId: string;
+  occurrenceId: string | null;
   occurrenceDate: string;
   practiceType: PracticeType;
   startTime: string;
@@ -184,6 +195,7 @@ type PracticeDetailItem = {
   isCancelled: boolean;
   sourceType?: "WEEKLY_TEMPLATE" | "SPECIAL_PRACTICE";
   attended?: boolean;
+  finishedAt?: string | null;
   category: {
     id: string;
     name: string;
@@ -709,6 +721,7 @@ function StaffAttendanceScreen({
   const [practices, setPractices] = useState<ScheduleCalendarItem[]>([]);
   const [isLoadingPractices, setIsLoadingPractices] = useState(true);
   const [isLoadingQr, setIsLoadingQr] = useState(false);
+  const [finishingPracticeKey, setFinishingPracticeKey] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedPractice, setSelectedPractice] = useState<ScheduleCalendarItem | null>(null);
   const [practiceDetails, setPracticeDetails] = useState<PracticeDetailItem | null>(null);
@@ -836,6 +849,49 @@ function StaffAttendanceScreen({
     }
   }
 
+  async function handleFinishPractice(practice: ScheduleCalendarItem) {
+    const practiceKey = buildPracticeKey(practice);
+
+    if (practice.finishedAt || finishingPracticeKey) {
+      return;
+    }
+
+    setFinishingPracticeKey(practiceKey);
+    setErrorMessage(null);
+
+    try {
+      const payload = await requestJson<PracticeFinishResponse>(
+        apiBaseUrl,
+        `/schedules/${practice.scheduleId}/finish-practice`,
+        {
+          method: "POST",
+          token: session.token,
+          body: JSON.stringify({
+            occurrenceDate: practice.occurrenceDate,
+          }),
+        },
+      );
+      const finishedAt = payload.finishedAt ?? new Date().toISOString();
+      const applyFinishedState = <T extends { scheduleId: string; occurrenceDate: string; finishedAt?: string | null }>(
+        item: T,
+      ): T =>
+        item.scheduleId === practice.scheduleId && item.occurrenceDate === practice.occurrenceDate
+          ? { ...item, finishedAt }
+          : item;
+
+      setPractices((current) => current.map(applyFinishedState));
+      setPracticeDetails((current) => (current ? applyFinishedState(current) : current));
+      setSelectedPractice((current) => (current ? applyFinishedState(current) : current));
+      onToast({ tone: "success", message: payload.message });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Trening nije moguće označiti završenim.";
+      setErrorMessage(message);
+      onToast({ tone: "error", message });
+    } finally {
+      setFinishingPracticeKey(null);
+    }
+  }
+
   async function handleLogout() {
     if (pushToken) {
       try {
@@ -910,13 +966,16 @@ function StaffAttendanceScreen({
                 </View>
               ) : (
                 visiblePractices.map((practice) => {
+                  const practiceKey = buildPracticeKey(practice);
                   const isSelected =
                     selectedPractice?.scheduleId === practice.scheduleId &&
                     selectedPractice.occurrenceDate === practice.occurrenceDate;
+                  const isFinished = Boolean(practice.finishedAt);
+                  const isFinishing = finishingPracticeKey === practiceKey;
 
                   return (
                     <Pressable
-                      key={`${practice.scheduleId}-${practice.occurrenceDate}`}
+                      key={practiceKey}
                       style={[styles.practiceCard, isSelected && styles.practiceCardSelected]}
                       onPress={() => setPracticeDetails(practice)}
                     >
@@ -942,20 +1001,55 @@ function StaffAttendanceScreen({
                           : "Trener će biti dodijeljen naknadno"}
                       </Text>
 
-                      <Pressable
-                        style={styles.primaryInlineButton}
-                        disabled={isLoadingQr}
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          void handleGenerateQr(practice);
-                        }}
-                      >
-                        {isLoadingQr && isSelected ? (
-                          <ActivityIndicator color="#ffffff" />
-                        ) : (
-                          <Text style={styles.primaryInlineButtonText}>Prikaži QR kod</Text>
-                        )}
-                      </Pressable>
+                      {isFinished ? (
+                        <View style={[styles.statusTag, styles.statusTagAttended]}>
+                          <Text style={styles.statusTagText}>Trening završen</Text>
+                        </View>
+                      ) : null}
+
+                      <View style={styles.practiceActionRow}>
+                        <Pressable
+                          style={[styles.primaryInlineButton, styles.practiceActionButton]}
+                          disabled={isLoadingQr}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            void handleGenerateQr(practice);
+                          }}
+                        >
+                          {isLoadingQr && isSelected ? (
+                            <ActivityIndicator color="#ffffff" />
+                          ) : (
+                            <>
+                              <Ionicons name="qr-code-outline" size={18} color="#ffffff" />
+                              <Text style={styles.primaryInlineButtonText}>QR kod</Text>
+                            </>
+                          )}
+                        </Pressable>
+
+                        <Pressable
+                          style={[
+                            styles.secondaryInlineButton,
+                            styles.practiceActionButton,
+                            (isFinished || Boolean(finishingPracticeKey)) && styles.buttonDisabled,
+                          ]}
+                          disabled={isFinished || Boolean(finishingPracticeKey)}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            void handleFinishPractice(practice);
+                          }}
+                        >
+                          {isFinishing ? (
+                            <ActivityIndicator color="#123d75" />
+                          ) : (
+                            <>
+                              <Ionicons name="checkmark-done-outline" size={18} color="#123d75" />
+                              <Text style={styles.secondaryInlineButtonText}>
+                                {isFinished ? "Završeno" : "Završi"}
+                              </Text>
+                            </>
+                          )}
+                        </Pressable>
+                      </View>
                     </Pressable>
                   );
                 })
@@ -1047,6 +1141,31 @@ function StaffAttendanceScreen({
                     <Text style={styles.primaryButtonText}>Osvježi QR kod</Text>
                   )}
                 </Pressable>
+
+                {selectedPractice ? (
+                  <Pressable
+                    style={[
+                      styles.secondaryButton,
+                      styles.modalActionButton,
+                      (selectedPractice.finishedAt || Boolean(finishingPracticeKey)) && styles.buttonDisabled,
+                    ]}
+                    disabled={Boolean(selectedPractice.finishedAt) || Boolean(finishingPracticeKey)}
+                    onPress={() => {
+                      void handleFinishPractice(selectedPractice);
+                    }}
+                  >
+                    {finishingPracticeKey === buildPracticeKey(selectedPractice) ? (
+                      <ActivityIndicator color="#123d75" />
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark-done-outline" size={18} color="#123d75" />
+                        <Text style={styles.secondaryButtonText}>
+                          {selectedPractice.finishedAt ? "Trening završen" : "Završi trening"}
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                ) : null}
               </>
             ) : null}
           </View>
@@ -1656,6 +1775,10 @@ function PracticeDetailsModal({
               {practice.isCancelled ? (
                 <View style={[styles.statusTag, styles.statusTagCancelled]}>
                   <Text style={styles.statusTagText}>Otkazano</Text>
+                </View>
+              ) : practice.finishedAt ? (
+                <View style={[styles.statusTag, styles.statusTagAttended]}>
+                  <Text style={styles.statusTagText}>Trening završen</Text>
                 </View>
               ) : practice.attended ? (
                 <View style={[styles.statusTag, styles.statusTagAttended]}>
@@ -3178,6 +3301,10 @@ function shiftDayKey(dateKey: string, deltaDays: number) {
   return formatDateKey(nextDate);
 }
 
+function buildPracticeKey(practice: { scheduleId: string; occurrenceDate: string }) {
+  return `${practice.scheduleId}-${practice.occurrenceDate}`;
+}
+
 function shiftMonthKey(monthKey: string, deltaMonths: number) {
   const [year, month] = monthKey.split("-").map(Number);
   const nextMonth = new Date(Date.UTC(year, month - 1 + deltaMonths, 1));
@@ -3314,7 +3441,7 @@ const styles = StyleSheet.create({
   },
   avatarImageFrameWithImage: {
     borderWidth: 2,
-    borderColor: "#ffffff",
+    borderColor: "#c6d9ee",
   },
   avatarImage: {
     width: "100%",
@@ -3718,8 +3845,10 @@ const styles = StyleSheet.create({
   secondaryButton: {
     minHeight: 50,
     borderRadius: 18,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
     borderWidth: 1,
     borderColor: "#d6e0eb",
     backgroundColor: "#ffffff",
@@ -3912,6 +4041,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   primaryInlineButton: {
+    flexDirection: "row",
+    gap: 8,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
@@ -3923,6 +4054,34 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "700",
+  },
+  secondaryInlineButton: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#c8d6e6",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+  },
+  secondaryInlineButtonText: {
+    color: "#123d75",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  practiceActionRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  practiceActionButton: {
+    flex: 1,
+    minWidth: 0,
+  },
+  modalActionButton: {
+    marginTop: 12,
   },
   practiceTypePill: {
     borderRadius: 999,

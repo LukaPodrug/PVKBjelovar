@@ -114,6 +114,22 @@ export async function notifyCategoryParents(
   }
 }
 
+/** Notifies every parent in the club. */
+export async function notifyAllParents(payload: NotificationPayload): Promise<void> {
+  try {
+    const parents = await prisma.parent.findMany({
+      select: { userId: true },
+    });
+
+    await dispatchNotificationToUsers(
+      parents.map((parent) => parent.userId),
+      payload,
+    );
+  } catch (error) {
+    console.error("Failed to notify all parents", error);
+  }
+}
+
 /**
  * Notifies the full audience of a category — every parent linked to a player in the category AND
  * the players themselves, assigned coaches, and admins. Used for practice changes/cancellations

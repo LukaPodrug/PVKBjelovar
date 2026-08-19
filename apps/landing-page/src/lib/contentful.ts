@@ -86,6 +86,18 @@ function getAssetIds(fields: Record<string, unknown>, candidates: string[]) {
   return [...new Set(ids)];
 }
 
+function getAssetId(fields: Record<string, unknown>, candidates: string[]) {
+  for (const candidate of candidates) {
+    const assetId = getLinkedAssetId(fields[candidate]);
+
+    if (assetId) {
+      return assetId;
+    }
+  }
+
+  return null;
+}
+
 function normalizeImageUrl(url: string | undefined) {
   if (!url) {
     return null;
@@ -157,16 +169,18 @@ export async function fetchNewsFeed(): Promise<NewsFeedResult> {
     const items = (payload.items ?? [])
       .map((entry) => {
         const fields = entry.fields ?? {};
-        const imageIds = getAssetIds(fields, [
+        const heroImageId = getAssetId(fields, [
+          "heroImage",
+          "coverImage",
+          "thumbnail",
+          "image",
+        ]);
+        const galleryImageIds = getAssetIds(fields, [
           "images",
           "gallery",
           "galleryImages",
           "photos",
           "media",
-          "image",
-          "heroImage",
-          "coverImage",
-          "thumbnail",
         ]);
         const title = getStringField(fields, ["title", "headline", "name"]) || "Novost bez naslova";
         const summary =
@@ -176,9 +190,14 @@ export async function fetchNewsFeed(): Promise<NewsFeedResult> {
           getParagraphsField(fields, ["body", "content", "articleBody", "description", "summary"]) ||
           [];
         const id = entry.sys?.id ?? crypto.randomUUID();
-        const imageUrls = imageIds
+        const heroImageUrl = heroImageId ? assets.get(heroImageId) ?? null : null;
+        const galleryImageUrls = galleryImageIds
           .map((imageId) => assets.get(imageId))
           .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
+        const imageUrls = [
+          ...(heroImageUrl ? [heroImageUrl] : []),
+          ...galleryImageUrls,
+        ].filter((imageUrl, index, list) => list.indexOf(imageUrl) === index);
 
         return {
           id,
@@ -192,7 +211,7 @@ export async function fetchNewsFeed(): Promise<NewsFeedResult> {
             entry.sys?.createdAt ||
             new Date().toISOString(),
           ctaLabel: getStringField(fields, ["ctaLabel", "cta", "buttonLabel"]) || "Pročitajte novost",
-          imageUrl: imageUrls[0] ?? null,
+          imageUrl: heroImageUrl ?? imageUrls[0] ?? null,
           imageUrls,
         } satisfies NewsItem;
       })

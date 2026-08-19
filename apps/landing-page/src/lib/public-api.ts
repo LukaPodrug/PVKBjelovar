@@ -51,6 +51,22 @@ export interface PublicCategoryDetail extends PublicCategory {
   nextPlayersOffset: number | null;
 }
 
+export interface PublicSponsor {
+  id: string;
+  name: string;
+  logoUrl: string;
+  websiteUrl: string;
+  displayOrder: number;
+}
+
+export interface PublicBoardMember {
+  id: string;
+  name: string;
+  position: string;
+  imageUrl: string;
+  displayOrder: number;
+}
+
 export interface PublicScheduleCalendarItem {
   id: string;
   scheduleId: string;
@@ -118,6 +134,14 @@ export function fetchClubSettings() {
 
 export function fetchPublicCategories() {
   return requestJson<PublicCategory[]>("/categories/public");
+}
+
+export function fetchPublicBoardMembers() {
+  return requestJson<PublicBoardMember[]>("/board-members/public");
+}
+
+export function fetchPublicSponsors() {
+  return requestJson<PublicSponsor[]>("/sponsors/public");
 }
 
 export function fetchPublicCategoryDetail(

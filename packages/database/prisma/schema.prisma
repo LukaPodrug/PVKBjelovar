@@ -45,6 +45,8 @@ enum NotificationType {
   PRACTICE_CREATED
   PRACTICE_UPDATED
   PRACTICE_CANCELLED
+  PRACTICE_FINISHED
+  PRACTICE_ABSENCE
   SCHEDULE_UPDATED
   MEMBERSHIP_EXPIRING
   MEMBERSHIP_RENEWED
@@ -73,6 +75,32 @@ model ClubSettings {
   updatedAt    DateTime @updatedAt
 
   @@map("club_settings")
+}
+
+model Sponsor {
+  id           String   @id @default(cuid())
+  name         String
+  logoUrl      String
+  websiteUrl   String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([displayOrder, name])
+  @@map("sponsors")
+}
+
+model BoardMember {
+  id           String   @id @default(cuid())
+  name         String
+  position     String
+  imageUrl     String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([displayOrder, name])
+  @@map("board_members")
 }
 
 /// Shared identity and RBAC table for every system actor.
@@ -254,6 +282,7 @@ model ScheduleOccurrence {
   endTime           DateTime?
   notes             String?
   isCancelled       Boolean              @default(false)
+  finishedAt        DateTime?
   attendanceRecords ScheduleAttendance[]
   coaches           ScheduleOccurrenceCoach[]
   attendanceQrSessions AttendanceQrSession[]

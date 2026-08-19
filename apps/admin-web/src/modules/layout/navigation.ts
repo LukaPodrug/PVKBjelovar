@@ -57,6 +57,18 @@ export const navigationItems: NavigationItem[] = [
     allowedRoles: ["ADMIN", "COACH"],
   },
   {
+    label: "Sponzori",
+    href: "/sponsors",
+    caption: "Partneri",
+    allowedRoles: ["ADMIN"],
+  },
+  {
+    label: "Uprava",
+    href: "/board-members",
+    caption: "Vodstvo",
+    allowedRoles: ["ADMIN"],
+  },
+  {
     label: "Postavke",
     href: "/settings",
     caption: "Klub",

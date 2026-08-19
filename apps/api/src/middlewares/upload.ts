@@ -19,6 +19,8 @@ const upload = multer({
 
 export const uploadCategoryLogo = upload.single("logo");
 export const uploadClubLogo = upload.single("logo");
+export const uploadBoardMemberImage = upload.single("image");
+export const uploadSponsorLogo = upload.single("logo");
 export const uploadProfileImage = upload.single("profileImage");
 export const uploadSignupImages = upload.fields([
   { name: "parentOneProfileImage", maxCount: 1 },

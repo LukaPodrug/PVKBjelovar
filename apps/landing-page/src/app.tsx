@@ -9,8 +9,12 @@ import { landingClubSettingsDefaults, resolveSettingValue } from "./lib/club-set
 import { fetchNewsFeed, type NewsItem } from "./lib/contentful";
 import {
   fetchClubSettings,
+  type PublicBoardMember,
   type PublicCategory,
+  type PublicSponsor,
+  fetchPublicBoardMembers,
   fetchPublicCategories,
+  fetchPublicSponsors,
   submitSignup,
 } from "./lib/public-api";
 
@@ -94,6 +98,16 @@ function LandingHomePage() {
     queryFn: fetchPublicCategories,
   });
 
+  const boardMembersQuery = useQuery({
+    queryKey: ["public-board-members"],
+    queryFn: fetchPublicBoardMembers,
+  });
+
+  const sponsorsQuery = useQuery({
+    queryKey: ["public-sponsors"],
+    queryFn: fetchPublicSponsors,
+  });
+
   const signupMutation = useMutation({
     mutationFn: async () => {
       const formData = new FormData();
@@ -152,6 +166,8 @@ function LandingHomePage() {
   const newsFeed = newsQuery.data;
   const newsItems = newsFeed?.items ?? [];
   const categories = categoriesQuery.data ?? [];
+  const boardMembers = boardMembersQuery.data ?? [];
+  const sponsors = sponsorsQuery.data ?? [];
   const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
   const clubSubtitle = resolveSettingValue(
     clubSettings?.clubSubtitle,
@@ -263,6 +279,8 @@ function LandingHomePage() {
         clubName={clubName}
         clubSubtitle={clubSubtitle}
         logoUrl={clubSettings?.logoUrl ?? null}
+        showBoardMembersLink={boardMembers.length > 0}
+        showSponsorsLink={sponsors.length > 0}
       />
 
       <main>
@@ -659,6 +677,9 @@ function LandingHomePage() {
         </section>
       </main>
 
+      {boardMembers.length > 0 ? <BoardMembersSection boardMembers={boardMembers} /> : null}
+      {sponsors.length > 0 ? <SponsorsSection sponsors={sponsors} /> : null}
+
       <LandingFooter
         bankName={resolveSettingValue(clubSettings?.bankName, landingClubSettingsDefaults.bankName)}
         bankIban={resolveSettingValue(clubSettings?.bankIban, landingClubSettingsDefaults.bankIban)}
@@ -697,10 +718,14 @@ function LandingHeader({
   clubName,
   clubSubtitle,
   logoUrl,
+  showBoardMembersLink = false,
+  showSponsorsLink = false,
 }: {
   clubName: string;
   clubSubtitle: string;
   logoUrl: string | null;
+  showBoardMembersLink?: boolean;
+  showSponsorsLink?: boolean;
 }) {
   const [isLogoBroken, setIsLogoBroken] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -756,6 +781,16 @@ function LandingHeader({
             <a className="landing-header-link" href="/#signup">
               Prijava
             </a>
+            {showBoardMembersLink ? (
+              <a className="landing-header-link" href="/#board-members">
+                Uprava
+              </a>
+            ) : null}
+            {showSponsorsLink ? (
+              <a className="landing-header-link" href="/#sponsors">
+                Sponzori
+              </a>
+            ) : null}
           </nav>
         </div>
 
@@ -773,9 +808,82 @@ function LandingHeader({
           <a className="landing-mobile-nav-link" href="/#signup" onClick={() => setIsMobileNavOpen(false)}>
             Prijava
           </a>
+          {showBoardMembersLink ? (
+            <a className="landing-mobile-nav-link" href="/#board-members" onClick={() => setIsMobileNavOpen(false)}>
+              Uprava
+            </a>
+          ) : null}
+          {showSponsorsLink ? (
+            <a className="landing-mobile-nav-link" href="/#sponsors" onClick={() => setIsMobileNavOpen(false)}>
+              Sponzori
+            </a>
+          ) : null}
         </nav>
       </div>
     </header>
+  );
+}
+
+function SponsorsSection({ sponsors }: { sponsors: PublicSponsor[] }) {
+  return (
+    <section className="landing-sponsors-section border-t-2 border-line bg-surface" id="sponsors">
+      <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="landing-kicker text-muted">Sponzori</p>
+            <h2 className="mt-2 text-2xl">Partneri kluba</h2>
+          </div>
+          <p className="landing-copy max-w-xl text-sm">
+            Hvala partnerima koji podržavaju rad kluba i razvoj mladih sportaša.
+          </p>
+        </div>
+
+        <div className="landing-sponsors-track" aria-label="Sponzori kluba">
+          {sponsors.map((sponsor) => (
+            <a
+              className="landing-sponsor-card"
+              key={sponsor.id}
+              href={sponsor.websiteUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${sponsor.name} web stranica`}
+            >
+              <img src={sponsor.logoUrl} alt={sponsor.name} />
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BoardMembersSection({ boardMembers }: { boardMembers: PublicBoardMember[] }) {
+  return (
+    <section className="landing-board-section border-t-2 border-line bg-bg" id="board-members">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="landing-kicker text-muted">Uprava</p>
+            <h2 className="mt-2 text-3xl">Vodstvo kluba</h2>
+          </div>
+          <p className="landing-copy max-w-xl text-sm">
+            Ljudi koji vode organizaciju kluba, razvoj programa i svakodnevnu podršku sportašima.
+          </p>
+        </div>
+
+        <div className="landing-board-grid">
+          {boardMembers.map((boardMember) => (
+            <article className="landing-board-card" key={boardMember.id}>
+              <img src={boardMember.imageUrl} alt={boardMember.name} />
+              <div className="landing-board-card-copy">
+                <h3>{boardMember.name}</h3>
+                <p>{boardMember.position}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1029,7 +1137,12 @@ function ArticlePage() {
   const article = newsQuery.data?.items.find((item) => item.slug === slug) ?? null;
   const relatedArticles =
     newsQuery.data?.items.filter((item) => item.slug !== slug).slice(0, 2) ?? [];
-  const galleryImages = article?.imageUrls ?? [];
+  const galleryImages = article
+    ? [
+        ...(article.imageUrl ? [article.imageUrl] : []),
+        ...article.imageUrls,
+      ].filter((imageUrl, index, list) => list.indexOf(imageUrl) === index)
+    : [];
   const activeGalleryImage =
     activeGalleryIndex === null ? null : galleryImages[activeGalleryIndex] ?? null;
 

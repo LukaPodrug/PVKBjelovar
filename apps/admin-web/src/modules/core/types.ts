@@ -155,6 +155,26 @@ export interface CategoryRecord extends CategoryOption {
   }>;
 }
 
+export interface SponsorRecord {
+  id: string;
+  name: string;
+  logoUrl: string;
+  websiteUrl: string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BoardMemberRecord {
+  id: string;
+  name: string;
+  position: string;
+  imageUrl: string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ScheduleCoach {
   coachId: string;
   coach: {
