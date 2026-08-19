@@ -76,7 +76,7 @@ export function SponsorsPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       ensureSponsorFormIsValid(form, "create");
-      const response = await api.post<SponsorRecord>("/sponsors", buildSponsorFormData(form), {
+      const response = await api.post<SponsorRecord>("/sponsors", buildSponsorFormData(form, "create"), {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -109,7 +109,7 @@ export function SponsorsPage() {
       ensureSponsorFormIsValid(form, "edit");
       const response = await api.patch<SponsorRecord>(
         `/sponsors/${selectedSponsor.id}`,
-        buildSponsorFormData(form),
+        buildSponsorFormData(form, "edit"),
         {
           headers: {
             "Content-Type": "multipart/form-data",
@@ -320,7 +320,7 @@ export function SponsorsPage() {
           </div>
 
           <div className="grid content-start gap-5">
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className={`grid gap-5 ${selectedSponsor ? "md:grid-cols-2" : ""}`}>
               <label className="block">
                 <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                   Naziv
@@ -340,24 +340,26 @@ export function SponsorsPage() {
                 />
               </label>
 
-              <label className="block">
-                <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  Redoslijed
-                </span>
-                <input
-                  className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={form.displayOrder}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      displayOrder: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+              {selectedSponsor ? (
+                <label className="block">
+                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                    Redoslijed
+                  </span>
+                  <input
+                    className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={form.displayOrder}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        displayOrder: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ) : null}
             </div>
 
             <label className="block">
@@ -421,11 +423,14 @@ function createFormFromSponsor(sponsor: SponsorRecord): SponsorFormState {
   };
 }
 
-function buildSponsorFormData(form: SponsorFormState) {
+function buildSponsorFormData(form: SponsorFormState, mode: "create" | "edit") {
   const formData = new FormData();
   formData.append("name", form.name);
   formData.append("websiteUrl", form.websiteUrl);
-  formData.append("displayOrder", form.displayOrder || "0");
+
+  if (mode === "edit") {
+    formData.append("displayOrder", form.displayOrder || "0");
+  }
 
   if (form.logoFile) {
     formData.append("logo", form.logoFile);

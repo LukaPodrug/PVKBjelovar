@@ -79,7 +79,7 @@ export function BoardMembersPage() {
       ensureBoardMemberFormIsValid(form, "create");
       const response = await api.post<BoardMemberRecord>(
         "/board-members",
-        buildBoardMemberFormData(form),
+        buildBoardMemberFormData(form, "create"),
         {
           headers: {
             "Content-Type": "multipart/form-data",
@@ -114,7 +114,7 @@ export function BoardMembersPage() {
       ensureBoardMemberFormIsValid(form, "edit");
       const response = await api.patch<BoardMemberRecord>(
         `/board-members/${selectedBoardMember.id}`,
-        buildBoardMemberFormData(form),
+        buildBoardMemberFormData(form, "edit"),
         {
           headers: {
             "Content-Type": "multipart/form-data",
@@ -365,24 +365,26 @@ export function BoardMembersPage() {
               </label>
             </div>
 
-            <label className="block">
-              <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                Redoslijed
-              </span>
-              <input
-                className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                type="number"
-                min={0}
-                step={1}
-                value={form.displayOrder}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    displayOrder: event.target.value,
-                  }))
-                }
-              />
-            </label>
+            {selectedBoardMember ? (
+              <label className="block">
+                <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                  Redoslijed
+                </span>
+                <input
+                  className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={form.displayOrder}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      displayOrder: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
               <button
@@ -426,11 +428,14 @@ function createFormFromBoardMember(boardMember: BoardMemberRecord): BoardMemberF
   };
 }
 
-function buildBoardMemberFormData(form: BoardMemberFormState) {
+function buildBoardMemberFormData(form: BoardMemberFormState, mode: "create" | "edit") {
   const formData = new FormData();
   formData.append("name", form.name);
   formData.append("position", form.position);
-  formData.append("displayOrder", form.displayOrder || "0");
+
+  if (mode === "edit") {
+    formData.append("displayOrder", form.displayOrder || "0");
+  }
 
   if (form.imageFile) {
     formData.append("image", form.imageFile);
