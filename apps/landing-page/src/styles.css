@@ -1347,13 +1347,28 @@ textarea {
 }
 
 .landing-page .landing-board-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 220px));
+  display: flex;
   justify-content: center;
   gap: 1rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 0.15rem 0.1rem 0.7rem;
+  scroll-padding-inline: 0.1rem;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.landing-page .landing-board-grid.is-overflowing {
+  justify-content: flex-start;
+}
+
+.landing-page .landing-board-grid::-webkit-scrollbar {
+  display: none;
 }
 
 .landing-page .landing-board-card {
+  flex: 0 0 220px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -1398,19 +1413,69 @@ textarea {
   overflow: hidden;
 }
 
+.landing-page .landing-public-carousel {
+  position: relative;
+}
+
+.landing-page .landing-public-carousel-button {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(29, 79, 145, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.12);
+  color: var(--accent);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.landing-page .landing-public-carousel-button.is-left {
+  left: -0.35rem;
+}
+
+.landing-page .landing-public-carousel-button.is-right {
+  right: -0.35rem;
+}
+
+.landing-page .landing-public-carousel-button:hover,
+.landing-page .landing-public-carousel-button:focus-visible {
+  border-color: rgba(29, 79, 145, 0.34);
+  background: var(--surface);
+  outline: none;
+}
+
+.landing-page .landing-public-carousel-button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
 .landing-page .landing-sponsors-track {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 2.25rem;
   overflow-x: auto;
   padding: 0.4rem 0 1rem;
   scroll-padding-inline: 1rem;
   scroll-snap-type: x mandatory;
+  scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
 
+.landing-page .landing-sponsors-track.is-overflowing {
+  justify-content: flex-start;
+}
+
 .landing-page .landing-sponsors-track::-webkit-scrollbar {
-  height: 0;
+  display: none;
 }
 
 .landing-page .landing-sponsor-card {

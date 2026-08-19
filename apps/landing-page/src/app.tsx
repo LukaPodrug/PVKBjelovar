@@ -824,23 +824,128 @@ function LandingHeader({
   );
 }
 
+function useHorizontalCarouselControls(itemCount: number) {
+  const carouselRef = useRef<HTMLDivElement | null>(null);
+  const [carouselState, setCarouselState] = useState({
+    hasOverflow: false,
+    canScrollLeft: false,
+    canScrollRight: false,
+  });
+
+  const updateCarouselState = () => {
+    const carousel = carouselRef.current;
+
+    if (!carousel) {
+      setCarouselState({
+        hasOverflow: false,
+        canScrollLeft: false,
+        canScrollRight: false,
+      });
+      return;
+    }
+
+    const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+
+    setCarouselState({
+      hasOverflow: maxScrollLeft > 1,
+      canScrollLeft: carousel.scrollLeft > 1,
+      canScrollRight: carousel.scrollLeft < maxScrollLeft - 1,
+    });
+  };
+
+  const scrollCarousel = (direction: -1 | 1) => {
+    const carousel = carouselRef.current;
+
+    if (!carousel) {
+      return;
+    }
+
+    carousel.scrollBy({
+      left: direction * Math.max(240, carousel.clientWidth * 0.78),
+      behavior: "smooth",
+    });
+  };
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+
+    updateCarouselState();
+
+    if (!carousel) {
+      return;
+    }
+
+    const handleScroll = () => updateCarouselState();
+    const handleResize = () => updateCarouselState();
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(handleResize);
+
+    carousel.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleResize);
+    resizeObserver?.observe(carousel);
+
+    return () => {
+      carousel.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleResize);
+      resizeObserver?.disconnect();
+    };
+  }, [itemCount]);
+
+  return {
+    carouselRef,
+    carouselState,
+    scrollCarousel,
+  };
+}
+
 function SponsorsSection({ sponsors }: { sponsors: PublicSponsor[] }) {
+  const { carouselRef, carouselState, scrollCarousel } = useHorizontalCarouselControls(sponsors.length);
+
   return (
     <section className="landing-sponsors-section border-t-2 border-line bg-surface" id="sponsors">
       <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
-        <div className="landing-sponsors-track" aria-label="Sponzori kluba">
-          {sponsors.map((sponsor) => (
-            <a
-              className="landing-sponsor-card"
-              key={sponsor.id}
-              href={sponsor.websiteUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`${sponsor.name} web stranica`}
-            >
-              <img src={sponsor.logoUrl} alt={sponsor.name} />
-            </a>
-          ))}
+        <div className="landing-public-carousel">
+          <div
+            ref={carouselRef}
+            className={`landing-sponsors-track ${carouselState.hasOverflow ? "is-overflowing" : ""}`}
+            aria-label="Sponzori kluba"
+          >
+            {sponsors.map((sponsor) => (
+              <a
+                className="landing-sponsor-card"
+                key={sponsor.id}
+                href={sponsor.websiteUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`${sponsor.name} web stranica`}
+              >
+                <img src={sponsor.logoUrl} alt={sponsor.name} />
+              </a>
+            ))}
+          </div>
+
+          {carouselState.hasOverflow ? (
+            <>
+              <button
+                className="landing-public-carousel-button is-left"
+                type="button"
+                aria-label="Prethodni sponzori"
+                disabled={!carouselState.canScrollLeft}
+                onClick={() => scrollCarousel(-1)}
+              >
+                ‹
+              </button>
+              <button
+                className="landing-public-carousel-button is-right"
+                type="button"
+                aria-label="Sljedeći sponzori"
+                disabled={!carouselState.canScrollRight}
+                onClick={() => scrollCarousel(1)}
+              >
+                ›
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
     </section>
@@ -848,19 +953,52 @@ function SponsorsSection({ sponsors }: { sponsors: PublicSponsor[] }) {
 }
 
 function BoardMembersSection({ boardMembers }: { boardMembers: PublicBoardMember[] }) {
+  const { carouselRef, carouselState, scrollCarousel } = useHorizontalCarouselControls(
+    boardMembers.length,
+  );
+
   return (
     <section className="landing-board-section border-t-2 border-line bg-bg" id="board-members">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-        <div className="landing-board-grid">
-          {boardMembers.map((boardMember) => (
-            <article className="landing-board-card" key={boardMember.id}>
-              <img src={boardMember.imageUrl} alt={boardMember.name} />
-              <div className="landing-board-card-copy">
-                <h3>{boardMember.name}</h3>
-                <p>{boardMember.position}</p>
-              </div>
-            </article>
-          ))}
+        <div className="landing-public-carousel">
+          <div
+            ref={carouselRef}
+            className={`landing-board-grid ${carouselState.hasOverflow ? "is-overflowing" : ""}`}
+            aria-label="Članovi uprave"
+          >
+            {boardMembers.map((boardMember) => (
+              <article className="landing-board-card" key={boardMember.id}>
+                <img src={boardMember.imageUrl} alt={boardMember.name} />
+                <div className="landing-board-card-copy">
+                  <h3>{boardMember.name}</h3>
+                  <p>{boardMember.position}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {carouselState.hasOverflow ? (
+            <>
+              <button
+                className="landing-public-carousel-button is-left"
+                type="button"
+                aria-label="Prethodni članovi uprave"
+                disabled={!carouselState.canScrollLeft}
+                onClick={() => scrollCarousel(-1)}
+              >
+                ‹
+              </button>
+              <button
+                className="landing-public-carousel-button is-right"
+                type="button"
+                aria-label="Sljedeći članovi uprave"
+                disabled={!carouselState.canScrollRight}
+                onClick={() => scrollCarousel(1)}
+              >
+                ›
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
     </section>
