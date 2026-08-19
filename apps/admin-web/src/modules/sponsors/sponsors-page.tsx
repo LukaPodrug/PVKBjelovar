@@ -278,7 +278,7 @@ export function SponsorsPage() {
         title={selectedSponsor?.name ?? "Podaci za javnu stranicu"}
       >
         <form
-          className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]"
+          className="public-content-drawer-form"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
@@ -292,124 +292,126 @@ export function SponsorsPage() {
             createMutation.mutate();
           }}
         >
-          <div className="sponsor-logo-card">
-            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-              Logo
-            </p>
-            {activeLogoUrl ? (
-              <img
-                className="sponsor-logo-preview"
-                src={activeLogoUrl}
-                alt={form.name || "Pregled loga sponzora"}
-              />
-            ) : (
-              <div className="sponsor-logo-placeholder">Učitaj logo</div>
-            )}
-            <input
-              id="sponsor-logo-upload"
-              className="sponsor-logo-input"
-              type="file"
-              accept="image/*"
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                setForm((current) => ({
-                  ...current,
-                  logoFile: event.target.files?.[0] ?? null,
-                }));
-              }}
-            />
-            <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="sponsor-logo-upload">
-              {activeLogoUrl ? "Promijeni logo" : "Odaberi logo"}
-            </label>
-          </div>
-
-          <div className="grid content-start gap-5">
-            <div className={`grid gap-5 ${selectedSponsor ? "md:grid-cols-2" : ""}`}>
-              <label className="block">
-                <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  Naziv
-                </span>
-                <input
-                  className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                  type="text"
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="Naziv sponzora"
-                  required
+          <div className="public-content-drawer-body">
+            <div className="sponsor-logo-card">
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                Logo
+              </p>
+              {activeLogoUrl ? (
+                <img
+                  className="sponsor-logo-preview"
+                  src={activeLogoUrl}
+                  alt={form.name || "Pregled loga sponzora"}
                 />
+              ) : (
+                <div className="sponsor-logo-placeholder">Učitaj logo</div>
+              )}
+              <input
+                id="sponsor-logo-upload"
+                className="sponsor-logo-input"
+                type="file"
+                accept="image/*"
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  setForm((current) => ({
+                    ...current,
+                    logoFile: event.target.files?.[0] ?? null,
+                  }));
+                }}
+              />
+              <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="sponsor-logo-upload">
+                {activeLogoUrl ? "Promijeni logo" : "Odaberi logo"}
               </label>
+            </div>
 
-              {selectedSponsor ? (
+            <div className="grid content-start gap-5">
+              <div className={`grid gap-5 ${selectedSponsor ? "md:grid-cols-2" : ""}`}>
                 <label className="block">
                   <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                    Redoslijed
+                    Naziv
                   </span>
                   <input
                     className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={form.displayOrder}
+                    type="text"
+                    value={form.name}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        displayOrder: event.target.value,
+                        name: event.target.value,
                       }))
                     }
+                    placeholder="Naziv sponzora"
+                    required
                   />
                 </label>
-              ) : null}
+
+                {selectedSponsor ? (
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                      Redoslijed
+                    </span>
+                    <input
+                      className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={form.displayOrder}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          displayOrder: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                ) : null}
+              </div>
+
+              <label className="block">
+                <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                  Web stranica
+                </span>
+                <input
+                  className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                  type="url"
+                  value={form.websiteUrl}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      websiteUrl: event.target.value,
+                    }))
+                  }
+                  placeholder="https://sponzor.hr"
+                  required
+                />
+              </label>
             </div>
+          </div>
 
-            <label className="block">
-              <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                Web stranica
-              </span>
-              <input
-                className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                type="url"
-                value={form.websiteUrl}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    websiteUrl: event.target.value,
-                  }))
-                }
-                placeholder="https://sponzor.hr"
-                required
-              />
-            </label>
-
-            <div className="flex flex-wrap gap-2">
+          <div className="public-content-actions">
+            <button
+              className="ui-pill ui-pill-button ui-pill--accent"
+              type="submit"
+              disabled={isSaving}
+            >
+              {isSaving ? "Spremanje..." : selectedSponsor ? "Spremi promjene" : "Dodaj sponzora"}
+            </button>
+            {selectedSponsor ? (
               <button
-                className="ui-pill ui-pill-button ui-pill--accent"
-                type="submit"
-                disabled={isSaving}
-              >
-                {isSaving ? "Spremanje..." : selectedSponsor ? "Spremi promjene" : "Dodaj sponzora"}
-              </button>
-              {selectedSponsor ? (
-                <button
-                  className="ui-pill ui-pill-button ui-pill--signal"
-                  type="button"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => {
-                    if (!window.confirm(`Obrisati sponzora ${selectedSponsor.name}?`)) {
-                      return;
-                    }
+                className="ui-pill ui-pill-button ui-pill--signal"
+                type="button"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  if (!window.confirm(`Obrisati sponzora ${selectedSponsor.name}?`)) {
+                    return;
+                  }
 
-                    setFeedback(null);
-                    deleteMutation.mutate();
-                  }}
-                >
-                  {deleteMutation.isPending ? "Brisanje..." : "Obriši"}
-                </button>
-              ) : null}
-            </div>
+                  setFeedback(null);
+                  deleteMutation.mutate();
+                }}
+              >
+                {deleteMutation.isPending ? "Brisanje..." : "Obriši"}
+              </button>
+            ) : null}
           </div>
         </form>
       </EntityDrawer>

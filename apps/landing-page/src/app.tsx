@@ -904,7 +904,7 @@ function SponsorsSection({ sponsors }: { sponsors: PublicSponsor[] }) {
   return (
     <section className="landing-sponsors-section border-t-2 border-line bg-surface" id="sponsors">
       <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
-        <div className="landing-public-carousel">
+        <div className={`landing-public-carousel ${carouselState.hasOverflow ? "has-controls" : ""}`}>
           <div
             ref={carouselRef}
             className={`landing-sponsors-track ${carouselState.hasOverflow ? "is-overflowing" : ""}`}
@@ -960,7 +960,7 @@ function BoardMembersSection({ boardMembers }: { boardMembers: PublicBoardMember
   return (
     <section className="landing-board-section border-t-2 border-line bg-bg" id="board-members">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-        <div className="landing-public-carousel">
+        <div className={`landing-public-carousel ${carouselState.hasOverflow ? "has-controls" : ""}`}>
           <div
             ref={carouselRef}
             className={`landing-board-grid ${carouselState.hasOverflow ? "is-overflowing" : ""}`}
@@ -1237,6 +1237,14 @@ function ArticlePage() {
     queryKey: ["landing-news"],
     queryFn: fetchNewsFeed,
   });
+  const boardMembersQuery = useQuery({
+    queryKey: ["public-board-members"],
+    queryFn: fetchPublicBoardMembers,
+  });
+  const sponsorsQuery = useQuery({
+    queryKey: ["public-sponsors"],
+    queryFn: fetchPublicSponsors,
+  });
 
   const clubSettings = clubSettingsQuery.data;
   const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
@@ -1253,6 +1261,8 @@ function ArticlePage() {
     landingClubSettingsDefaults.contactPhone,
   );
   const article = newsQuery.data?.items.find((item) => item.slug === slug) ?? null;
+  const boardMembers = boardMembersQuery.data ?? [];
+  const sponsors = sponsorsQuery.data ?? [];
   const relatedArticles =
     newsQuery.data?.items.filter((item) => item.slug !== slug).slice(0, 2) ?? [];
   const galleryImages = article
@@ -1322,6 +1332,8 @@ function ArticlePage() {
         clubName={clubName}
         clubSubtitle={clubSubtitle}
         logoUrl={clubSettings?.logoUrl ?? null}
+        showBoardMembersLink={boardMembers.length > 0}
+        showSponsorsLink={sponsors.length > 0}
       />
 
       <main>

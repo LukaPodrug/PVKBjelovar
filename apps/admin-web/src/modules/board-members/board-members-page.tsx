@@ -283,7 +283,7 @@ export function BoardMembersPage() {
         title={selectedBoardMember?.name ?? "Podaci za javnu stranicu"}
       >
         <form
-          className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]"
+          className="public-content-drawer-form"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
@@ -297,124 +297,126 @@ export function BoardMembersPage() {
             createMutation.mutate();
           }}
         >
-          <div className="board-member-image-card">
-            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-              Slika
-            </p>
-            {activeImageUrl ? (
-              <img
-                className="board-member-image-preview"
-                src={activeImageUrl}
-                alt={form.name || "Pregled slike člana uprave"}
+          <div className="public-content-drawer-body">
+            <div className="board-member-image-card">
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                Slika
+              </p>
+              {activeImageUrl ? (
+                <img
+                  className="board-member-image-preview"
+                  src={activeImageUrl}
+                  alt={form.name || "Pregled slike člana uprave"}
+                />
+              ) : (
+                <div className="board-member-image-placeholder">Učitaj sliku</div>
+              )}
+              <input
+                id="board-member-image-upload"
+                className="board-member-image-input"
+                type="file"
+                accept="image/*"
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  setForm((current) => ({
+                    ...current,
+                    imageFile: event.target.files?.[0] ?? null,
+                  }));
+                }}
               />
-            ) : (
-              <div className="board-member-image-placeholder">Učitaj sliku</div>
-            )}
-            <input
-              id="board-member-image-upload"
-              className="board-member-image-input"
-              type="file"
-              accept="image/*"
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                setForm((current) => ({
-                  ...current,
-                  imageFile: event.target.files?.[0] ?? null,
-                }));
-              }}
-            />
-            <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="board-member-image-upload">
-              {activeImageUrl ? "Promijeni sliku" : "Odaberi sliku"}
-            </label>
-          </div>
-
-          <div className="grid content-start gap-5">
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  Ime i prezime
-                </span>
-                <input
-                  className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                  type="text"
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="Ime Prezime"
-                  required
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  Pozicija
-                </span>
-                <input
-                  className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                  type="text"
-                  value={form.position}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      position: event.target.value,
-                    }))
-                  }
-                  placeholder="Predsjednik, direktor..."
-                  required
-                />
+              <label className="ui-pill ui-pill-button ui-pill--accent" htmlFor="board-member-image-upload">
+                {activeImageUrl ? "Promijeni sliku" : "Odaberi sliku"}
               </label>
             </div>
 
-            {selectedBoardMember ? (
-              <label className="block">
-                <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  Redoslijed
-                </span>
-                <input
-                  className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={form.displayOrder}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      displayOrder: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-            ) : null}
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                className="ui-pill ui-pill-button ui-pill--accent"
-                type="submit"
-                disabled={isSaving}
-              >
-                {isSaving ? "Spremanje..." : selectedBoardMember ? "Spremi promjene" : "Dodaj člana"}
-              </button>
-              {selectedBoardMember ? (
-                <button
-                  className="ui-pill ui-pill-button ui-pill--signal"
-                  type="button"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => {
-                    if (!window.confirm(`Obrisati člana uprave ${selectedBoardMember.name}?`)) {
-                      return;
+            <div className="grid content-start gap-5">
+              <div className="grid gap-5 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                    Ime i prezime
+                  </span>
+                  <input
+                    className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                    type="text"
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
                     }
+                    placeholder="Ime Prezime"
+                    required
+                  />
+                </label>
 
-                    setFeedback(null);
-                    deleteMutation.mutate();
-                  }}
-                >
-                  {deleteMutation.isPending ? "Brisanje..." : "Obriši"}
-                </button>
+                <label className="block">
+                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                    Pozicija
+                  </span>
+                  <input
+                    className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                    type="text"
+                    value={form.position}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        position: event.target.value,
+                      }))
+                    }
+                    placeholder="Predsjednik, direktor..."
+                    required
+                  />
+                </label>
+              </div>
+
+              {selectedBoardMember ? (
+                <label className="block">
+                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                    Redoslijed
+                  </span>
+                  <input
+                    className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={form.displayOrder}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        displayOrder: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
               ) : null}
             </div>
+          </div>
+
+          <div className="public-content-actions">
+            <button
+              className="ui-pill ui-pill-button ui-pill--accent"
+              type="submit"
+              disabled={isSaving}
+            >
+              {isSaving ? "Spremanje..." : selectedBoardMember ? "Spremi promjene" : "Dodaj člana"}
+            </button>
+            {selectedBoardMember ? (
+              <button
+                className="ui-pill ui-pill-button ui-pill--signal"
+                type="button"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  if (!window.confirm(`Obrisati člana uprave ${selectedBoardMember.name}?`)) {
+                    return;
+                  }
+
+                  setFeedback(null);
+                  deleteMutation.mutate();
+                }}
+              >
+                {deleteMutation.isPending ? "Brisanje..." : "Obriši"}
+              </button>
+            ) : null}
           </div>
         </form>
       </EntityDrawer>

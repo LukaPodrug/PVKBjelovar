@@ -1417,6 +1417,10 @@ textarea {
   position: relative;
 }
 
+.landing-page .landing-public-carousel.has-controls {
+  padding-inline: 3.25rem;
+}
+
 .landing-page .landing-public-carousel-button {
   position: absolute;
   top: 50%;
@@ -1438,11 +1442,11 @@ textarea {
 }
 
 .landing-page .landing-public-carousel-button.is-left {
-  left: -0.35rem;
+  left: 0;
 }
 
 .landing-page .landing-public-carousel-button.is-right {
-  right: -0.35rem;
+  right: 0;
 }
 
 .landing-page .landing-public-carousel-button:hover,
@@ -1514,6 +1518,12 @@ textarea {
 .landing-page .landing-sponsor-card:focus-visible img {
   filter: grayscale(0) saturate(1) opacity(1);
   transform: scale(1.04);
+}
+
+@media (max-width: 640px) {
+  .landing-page .landing-public-carousel.has-controls {
+    padding-inline: 2.75rem;
+  }
 }
 
 .landing-page .landing-footer-grid {
