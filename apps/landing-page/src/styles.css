@@ -966,45 +966,6 @@ textarea {
   scroll-snap-align: start;
 }
 
-.landing-page .landing-category-carousel-controls {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.65rem;
-}
-
-.landing-page .landing-category-carousel-button {
-  display: inline-grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  padding: 0;
-  border: 1px solid rgba(29, 79, 145, 0.16);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--accent);
-  font-size: 1rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.landing-page .landing-category-carousel-button:hover,
-.landing-page .landing-category-carousel-button:focus-visible {
-  border-color: rgba(29, 79, 145, 0.34);
-  background: var(--surface);
-  box-shadow: var(--shadow-soft);
-  outline: none;
-  transform: translateY(-2px);
-}
-
-.landing-page .landing-category-carousel-button:disabled {
-  border-color: rgba(215, 224, 234, 0.72);
-  background: rgba(238, 243, 248, 0.72);
-  color: rgba(100, 116, 139, 0.46);
-  box-shadow: none;
-  cursor: not-allowed;
-  transform: none;
-}
-
 .landing-page .landing-category-showcase {
   display: flex;
   flex-direction: column;

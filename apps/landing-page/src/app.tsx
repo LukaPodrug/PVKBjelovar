@@ -73,11 +73,6 @@ function LandingHomePage() {
   const [signupForm, setSignupForm] = useState<SignupFormState>(emptySignupForm);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [visibleNewsCount, setVisibleNewsCount] = useState(initialVisibleNewsCount);
-  const categoryCarouselRef = useRef<HTMLDivElement | null>(null);
-  const [categoryCarouselState, setCategoryCarouselState] = useState({
-    canScrollLeft: false,
-    canScrollRight: false,
-  });
   const [signupFeedback, setSignupFeedback] = useState<{
     tone: "success" | "error";
     message: string;
@@ -168,6 +163,11 @@ function LandingHomePage() {
   const categories = categoriesQuery.data ?? [];
   const boardMembers = boardMembersQuery.data ?? [];
   const sponsors = sponsorsQuery.data ?? [];
+  const {
+    carouselRef: categoryCarouselRef,
+    carouselState: categoryCarouselState,
+    scrollCarousel: scrollCategories,
+  } = useHorizontalCarouselControls(categories.length);
   const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
   const clubSubtitle = resolveSettingValue(
     clubSettings?.clubSubtitle,
@@ -196,59 +196,6 @@ function LandingHomePage() {
   useEffect(() => {
     setVisibleNewsCount(initialVisibleNewsCount);
   }, [newsItems.length]);
-
-  const updateCategoryCarouselState = () => {
-    const carousel = categoryCarouselRef.current;
-
-    if (!carousel) {
-      setCategoryCarouselState({
-        canScrollLeft: false,
-        canScrollRight: false,
-      });
-      return;
-    }
-
-    const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth;
-
-    setCategoryCarouselState({
-      canScrollLeft: carousel.scrollLeft > 1,
-      canScrollRight: carousel.scrollLeft < maxScrollLeft - 1,
-    });
-  };
-
-  const scrollCategories = (direction: -1 | 1) => {
-    const carousel = categoryCarouselRef.current;
-
-    if (!carousel) {
-      return;
-    }
-
-    carousel.scrollBy({
-      left: direction * Math.max(280, carousel.clientWidth * 0.82),
-      behavior: "smooth",
-    });
-  };
-
-  useEffect(() => {
-    const carousel = categoryCarouselRef.current;
-
-    updateCategoryCarouselState();
-
-    if (!carousel) {
-      return;
-    }
-
-    const handleScroll = () => updateCategoryCarouselState();
-    const handleResize = () => updateCategoryCarouselState();
-
-    carousel.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      carousel.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [categories.length]);
 
   useEffect(() => {
     if (!selectedCategoryId) {
@@ -355,7 +302,7 @@ function LandingHomePage() {
                 </p>
               </div>
             ) : (
-              <div className="landing-category-carousel">
+              <div className={`landing-category-carousel landing-public-carousel ${categoryCarouselState.hasOverflow ? "has-controls" : ""}`}>
                 <div
                   ref={categoryCarouselRef}
                   className="landing-category-carousel-track"
@@ -371,27 +318,27 @@ function LandingHomePage() {
                   ))}
                 </div>
 
-                {categories.length > 1 ? (
-                  <div className="landing-category-carousel-controls" aria-label="Navigacija kategorija">
+                {categoryCarouselState.hasOverflow ? (
+                  <>
                     <button
-                      className="landing-category-carousel-button"
+                      className="landing-public-carousel-button is-left"
                       type="button"
-                      onClick={() => scrollCategories(-1)}
                       aria-label="Prethodne kategorije"
                       disabled={!categoryCarouselState.canScrollLeft}
+                      onClick={() => scrollCategories(-1)}
                     >
-                      ←
+                      ‹
                     </button>
                     <button
-                      className="landing-category-carousel-button"
+                      className="landing-public-carousel-button is-right"
                       type="button"
-                      onClick={() => scrollCategories(1)}
                       aria-label="Sljedeće kategorije"
                       disabled={!categoryCarouselState.canScrollRight}
+                      onClick={() => scrollCategories(1)}
                     >
-                      →
+                      ›
                     </button>
-                  </div>
+                  </>
                 ) : null}
               </div>
             )}
