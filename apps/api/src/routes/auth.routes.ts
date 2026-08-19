@@ -191,3 +191,17 @@ authRouter.patch(
     });
   }),
 );
+
+authRouter.delete(
+  "/profile",
+  authenticateRequest,
+  asyncHandler(async (request, response) => {
+    await prisma.user.delete({
+      where: {
+        id: request.auth!.userId,
+      },
+    });
+
+    response.status(204).send();
+  }),
+);

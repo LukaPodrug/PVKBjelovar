@@ -1084,6 +1084,7 @@ function StaffAttendanceScreen({
               successMessage={successMessage}
               onUserUpdate={onUserUpdate}
               onToast={onToast}
+              onAccountDeleted={onLogout}
             />
           </TabScrollView>
         )}
@@ -1198,12 +1199,14 @@ function CompactHeader({
   name,
   imageUrl,
   subtitle,
+  actions,
   onLogout,
 }: {
   badge: string;
   name: string;
   imageUrl?: string | null;
   subtitle?: string;
+  actions?: ReactNode;
   onLogout: () => void;
 }) {
   return (
@@ -1219,14 +1222,17 @@ function CompactHeader({
         <Text style={styles.tabHeaderName} numberOfLines={1}>{name}</Text>
         {subtitle ? <Text style={styles.tabHeaderSub} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Odjava"
-        style={styles.headerLogoutButton}
-        onPress={onLogout}
-      >
-        <Ionicons name="log-out-outline" size={21} color="#123d75" />
-      </Pressable>
+      <View style={styles.headerActionRow}>
+        {actions}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Odjava"
+          style={styles.headerLogoutButton}
+          onPress={onLogout}
+        >
+          <Ionicons name="log-out-outline" size={21} color="#123d75" />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -1528,17 +1534,21 @@ function AccountProfilePanel({
   successMessage,
   onUserUpdate,
   onToast,
+  onAccountDeleted,
 }: {
   apiBaseUrl: string;
   session: AuthResponse;
   successMessage: string | null;
   onUserUpdate: (user: AuthUser) => void;
   onToast: (toast: ToastMessage) => void;
+  onAccountDeleted: () => void;
 }) {
   const [username, setUsername] = useState(session.user.username ?? "");
   const [passwordForm, setPasswordForm] = useState<ChangePasswordFormState>(emptyPasswordForm);
   const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
     setUsername(session.user.username ?? "");
@@ -1585,6 +1595,27 @@ function AccountProfilePanel({
       });
     } finally {
       setIsChangingPassword(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setIsDeletingAccount(true);
+
+    try {
+      await requestJson<null>(apiBaseUrl, "/auth/profile", {
+        method: "DELETE",
+        token: session.token,
+      });
+      setIsDeleteAccountModalOpen(false);
+      onToast({ tone: "success", message: "Račun je obrisan." });
+      onAccountDeleted();
+    } catch (error) {
+      onToast({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Račun nije moguće obrisati.",
+      });
+    } finally {
+      setIsDeletingAccount(false);
     }
   }
 
@@ -1695,6 +1726,63 @@ function AccountProfilePanel({
           )}
         </Pressable>
       </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionEyebrow}>Račun</Text>
+        <Text style={styles.sectionTitle}>Brisanje računa</Text>
+        <Text style={styles.sectionCopy}>
+          Brisanjem računa uklanja se vaš pristup aplikaciji i povezani profil iz klupskog sustava.
+        </Text>
+
+        <Pressable
+          style={styles.dangerButton}
+          onPress={() => setIsDeleteAccountModalOpen(true)}
+        >
+          <Text style={styles.dangerButtonText}>Obriši račun</Text>
+        </Pressable>
+      </View>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={isDeleteAccountModalOpen}
+        onRequestClose={() => setIsDeleteAccountModalOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderCopy}>
+                <Text style={styles.sectionEyebrow}>Brisanje računa</Text>
+                <Text style={styles.modalTitle}>Jeste li sigurni?</Text>
+                <Text style={styles.modalSubtitle}>
+                  Ova radnja odmah briše vaš račun i više se nećete moći prijaviti.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modalActionStack}>
+              <Pressable
+                disabled={isDeletingAccount}
+                style={[styles.dangerButton, isDeletingAccount && styles.buttonDisabled]}
+                onPress={handleDeleteAccount}
+              >
+                {isDeletingAccount ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.dangerButtonText}>Da, obriši račun</Text>
+                )}
+              </Pressable>
+              <Pressable
+                disabled={isDeletingAccount}
+                style={[styles.secondaryButton, styles.modalActionButton]}
+                onPress={() => setIsDeleteAccountModalOpen(false)}
+              >
+                <Text style={styles.secondaryButtonText}>Odustani</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -2112,6 +2200,7 @@ function PlayerAttendanceScreen({
               successMessage={successMessage}
               onUserUpdate={onUserUpdate}
               onToast={onToast}
+              onAccountDeleted={onLogout}
             />
           </TabScrollView>
         )}
@@ -2145,6 +2234,7 @@ function ParentDashboardScreen({
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -2225,7 +2315,6 @@ function ParentDashboardScreen({
   const parentTabs: TabItem[] = [
     { key: "overview", label: "Pregled", icon: "home-outline" },
     { key: "schedule", label: "Raspored", icon: "calendar-outline" },
-    { key: "payments", label: "Uplate", icon: "qr-code-outline" },
     { key: "leaderboard", label: "Poredak", icon: "trophy-outline" },
     { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
     { key: "profile", label: "Profil", icon: "person-circle-outline" },
@@ -2289,6 +2378,17 @@ function ParentDashboardScreen({
         badge={headline.badge}
         name={`${session.user.firstName} ${session.user.lastName}`}
         imageUrl={session.user.profileImageUrl}
+        actions={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Uplate"
+            style={styles.headerPaymentButton}
+            onPress={() => setIsPaymentModalOpen(true)}
+          >
+            <Ionicons name="qr-code-outline" size={18} color="#ffffff" />
+            <Text style={styles.headerPaymentButtonText}>Uplate</Text>
+          </Pressable>
+        }
         onLogout={handleLogout}
       />
 
@@ -2334,16 +2434,6 @@ function ParentDashboardScreen({
                   endpoint={`/me/children/${child.playerId}/schedule`}
                 />
               ))
-            ) : activeTab === "payments" ? (
-              <TabScrollView>
-                {childrenError ? <MessageBanner tone="error" message={childrenError} /> : null}
-                <ParentPaymentQrPanel
-                  apiBaseUrl={apiBaseUrl}
-                  token={session.token}
-                  children={children}
-                  initialChildId={selectedChild?.playerId ?? selectedChildId}
-                />
-              </TabScrollView>
             ) : activeTab === "leaderboard" ? (
               renderChildScopedTab((child) => (
                 <TabScrollView>
@@ -2366,6 +2456,7 @@ function ParentDashboardScreen({
                   successMessage={successMessage}
                   onUserUpdate={onUserUpdate}
                   onToast={onToast}
+                  onAccountDeleted={onLogout}
                 />
               </TabScrollView>
             )}
@@ -2374,6 +2465,38 @@ function ParentDashboardScreen({
           <TabBar items={parentTabs} activeKey={activeTab} onSelect={setActiveTab} />
         </>
       )}
+
+      <Modal
+        animationType="slide"
+        visible={isPaymentModalOpen}
+        onRequestClose={() => setIsPaymentModalOpen(false)}
+      >
+        <SafeAreaView style={styles.paymentModalShell}>
+          <View style={styles.paymentModalHeader}>
+            <View style={styles.paymentModalTitleWrap}>
+              <Text style={styles.sectionEyebrow}>Uplate</Text>
+              <Text style={styles.paymentModalTitle}>QR nalog za banku</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Zatvori uplate"
+              style={styles.modalCloseButton}
+              onPress={() => setIsPaymentModalOpen(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Zatvori</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.paymentModalContent}>
+            {childrenError ? <MessageBanner tone="error" message={childrenError} /> : null}
+            <ParentPaymentQrPanel
+              apiBaseUrl={apiBaseUrl}
+              token={session.token}
+              children={children}
+              initialChildId={selectedChild?.playerId ?? selectedChildId}
+            />
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -3739,6 +3862,26 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  headerActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerPaymentButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 999,
+    backgroundColor: "#123d75",
+    paddingHorizontal: 13,
+  },
+  headerPaymentButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
   headerLogoutButton: {
     width: 42,
     height: 42,
@@ -4094,6 +4237,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+  dangerButton: {
+    marginTop: 20,
+    minHeight: 52,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#b4232a",
+  },
+  dangerButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800",
+  },
   quickLoginPanel: {
     marginTop: 20,
     borderTopWidth: 1,
@@ -4371,6 +4527,9 @@ const styles = StyleSheet.create({
   modalActionButton: {
     marginTop: 12,
   },
+  modalActionStack: {
+    marginTop: 20,
+  },
   practiceTypePill: {
     borderRadius: 999,
     paddingHorizontal: 12,
@@ -4422,6 +4581,39 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     lineHeight: 30,
+  },
+  paymentModalShell: {
+    flex: 1,
+    backgroundColor: "#f3f7fb",
+  },
+  paymentModalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#d6e0eb",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "ios" ? 14 : 18,
+    paddingBottom: 16,
+  },
+  paymentModalTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  paymentModalTitle: {
+    marginTop: 6,
+    color: "#102347",
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: "800",
+  },
+  paymentModalContent: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 28,
+    gap: 16,
   },
   calendarMonthBar: {
     marginTop: 18,
