@@ -427,9 +427,7 @@ async function canPlayerSkipParentWithEmail(email: string | null, categoryIds: s
     throw new AppError("Jedna ili više odabranih kategorija nije pronađena.", 404);
   }
 
-  return categories.every(
-    (category) => category.endDateOfBirth === null || category.startDateOfBirth !== null,
-  );
+  return categories.every((category) => category.startDateOfBirth === null);
 }
 
 playersRouter.delete(

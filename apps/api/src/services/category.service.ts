@@ -3,9 +3,7 @@ import { prisma } from "../lib/prisma";
 
 export async function suggestCategoryIdForDateOfBirth(dateOfBirth: Date): Promise<string | null> {
   const categories = await prisma.category.findMany({
-    orderBy: {
-      endDateOfBirth: "asc",
-    },
+    orderBy: [{ startDateOfBirth: "desc" }, { endDateOfBirth: "asc" }],
     select: {
       id: true,
       startDateOfBirth: true,
@@ -17,20 +15,16 @@ export async function suggestCategoryIdForDateOfBirth(dateOfBirth: Date): Promis
     return null;
   }
 
-  const exactMatch = categories.find((category) => {
-    if (category.startDateOfBirth) {
-      return dateOfBirth >= category.startDateOfBirth;
-    }
-
-    if (category.endDateOfBirth) {
-      return dateOfBirth <= category.endDateOfBirth;
-    }
-
-    return false;
-  });
+  const youthMatch = categories.find(
+    (category) => category.startDateOfBirth && dateOfBirth >= category.startDateOfBirth,
+  );
+  const veteranMatch = categories.find(
+    (category) => category.endDateOfBirth && dateOfBirth <= category.endDateOfBirth,
+  );
 
   return (
-    exactMatch?.id ??
+    youthMatch?.id ??
+    veteranMatch?.id ??
     categories.find((category) => !category.startDateOfBirth && !category.endDateOfBirth)?.id ??
     null
   );

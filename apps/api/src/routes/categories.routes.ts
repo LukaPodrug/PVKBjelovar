@@ -1,4 +1,4 @@
-import { UserRole } from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
@@ -62,6 +62,11 @@ const categoryPlayerInclude = {
 
 const defaultPublicCategoryPlayersLimit = 24;
 const maxPublicCategoryPlayersLimit = 48;
+const categoryOrderBy: Prisma.CategoryOrderByWithRelationInput[] = [
+  { startDateOfBirth: "desc" },
+  { endDateOfBirth: "asc" },
+  { name: "asc" },
+];
 
 export const categoriesRouter = Router();
 
@@ -69,7 +74,7 @@ categoriesRouter.get(
   "/public",
   asyncHandler(async (_request, response) => {
     const categories = await prisma.category.findMany({
-      orderBy: [{ endDateOfBirth: "asc" }, { name: "asc" }],
+      orderBy: categoryOrderBy,
     });
 
     response.json(categories);
@@ -193,9 +198,7 @@ categoriesRouter.get(
     const [categories, total] = await Promise.all([
       prisma.category.findMany({
         include: categoryInclude,
-        orderBy: {
-          endDateOfBirth: "asc",
-        },
+        orderBy: categoryOrderBy,
         skip: pagination.skip,
         take: pagination.take,
       }),
@@ -219,9 +222,7 @@ categoriesRouter.get(
         requestedCategoryIds.length > 0
           ? { id: { in: requestedCategoryIds } }
           : undefined,
-      orderBy: {
-        endDateOfBirth: "asc",
-      },
+      orderBy: categoryOrderBy,
       select: { id: true, name: true },
     });
 
@@ -273,18 +274,14 @@ categoriesRouter.post(
   asyncHandler(async (_request, response) => {
     const result = await prisma.$transaction(async (transaction) => {
       const categories = await transaction.category.findMany({
-        orderBy: {
-          endDateOfBirth: "asc",
-        },
+        orderBy: [{ startDateOfBirth: "desc" }, { endDateOfBirth: "asc" }],
         select: {
           id: true,
           endDateOfBirth: true,
           startDateOfBirth: true,
         },
         where: {
-          endDateOfBirth: {
-            not: null,
-          },
+          OR: [{ startDateOfBirth: { not: null } }, { endDateOfBirth: { not: null } }],
         },
       });
 
@@ -297,12 +294,16 @@ categoriesRouter.post(
           transaction.category.update({
             where: { id: category.id },
             data: {
+              startDateOfBirth: category.startDateOfBirth
+                ? addYears(category.startDateOfBirth, 1)
+                : null,
               endDateOfBirth: category.endDateOfBirth
                 ? addYears(category.endDateOfBirth, 1)
                 : null,
             },
             select: {
               id: true,
+              startDateOfBirth: true,
               endDateOfBirth: true,
             },
           }),
@@ -316,17 +317,11 @@ categoriesRouter.post(
         },
       });
 
-      const orderedUpdatedCategories = [...updatedCategories].sort(
-        (left, right) =>
-          (left.endDateOfBirth?.getTime() ?? Number.POSITIVE_INFINITY) -
-          (right.endDateOfBirth?.getTime() ?? Number.POSITIVE_INFINITY),
-      );
-
       const playerAssignments = players
         .map((player) => {
           const categoryId = findCategoryIdForDateOfBirth(
             player.dateOfBirth,
-            orderedUpdatedCategories,
+            updatedCategories,
           );
 
           return categoryId
@@ -441,13 +436,28 @@ function addYears(date: Date, amount: number) {
 
 function findCategoryIdForDateOfBirth(
   dateOfBirth: Date,
-  categories: Array<{ id: string; endDateOfBirth: Date | null }>,
+  categories: Array<{
+    id: string;
+    startDateOfBirth: Date | null;
+    endDateOfBirth: Date | null;
+  }>,
 ) {
-  const exactMatch = categories.find(
-    (category) => category.endDateOfBirth && dateOfBirth <= category.endDateOfBirth,
-  );
+  const youthMatch = [...categories]
+    .sort(
+      (left, right) =>
+        (right.startDateOfBirth?.getTime() ?? Number.NEGATIVE_INFINITY) -
+        (left.startDateOfBirth?.getTime() ?? Number.NEGATIVE_INFINITY),
+    )
+    .find((category) => category.startDateOfBirth && dateOfBirth >= category.startDateOfBirth);
+  const veteranMatch = [...categories]
+    .sort(
+      (left, right) =>
+        (left.endDateOfBirth?.getTime() ?? Number.POSITIVE_INFINITY) -
+        (right.endDateOfBirth?.getTime() ?? Number.POSITIVE_INFINITY),
+    )
+    .find((category) => category.endDateOfBirth && dateOfBirth <= category.endDateOfBirth);
 
-  return exactMatch?.id ?? categories[categories.length - 1]?.id ?? null;
+  return youthMatch?.id ?? veteranMatch?.id ?? categories[categories.length - 1]?.id ?? null;
 }
 
 function compareUsers(

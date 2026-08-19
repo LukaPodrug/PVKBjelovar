@@ -613,14 +613,22 @@ export function CategoriesPage() {
                       className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
                       value={form.ageRule}
                       onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          ageRule: event.target.value as CategoryFormState["ageRule"],
-                          startDateOfBirth:
-                            event.target.value === "VETERAN" ? current.startDateOfBirth : "",
-                          endDateOfBirth:
-                            event.target.value === "YOUTH" ? current.endDateOfBirth : "",
-                        }))
+                        setForm((current) => {
+                          const ageRule = event.target.value as CategoryFormState["ageRule"];
+
+                          return {
+                            ...current,
+                            ageRule,
+                            startDateOfBirth:
+                              ageRule === "YOUTH"
+                                ? getYearBoundaryDate(current.startDateOfBirth || current.endDateOfBirth, "start")
+                                : "",
+                            endDateOfBirth:
+                              ageRule === "VETERAN"
+                                ? getYearBoundaryDate(current.endDateOfBirth || current.startDateOfBirth, "end")
+                                : "",
+                          };
+                        })
                       }
                     >
                       <option value="YOUTH">Mlađa kategorija</option>
@@ -632,17 +640,18 @@ export function CategoriesPage() {
                   {form.ageRule === "YOUTH" ? (
                     <label className="block">
                       <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Godište do
+                        Godište od
                       </span>
                       <DatePicker
                         className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        value={form.endDateOfBirth}
+                        value={form.startDateOfBirth}
                         onChange={(value) =>
                           setForm((current) => ({
                             ...current,
-                            endDateOfBirth: value,
+                            startDateOfBirth: getYearBoundaryDate(value, "start"),
                           }))
                         }
+                        placeholder="01.01.gggg."
                         required
                       />
                     </label>
@@ -651,17 +660,18 @@ export function CategoriesPage() {
                   {form.ageRule === "VETERAN" ? (
                     <label className="block">
                       <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Godište od
+                        Godište do
                       </span>
                       <DatePicker
                         className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                        value={form.startDateOfBirth}
+                        value={form.endDateOfBirth}
                         onChange={(value) =>
                           setForm((current) => ({
                             ...current,
-                            startDateOfBirth: value,
+                            endDateOfBirth: getYearBoundaryDate(value, "end"),
                           }))
                         }
+                        placeholder="31.12.gggg."
                         required
                       />
                     </label>
@@ -1216,7 +1226,7 @@ export function CategoriesPage() {
 function createFormFromCategory(category: CategoryRecord): CategoryFormState {
   return {
     name: category.name,
-    ageRule: category.startDateOfBirth ? "VETERAN" : category.endDateOfBirth ? "YOUTH" : "SENIOR",
+    ageRule: category.startDateOfBirth ? "YOUTH" : category.endDateOfBirth ? "VETERAN" : "SENIOR",
     startDateOfBirth: category.startDateOfBirth ? toDateInputValue(category.startDateOfBirth) : "",
     endDateOfBirth: category.endDateOfBirth ? toDateInputValue(category.endDateOfBirth) : "",
     coachIds: category.coaches.map((assignment) => assignment.coachId),
@@ -1225,11 +1235,21 @@ function createFormFromCategory(category: CategoryRecord): CategoryFormState {
   };
 }
 
+function getYearBoundaryDate(value: string, boundary: "start" | "end") {
+  const match = /^(\d{4})-\d{2}-\d{2}$/.exec(value);
+
+  if (!match) {
+    return "";
+  }
+
+  return boundary === "start" ? `${match[1]}-01-01` : `${match[1]}-12-31`;
+}
+
 function buildCategoryFormData(form: CategoryFormState) {
   const formData = new FormData();
   formData.append("name", form.name);
-  formData.append("startDateOfBirth", form.ageRule === "VETERAN" ? form.startDateOfBirth : "");
-  formData.append("endDateOfBirth", form.ageRule === "YOUTH" ? form.endDateOfBirth : "");
+  formData.append("startDateOfBirth", form.ageRule === "YOUTH" ? form.startDateOfBirth : "");
+  formData.append("endDateOfBirth", form.ageRule === "VETERAN" ? form.endDateOfBirth : "");
   formData.append("coachIds", JSON.stringify(form.coachIds));
 
   if (form.logoFile) {
@@ -1246,12 +1266,12 @@ function ensureCategoryFormIsValid(form: CategoryFormState) {
     throw new Error("Naziv kategorije je obavezan.");
   }
 
-  if (form.ageRule === "YOUTH" && !form.endDateOfBirth) {
-    throw new Error("Odaberite završno godište za mlađu kategoriju.");
+  if (form.ageRule === "YOUTH" && !form.startDateOfBirth) {
+    throw new Error("Odaberite početno godište za mlađu kategoriju.");
   }
 
-  if (form.ageRule === "VETERAN" && !form.startDateOfBirth) {
-    throw new Error("Odaberite početno godište za veteransku kategoriju.");
+  if (form.ageRule === "VETERAN" && !form.endDateOfBirth) {
+    throw new Error("Odaberite završno godište za veteransku kategoriju.");
   }
 }
 

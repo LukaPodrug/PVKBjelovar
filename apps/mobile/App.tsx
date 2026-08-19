@@ -763,7 +763,7 @@ function StaffAttendanceScreen({
                 }),
           );
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
           const publicCategories = await requestJson<MeCategory[]>(apiBaseUrl, "/categories/public", {
             method: "GET",
@@ -927,7 +927,7 @@ function StaffAttendanceScreen({
         badge={headline.badge}
         name={`${session.user.firstName} ${session.user.lastName}`}
         imageUrl={session.user.profileImageUrl}
-        subtitle={headline.title}
+        subtitle={session.user.role === "ADMIN" ? undefined : headline.title}
         onLogout={handleLogout}
       />
 
@@ -2235,6 +2235,8 @@ function ParentDashboardScreen({
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentSettings, setPaymentSettings] = useState<ClubSettingsResponse | null>(null);
+  const [isLoadingPaymentSettings, setIsLoadingPaymentSettings] = useState(true);
 
   useEffect(() => {
     let isActive = true;
@@ -2310,7 +2312,45 @@ function ParentDashboardScreen({
     };
   }, [apiBaseUrl, session.token]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPaymentSettings() {
+      setIsLoadingPaymentSettings(true);
+
+      try {
+        const payload = await requestJson<ClubSettingsResponse>(apiBaseUrl, "/club-settings", {
+          method: "GET",
+          token: session.token,
+        });
+
+        if (isMounted) {
+          setPaymentSettings(payload);
+        }
+      } catch {
+        if (isMounted) {
+          setPaymentSettings(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingPaymentSettings(false);
+        }
+      }
+    }
+
+    void loadPaymentSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [apiBaseUrl, session.token]);
+
   const selectedChild = children.find((child) => child.playerId === selectedChildId) ?? null;
+  const canOpenPayments =
+    !isLoadingChildren &&
+    !isLoadingPaymentSettings &&
+    children.length > 0 &&
+    hasClubPaymentSettings(paymentSettings);
 
   const parentTabs: TabItem[] = [
     { key: "overview", label: "Pregled", icon: "home-outline" },
@@ -2341,6 +2381,10 @@ function ParentDashboardScreen({
     }
 
     if (!selectedChild) {
+      if (children.length > 1) {
+        return childPickerView;
+      }
+
       return <TabScrollView>{noChildrenNotice}</TabScrollView>;
     }
 
@@ -2360,16 +2404,14 @@ function ParentDashboardScreen({
   );
 
   const childPickerView = (
-    <View style={styles.tabBody}>
-      <ParentChildPicker
-        children={children}
-        errorMessage={childrenError}
-        onSelectChild={(childId) => {
-          setSelectedChildId(childId);
-          setActiveTab("overview");
-        }}
-      />
-    </View>
+    <ParentChildPicker
+      children={children}
+      errorMessage={childrenError}
+      onSelectChild={(childId) => {
+        setSelectedChildId(childId);
+        setActiveTab("overview");
+      }}
+    />
   );
 
   return (
@@ -2382,8 +2424,14 @@ function ParentDashboardScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Uplate"
-            style={styles.headerPaymentButton}
-            onPress={() => setIsPaymentModalOpen(true)}
+            accessibilityState={{ disabled: !canOpenPayments }}
+            disabled={!canOpenPayments}
+            style={[styles.headerPaymentButton, !canOpenPayments && styles.headerPaymentButtonDisabled]}
+            onPress={() => {
+              if (canOpenPayments) {
+                setIsPaymentModalOpen(true);
+              }
+            }}
           >
             <Ionicons name="qr-code-outline" size={18} color="#ffffff" />
             <Text style={styles.headerPaymentButtonText}>Uplate</Text>
@@ -2394,8 +2442,6 @@ function ParentDashboardScreen({
 
       {isLoadingChildren ? (
         loadingChildrenView
-      ) : children.length > 1 && !selectedChild ? (
-        childPickerView
       ) : (
         <>
           {children.length > 1 && selectedChild ? (
@@ -2568,7 +2614,6 @@ function ParentPaymentQrPanel({
 }) {
   const [settings, setSettings] = useState<ClubSettingsResponse | null>(null);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [selectedPaymentChildId, setSelectedPaymentChildId] = useState<string | null>(
     initialChildId ?? children[0]?.playerId ?? null,
   );
@@ -2594,7 +2639,6 @@ function ParentPaymentQrPanel({
 
     async function loadSettings() {
       setIsLoadingSettings(true);
-      setSettingsError(null);
 
       try {
         const payload = await requestJson<ClubSettingsResponse>(apiBaseUrl, "/club-settings", {
@@ -2607,9 +2651,7 @@ function ParentPaymentQrPanel({
         }
       } catch (error) {
         if (isMounted) {
-          setSettingsError(
-            error instanceof Error ? error.message : "Podatke za uplatu nije moguće učitati.",
-          );
+          setSettings(null);
         }
       } finally {
         if (isMounted) {
@@ -2653,16 +2695,6 @@ function ParentPaymentQrPanel({
           </View>
         ) : (
           <>
-            {settingsError ? <MessageBanner tone="error" message={settingsError} /> : null}
-
-            {!hasPaymentSettings ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  Za izradu QR naloga potrebno je dodati primatelja i IBAN u postavkama kluba.
-                </Text>
-              </View>
-            ) : null}
-
             {children.length > 1 ? (
               <View style={styles.paymentSection}>
                 <Text style={styles.paymentFieldLabel}>Dijete</Text>
@@ -3647,6 +3679,11 @@ function normalizeIban(value: string) {
   return value.replace(/\s+/g, "").toUpperCase();
 }
 
+function hasClubPaymentSettings(settings: ClubSettingsResponse | null) {
+  const recipientName = settings?.bankRecipient?.trim() || settings?.clubName?.trim() || "";
+  return Boolean(recipientName && normalizeIban(settings?.bankIban ?? ""));
+}
+
 function parsePaymentAmount(value: string) {
   const normalized = value.trim().replace(/\s+/g, "").replace(",", ".");
 
@@ -3876,6 +3913,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "#123d75",
     paddingHorizontal: 13,
+  },
+  headerPaymentButtonDisabled: {
+    opacity: 0.42,
   },
   headerPaymentButtonText: {
     color: "#ffffff",

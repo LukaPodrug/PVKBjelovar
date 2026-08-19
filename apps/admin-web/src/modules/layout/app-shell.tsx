@@ -201,13 +201,13 @@ export function AppShell() {
                 <div className="flex items-center gap-3">
                   {clubSettingsQuery.data?.logoUrl && !isLogoBroken ? (
                     <img
-                      className="h-12 w-12 border-2 border-line object-cover"
+                      className="h-12 w-12 rounded-[16px] border-2 border-line object-cover"
                       src={clubSettingsQuery.data.logoUrl}
                       alt={clubName}
                       onError={() => setIsLogoBroken(true)}
                     />
                   ) : (
-                    <div className="flex h-12 w-12 items-center justify-center border-2 border-line bg-accent text-sm font-semibold text-surface">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-[16px] border-2 border-line bg-accent text-sm font-semibold text-surface">
                       {clubMonogram}
                     </div>
                   )}
@@ -220,7 +220,7 @@ export function AppShell() {
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3 rounded-[22px] border-2 border-line bg-bg px-4 py-3">
-                  <div className="flex h-11 w-11 items-center justify-center border-2 border-line bg-accent text-sm font-semibold text-surface">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-[15px] border-2 border-line bg-accent text-sm font-semibold text-surface">
                     {user?.firstName?.slice(0, 1)}
                     {user?.lastName?.slice(0, 1)}
                   </div>
