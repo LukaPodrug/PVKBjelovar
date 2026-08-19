@@ -906,7 +906,7 @@ function SponsorsSection({ sponsors }: { sponsors: PublicSponsor[] }) {
 
   return (
     <section className="landing-sponsors-section border-t-2 border-line bg-surface" id="sponsors">
-      <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+      <div className="landing-public-section-inner mx-auto max-w-7xl py-7">
         <div
           className={`landing-sponsors-marquee ${shouldAutoScroll ? "is-animated" : ""}`}
           style={sponsorMarqueeStyle}
@@ -958,7 +958,7 @@ function BoardMembersSection({ boardMembers }: { boardMembers: PublicBoardMember
 
   return (
     <section className="landing-board-section border-t-2 border-line bg-bg" id="board-members">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="landing-public-section-inner mx-auto max-w-7xl py-8 lg:py-10">
         <div className={`landing-public-carousel ${carouselState.hasOverflow ? "has-controls" : ""}`}>
           <div
             ref={carouselRef}
