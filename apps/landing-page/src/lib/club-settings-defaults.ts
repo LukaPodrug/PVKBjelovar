@@ -1,8 +1,8 @@
 export const landingClubSettingsDefaults = {
   clubName: import.meta.env.VITE_DEFAULT_CLUB_NAME ?? "PVK Mladost Bjelovar",
   clubSubtitle: import.meta.env.VITE_DEFAULT_CLUB_SUBTITLE ?? "Plivački vaterpolski klub",
-  contactEmail: import.meta.env.VITE_DEFAULT_CONTACT_EMAIL ?? "info@mladostbjelovar.test",
-  contactPhone: import.meta.env.VITE_DEFAULT_CONTACT_PHONE ?? "+385911112222",
+  contactEmail: import.meta.env.VITE_DEFAULT_CONTACT_EMAIL ?? "",
+  contactPhone: import.meta.env.VITE_DEFAULT_CONTACT_PHONE ?? "",
   facebookUrl: import.meta.env.VITE_DEFAULT_FACEBOOK_URL ?? "",
   instagramUrl: import.meta.env.VITE_DEFAULT_INSTAGRAM_URL ?? "",
   youtubeUrl: import.meta.env.VITE_DEFAULT_YOUTUBE_URL ?? "",

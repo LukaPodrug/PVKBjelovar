@@ -133,11 +133,6 @@ export interface ParentRecord {
 export interface CredentialResetResult {
   message: string;
   emailSent: boolean;
-  developmentCredentials?: {
-    login: string;
-    password: string;
-    recipients: string[];
-  };
 }
 
 export interface CategoryPlayerAssignment {

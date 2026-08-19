@@ -14,22 +14,6 @@ interface ApprovalResult {
     primaryParent: boolean;
     secondaryParent: boolean;
   };
-  developmentCredentials?: {
-    primaryParent: {
-      email: string;
-      password: string;
-    };
-    secondaryParent:
-      | {
-          email: string;
-          password: string;
-        }
-      | null;
-    player: {
-      username: string;
-      password: string;
-    };
-  };
 }
 
 interface FeedbackState {
@@ -474,20 +458,6 @@ function buildApprovalSuccessMessage(result: ApprovalResult) {
     }
 
     return "Prijava je odobrena. Pristupni podaci za primarnog roditelja i račun igrača poslani su na e-poštu primarnog roditelja.";
-  }
-
-  if (result.developmentCredentials?.primaryParent && result.developmentCredentials.player) {
-    const credentials = [
-      `Roditelj 1: ${result.developmentCredentials.primaryParent.email} / ${result.developmentCredentials.primaryParent.password}`,
-      result.developmentCredentials.secondaryParent
-        ? `Roditelj 2: ${result.developmentCredentials.secondaryParent.email} / ${result.developmentCredentials.secondaryParent.password}`
-        : null,
-      `Igrač: ${result.developmentCredentials.player.username} / ${result.developmentCredentials.player.password}`,
-    ]
-      .filter(Boolean)
-      .join(" | ");
-
-    return `Prijava je odobrena, ali slanje e-pošte nije konfigurirano. Razvojni podaci: ${credentials}`;
   }
 
   return "Prijava je uspješno odobrena.";

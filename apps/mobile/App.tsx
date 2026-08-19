@@ -67,12 +67,6 @@ interface ChangePasswordFormState {
   confirmNewPassword: string;
 }
 
-interface QuickLoginProfile {
-  label: string;
-  identifier: string;
-  password: string;
-}
-
 interface ToastMessage {
   tone: "success" | "error";
   message: string;
@@ -309,32 +303,6 @@ const initialLoginForm: LoginFormState = {
   password: "",
 };
 
-const developmentQuickLoginProfiles: QuickLoginProfile[] =
-  typeof __DEV__ !== "undefined" && __DEV__
-    ? [
-        {
-          label: "Igrač",
-          identifier: "luka-podrug",
-          password: "admin12345",
-        },
-        {
-          label: "Admin",
-          identifier: "bruno.sabioni@pvkmladostbjelovar.com",
-          password: "admin123",
-        },
-        {
-          label: "Trener",
-          identifier: "414uj8h4zl@ozsaip.com",
-          password: "admin12345",
-        },
-        {
-          label: "Roditelj",
-          identifier: "t8kimwbid7v4@inboxly.website",
-          password: "Wp!ZWJ0FBC4-yuNsz",
-        },
-      ]
-    : [];
-
 const emptyPasswordForm: ChangePasswordFormState = {
   currentPassword: "",
   newPassword: "",
@@ -398,10 +366,6 @@ export default function App() {
 
   async function handleLogin() {
     await loginWithCredentials(loginForm.identifier, loginForm.password);
-  }
-
-  async function handleQuickLogin(profile: QuickLoginProfile) {
-    await loginWithCredentials(profile.identifier, profile.password);
   }
 
   async function handlePasswordChange() {
@@ -473,7 +437,6 @@ export default function App() {
             isBusy={isBusy}
             onChange={setLoginForm}
             onLogin={handleLogin}
-            onQuickLogin={handleQuickLogin}
           />
         ) : session.user.mustChangePassword ? (
           <PasswordChangeScreen
@@ -507,14 +470,12 @@ function LoginScreen({
   isBusy,
   onChange,
   onLogin,
-  onQuickLogin,
 }: {
   form: LoginFormState;
   errorMessage: string | null;
   isBusy: boolean;
   onChange: (value: LoginFormState) => void;
   onLogin: () => void;
-  onQuickLogin: (profile: QuickLoginProfile) => void;
 }) {
   return (
     <ScrollView contentContainerStyle={styles.screenContent} keyboardShouldPersistTaps="handled">
@@ -556,23 +517,6 @@ function LoginScreen({
           )}
         </Pressable>
 
-        {developmentQuickLoginProfiles.length > 0 ? (
-          <View style={styles.quickLoginPanel}>
-            <Text style={styles.quickLoginTitle}>Brza testna prijava</Text>
-            <View style={styles.quickLoginActions}>
-              {developmentQuickLoginProfiles.map((profile) => (
-                <Pressable
-                  key={profile.label}
-                  disabled={isBusy}
-                  style={[styles.quickLoginButton, isBusy && styles.buttonDisabled]}
-                  onPress={() => onQuickLogin(profile)}
-                >
-                  <Text style={styles.quickLoginButtonText}>{profile.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ) : null}
       </View>
     </ScrollView>
   );
@@ -4289,42 +4233,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 15,
     fontWeight: "800",
-  },
-  quickLoginPanel: {
-    marginTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#d6e0eb",
-    paddingTop: 16,
-    gap: 10,
-  },
-  quickLoginTitle: {
-    color: "#5f6f82",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.7,
-    textTransform: "uppercase",
-  },
-  quickLoginActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  quickLoginButton: {
-    minHeight: 42,
-    minWidth: 92,
-    flexGrow: 1,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#eef5fc",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  quickLoginButtonText: {
-    color: "#123d75",
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
   },
   secondaryButton: {
     minHeight: 50,

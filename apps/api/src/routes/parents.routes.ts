@@ -7,7 +7,6 @@ import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
 import { uploadProfileImage } from "../middlewares/upload";
 import {
-  buildDevelopmentCredentials,
   resetParentCredentials,
   sendParentCredentials,
 } from "../services/credentials.service";
@@ -165,7 +164,6 @@ parentsRouter.post(
         ? "Pristupni podaci roditelja su poslani."
         : "Lozinka je resetirana, ali slanje e-pošte nije konfigurirano.",
       emailSent: credentialDelivery.emailSent,
-      developmentCredentials: buildDevelopmentCredentials(credentialDelivery),
     });
   }),
 );

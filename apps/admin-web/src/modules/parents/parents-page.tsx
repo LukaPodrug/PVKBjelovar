@@ -372,7 +372,9 @@ export function ParentsPage() {
     onSuccess: (result) => {
       setFeedback({
         tone: "success",
-        message: result.message,
+        message: result.emailSent
+          ? result.message
+          : "Pristupni podaci roditelja su obnovljeni. Slanje e-pošte nije konfigurirano.",
       });
       void invalidateParentQueries(queryClient);
     },

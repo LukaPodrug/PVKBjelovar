@@ -1,4 +1,4 @@
-import { env, isProduction } from "../config/env";
+import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { prisma } from "../lib/prisma";
 import { emailService } from "./email.service";
@@ -9,18 +9,6 @@ export interface CredentialDeliveryResult {
   login: string;
   password: string;
   recipients: string[];
-}
-
-export function buildDevelopmentCredentials(result: CredentialDeliveryResult) {
-  if (isProduction()) {
-    return undefined;
-  }
-
-  return {
-    login: result.login,
-    password: result.password,
-    recipients: result.recipients,
-  };
 }
 
 export async function resetCoachCredentials(coachId: string): Promise<CredentialDeliveryResult> {

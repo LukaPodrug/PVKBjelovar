@@ -6,7 +6,6 @@ import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
 import {
-  buildDevelopmentCredentials,
   resetPlayerCredentials,
   sendPlayerCredentials,
   sendPlayerCredentialsToParents,
@@ -236,7 +235,6 @@ playersRouter.post(
         ? "Pristupni podaci igrača su poslani."
         : "Lozinka je resetirana, ali slanje e-pošte nije konfigurirano.",
       emailSent: credentialDelivery.emailSent,
-      developmentCredentials: buildDevelopmentCredentials(credentialDelivery),
     });
   }),
 );

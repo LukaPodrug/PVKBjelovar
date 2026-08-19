@@ -8,7 +8,6 @@ import { authorizeRoles } from "../middlewares/authorize";
 import { uploadProfileImage } from "../middlewares/upload";
 import { generateTemporaryPassword, hashPassword } from "../services/password.service";
 import {
-  buildDevelopmentCredentials,
   resetCoachCredentials,
   sendCoachCredentials,
 } from "../services/credentials.service";
@@ -222,9 +221,6 @@ coachesRouter.post(
     response.status(201).json({
       coach,
       emailSent: credentialDelivery?.emailSent ?? false,
-      developmentCredentials: credentialDelivery
-        ? buildDevelopmentCredentials(credentialDelivery)
-        : undefined,
     });
   }),
 );
@@ -241,7 +237,6 @@ coachesRouter.post(
         ? "Pristupni podaci trenera su poslani."
         : "Lozinka je resetirana, ali slanje e-pošte nije konfigurirano.",
       emailSent: credentialDelivery.emailSent,
-      developmentCredentials: buildDevelopmentCredentials(credentialDelivery),
     });
   }),
 );

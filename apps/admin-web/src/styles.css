@@ -769,62 +769,6 @@ textarea {
   background: var(--surface);
 }
 
-.admin-login .admin-login-club-card {
-  display: flex;
-  width: fit-content;
-  max-width: 100%;
-  align-items: center;
-  gap: 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 0.75rem 0.95rem;
-  box-shadow: 0 18px 42px rgba(7, 20, 42, 0.18);
-  backdrop-filter: blur(12px);
-}
-
-.admin-login .admin-login-club-card img,
-.admin-login .admin-login-club-card > div {
-  display: grid;
-  width: 3.4rem;
-  height: 3.4rem;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.18);
-  color: var(--surface);
-  font-size: 1rem;
-  font-weight: 900;
-  object-fit: cover;
-}
-
-.admin-login .admin-login-club-card span {
-  min-width: 0;
-}
-
-.admin-login .admin-login-club-card strong,
-.admin-login .admin-login-club-card small {
-  display: block;
-}
-
-.admin-login .admin-login-club-card strong {
-  color: var(--surface);
-  font-size: 1rem;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
-.admin-login .admin-login-club-card small {
-  margin-top: 0.25rem;
-  color: rgba(255, 255, 255, 0.74);
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .admin-shell .admin-table-card {
   overflow: visible !important;
 }

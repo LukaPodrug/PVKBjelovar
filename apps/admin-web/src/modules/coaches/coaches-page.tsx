@@ -37,11 +37,6 @@ interface CoachFormState {
 interface CoachCreateResult {
   coach: CoachRecord;
   emailSent: boolean;
-  developmentCredentials?: {
-    login: string;
-    password: string;
-    recipients: string[];
-  };
 }
 
 const emptyCoachForm: CoachFormState = {
@@ -305,7 +300,9 @@ export function CoachesPage() {
     onSuccess: (result) => {
       setFeedback({
         tone: "success",
-        message: result.message,
+        message: result.emailSent
+          ? result.message
+          : "Pristupni podaci trenera su obnovljeni. Slanje e-pošte nije konfigurirano.",
       });
       void invalidateCoachQueries(queryClient);
     },
@@ -955,8 +952,8 @@ function buildCoachCreationMessage(result: CoachCreateResult) {
     return "E-pošta s pristupnim podacima uspješno je poslana.";
   }
 
-  if (result.developmentCredentials) {
-    return `Slanje e-pošte je isključeno. Razvojni pristupni podaci: ${result.developmentCredentials.login} / ${result.developmentCredentials.password}`;
+  if (!result.emailSent) {
+    return "Trenerski račun je kreiran. Slanje e-pošte nije konfigurirano.";
   }
 
   return "Trenerski račun je kreiran.";

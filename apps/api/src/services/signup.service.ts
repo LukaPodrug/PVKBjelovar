@@ -288,26 +288,6 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
       primaryParent: emailResults[0],
       secondaryParent: emailResults[1] ?? false,
     },
-    developmentCredentials:
-      process.env.NODE_ENV === "production"
-        ? undefined
-        : {
-            primaryParent: {
-              email: signup.parentOneEmail,
-              password: primaryPassword,
-            },
-            secondaryParent:
-              signup.parentTwoEmail && secondaryPassword
-                ? {
-                    email: signup.parentTwoEmail,
-                    password: secondaryPassword,
-                  }
-                : null,
-            player: {
-              username: playerUsername,
-              password: playerPassword,
-            },
-          },
   };
 }
 

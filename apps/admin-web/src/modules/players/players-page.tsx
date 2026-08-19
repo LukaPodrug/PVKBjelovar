@@ -473,7 +473,9 @@ export function PlayersPage() {
     onSuccess: (result) => {
       setFeedback({
         tone: "success",
-        message: result.message,
+        message: result.emailSent
+          ? result.message
+          : "Pristupni podaci igrača su obnovljeni. Slanje e-pošte nije konfigurirano.",
       });
       void invalidatePlayerQueries(queryClient, isAdmin);
     },
