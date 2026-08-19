@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
+import { type ChangeEvent, type CSSProperties, useEffect, useId, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { CategoryDetailsDrawer } from "./components/category-details-drawer";
 import { DatePicker } from "./components/date-picker";
@@ -899,56 +899,55 @@ function useHorizontalCarouselControls(itemCount: number) {
 }
 
 function SponsorsSection({ sponsors }: { sponsors: PublicSponsor[] }) {
-  const { carouselRef, carouselState, scrollCarousel } = useHorizontalCarouselControls(sponsors.length);
+  const shouldAutoScroll = sponsors.length > 1;
+  const sponsorMarqueeStyle = {
+    "--landing-sponsors-duration": `${Math.max(18, sponsors.length * 4)}s`,
+  } as CSSProperties;
 
   return (
     <section className="landing-sponsors-section border-t-2 border-line bg-surface" id="sponsors">
       <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
-        <div className={`landing-public-carousel ${carouselState.hasOverflow ? "has-controls" : ""}`}>
-          <div
-            ref={carouselRef}
-            className={`landing-sponsors-track ${carouselState.hasOverflow ? "is-overflowing" : ""}`}
-            aria-label="Sponzori kluba"
-          >
+        <div
+          className={`landing-sponsors-marquee ${shouldAutoScroll ? "is-animated" : ""}`}
+          style={sponsorMarqueeStyle}
+        >
+          <div className="landing-sponsors-track" aria-label="Sponzori kluba">
             {sponsors.map((sponsor) => (
-              <a
-                className="landing-sponsor-card"
-                key={sponsor.id}
-                href={sponsor.websiteUrl}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`${sponsor.name} web stranica`}
-              >
-                <img src={sponsor.logoUrl} alt={sponsor.name} />
-              </a>
+              <SponsorLogoLink key={sponsor.id} sponsor={sponsor} />
             ))}
           </div>
 
-          {carouselState.hasOverflow ? (
-            <>
-              <button
-                className="landing-public-carousel-button is-left"
-                type="button"
-                aria-label="Prethodni sponzori"
-                disabled={!carouselState.canScrollLeft}
-                onClick={() => scrollCarousel(-1)}
-              >
-                ‹
-              </button>
-              <button
-                className="landing-public-carousel-button is-right"
-                type="button"
-                aria-label="Sljedeći sponzori"
-                disabled={!carouselState.canScrollRight}
-                onClick={() => scrollCarousel(1)}
-              >
-                ›
-              </button>
-            </>
+          {shouldAutoScroll ? (
+            <div className="landing-sponsors-track" aria-hidden="true">
+              {sponsors.map((sponsor) => (
+                <SponsorLogoLink key={`${sponsor.id}-loop`} sponsor={sponsor} isDuplicate />
+              ))}
+            </div>
           ) : null}
         </div>
       </div>
     </section>
+  );
+}
+
+function SponsorLogoLink({
+  sponsor,
+  isDuplicate = false,
+}: {
+  sponsor: PublicSponsor;
+  isDuplicate?: boolean;
+}) {
+  return (
+    <a
+      className="landing-sponsor-card"
+      href={sponsor.websiteUrl}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={isDuplicate ? undefined : `${sponsor.name} web stranica`}
+      tabIndex={isDuplicate ? -1 : undefined}
+    >
+      <img src={sponsor.logoUrl} alt={isDuplicate ? "" : sponsor.name} />
+    </a>
   );
 }
 

@@ -1413,12 +1413,22 @@ textarea {
   overflow: hidden;
 }
 
+.landing-page .landing-sponsors-marquee {
+  overflow: hidden;
+}
+
+.landing-page .landing-sponsors-marquee.is-animated {
+  display: flex;
+  gap: 2.25rem;
+  mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+}
+
 .landing-page .landing-public-carousel {
   position: relative;
 }
 
 .landing-page .landing-public-carousel.has-controls {
-  padding-inline: 3.25rem;
+  padding-inline: 2.5rem;
 }
 
 .landing-page .landing-public-carousel-button {
@@ -1426,8 +1436,8 @@ textarea {
   top: 50%;
   z-index: 2;
   display: inline-grid;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border: 1px solid rgba(29, 79, 145, 0.18);
   border-radius: 999px;
@@ -1466,20 +1476,15 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 2.25rem;
-  overflow-x: auto;
   padding: 0.4rem 0 1rem;
-  scroll-padding-inline: 1rem;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
 }
 
-.landing-page .landing-sponsors-track.is-overflowing {
-  justify-content: flex-start;
-}
-
-.landing-page .landing-sponsors-track::-webkit-scrollbar {
-  display: none;
+.landing-page .landing-sponsors-marquee.is-animated .landing-sponsors-track {
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 100%;
+  justify-content: space-around;
+  animation: landing-sponsors-marquee var(--landing-sponsors-duration, 28s) linear infinite;
 }
 
 .landing-page .landing-sponsor-card {
@@ -1520,9 +1525,45 @@ textarea {
   transform: scale(1.04);
 }
 
+.landing-page .landing-sponsors-marquee.is-animated:hover .landing-sponsors-track,
+.landing-page .landing-sponsors-marquee.is-animated:focus-within .landing-sponsors-track {
+  animation-play-state: paused;
+}
+
+@keyframes landing-sponsors-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(calc(-100% - 2.25rem));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-page .landing-sponsors-marquee.is-animated {
+    display: block;
+    overflow-x: auto;
+    mask-image: none;
+    scrollbar-width: none;
+  }
+
+  .landing-page .landing-sponsors-marquee.is-animated::-webkit-scrollbar {
+    display: none;
+  }
+
+  .landing-page .landing-sponsors-marquee.is-animated .landing-sponsors-track {
+    animation: none;
+  }
+
+  .landing-page .landing-sponsors-marquee.is-animated .landing-sponsors-track[aria-hidden="true"] {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .landing-page .landing-public-carousel.has-controls {
-    padding-inline: 2.75rem;
+    padding-inline: 2.25rem;
   }
 }
 
