@@ -3,6 +3,7 @@ import type { AxiosError } from "axios";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { api } from "../core/api";
 import type { PaginatedResponse, SponsorRecord } from "../core/types";
+import { EntityDrawer } from "../layout/entity-drawer";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 
@@ -34,6 +35,7 @@ export function SponsorsPage() {
   const [form, setForm] = useState<SponsorFormState>(emptySponsorForm);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const sponsorsQuery = useQuery({
     queryKey: ["sponsors", "management", page],
@@ -90,6 +92,7 @@ export function SponsorsPage() {
       });
       setSelectedSponsorId(sponsor.id);
       setForm(createFormFromSponsor(sponsor));
+      setIsDrawerOpen(true);
       void queryClient.invalidateQueries({ queryKey: ["sponsors"] });
     },
     onError: (error: AxiosError<{ message?: string }>) => {
@@ -125,6 +128,7 @@ export function SponsorsPage() {
       });
       setSelectedSponsorId(sponsor.id);
       setForm(createFormFromSponsor(sponsor));
+      setIsDrawerOpen(true);
       void queryClient.invalidateQueries({ queryKey: ["sponsors"] });
     },
     onError: (error: AxiosError<{ message?: string }>) => {
@@ -152,6 +156,7 @@ export function SponsorsPage() {
       });
       setSelectedSponsorId(null);
       setForm(emptySponsorForm);
+      setIsDrawerOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["sponsors"] });
     },
     onError: (error: AxiosError<{ message?: string }>) => {
@@ -166,12 +171,14 @@ export function SponsorsPage() {
     setFeedback(null);
     setSelectedSponsorId(null);
     setForm(emptySponsorForm);
+    setIsDrawerOpen(true);
   };
 
   const openEditForm = (sponsor: SponsorRecord) => {
     setFeedback(null);
     setSelectedSponsorId(sponsor.id);
     setForm(createFormFromSponsor(sponsor));
+    setIsDrawerOpen(true);
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -264,18 +271,14 @@ export function SponsorsPage() {
         ) : null}
       </section>
 
-      <section className="border-2 border-line bg-surface">
-        <div className="border-b-2 border-line bg-panel px-4 py-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-            {selectedSponsor ? "Uredi sponzora" : "Novi sponzor"}
-          </p>
-          <h3 className="mt-2 text-xl font-bold uppercase">
-            {selectedSponsor?.name ?? "Podaci za javnu stranicu"}
-          </h3>
-        </div>
-
+      <EntityDrawer
+        open={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        eyebrow={selectedSponsor ? "Uredi sponzora" : "Novi sponzor"}
+        title={selectedSponsor?.name ?? "Podaci za javnu stranicu"}
+      >
         <form
-          className="grid gap-5 p-5 lg:grid-cols-[260px_minmax(0,1fr)]"
+          className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
@@ -409,7 +412,7 @@ export function SponsorsPage() {
             </div>
           </div>
         </form>
-      </section>
+      </EntityDrawer>
     </section>
   );
 }

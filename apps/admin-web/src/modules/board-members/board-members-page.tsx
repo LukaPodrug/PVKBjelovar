@@ -3,6 +3,7 @@ import type { AxiosError } from "axios";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { api } from "../core/api";
 import type { BoardMemberRecord, PaginatedResponse } from "../core/types";
+import { EntityDrawer } from "../layout/entity-drawer";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 
@@ -34,6 +35,7 @@ export function BoardMembersPage() {
   const [form, setForm] = useState<BoardMemberFormState>(emptyBoardMemberForm);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const boardMembersQuery = useQuery({
     queryKey: ["board-members", "management", page],
@@ -95,6 +97,7 @@ export function BoardMembersPage() {
       });
       setSelectedBoardMemberId(boardMember.id);
       setForm(createFormFromBoardMember(boardMember));
+      setIsDrawerOpen(true);
       void queryClient.invalidateQueries({ queryKey: ["board-members"] });
     },
     onError: (error: AxiosError<{ message?: string }>) => {
@@ -130,6 +133,7 @@ export function BoardMembersPage() {
       });
       setSelectedBoardMemberId(boardMember.id);
       setForm(createFormFromBoardMember(boardMember));
+      setIsDrawerOpen(true);
       void queryClient.invalidateQueries({ queryKey: ["board-members"] });
     },
     onError: (error: AxiosError<{ message?: string }>) => {
@@ -157,6 +161,7 @@ export function BoardMembersPage() {
       });
       setSelectedBoardMemberId(null);
       setForm(emptyBoardMemberForm);
+      setIsDrawerOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["board-members"] });
     },
     onError: (error: AxiosError<{ message?: string }>) => {
@@ -171,12 +176,14 @@ export function BoardMembersPage() {
     setFeedback(null);
     setSelectedBoardMemberId(null);
     setForm(emptyBoardMemberForm);
+    setIsDrawerOpen(true);
   };
 
   const openEditForm = (boardMember: BoardMemberRecord) => {
     setFeedback(null);
     setSelectedBoardMemberId(boardMember.id);
     setForm(createFormFromBoardMember(boardMember));
+    setIsDrawerOpen(true);
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -269,18 +276,14 @@ export function BoardMembersPage() {
         ) : null}
       </section>
 
-      <section className="border-2 border-line bg-surface">
-        <div className="border-b-2 border-line bg-panel px-4 py-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-            {selectedBoardMember ? "Uredi člana" : "Novi član"}
-          </p>
-          <h3 className="mt-2 text-xl font-bold uppercase">
-            {selectedBoardMember?.name ?? "Podaci za javnu stranicu"}
-          </h3>
-        </div>
-
+      <EntityDrawer
+        open={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        eyebrow={selectedBoardMember ? "Uredi člana" : "Novi član"}
+        title={selectedBoardMember?.name ?? "Podaci za javnu stranicu"}
+      >
         <form
-          className="grid gap-5 p-5 lg:grid-cols-[260px_minmax(0,1fr)]"
+          className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
@@ -414,7 +417,7 @@ export function BoardMembersPage() {
             </div>
           </div>
         </form>
-      </section>
+      </EntityDrawer>
     </section>
   );
 }

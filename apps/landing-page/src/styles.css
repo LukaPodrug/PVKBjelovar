@@ -1348,7 +1348,8 @@ textarea {
 
 .landing-page .landing-board-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 220px));
+  justify-content: center;
   gap: 1rem;
 }
 
@@ -1362,7 +1363,7 @@ textarea {
 
 .landing-page .landing-board-card img {
   width: 100%;
-  aspect-ratio: 4 / 5;
+  height: 220px;
   object-fit: cover;
 }
 
@@ -1409,8 +1410,9 @@ textarea {
 
 .landing-page .landing-sponsor-card {
   display: grid;
-  flex: 0 0 min(68vw, 220px);
-  height: 112px;
+  flex: 0 0 min(68vw, 200px);
+  height: 104px;
+  overflow: hidden;
   place-items: center;
   scroll-snap-align: start;
   border: 1px solid var(--line);
@@ -1433,9 +1435,10 @@ textarea {
 }
 
 .landing-page .landing-sponsor-card img {
-  width: 100%;
-  max-width: 160px;
-  height: 100%;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 72px;
   object-fit: contain;
 }
 
