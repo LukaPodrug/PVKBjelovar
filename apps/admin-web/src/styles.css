@@ -2058,10 +2058,9 @@ textarea {
 }
 
 .admin-shell .sponsor-table-logo img {
-  width: auto;
-  max-width: 100%;
-  height: auto;
-  max-height: 100%;
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 
@@ -2074,12 +2073,13 @@ textarea {
   background: rgba(255, 255, 255, 0.9);
   padding: 1rem;
   box-shadow: var(--shadow-soft);
+  overflow: hidden;
 }
 
 .admin-shell .sponsor-logo-preview,
 .admin-shell .sponsor-logo-placeholder {
   width: 100%;
-  min-height: 180px;
+  height: 180px;
   border: 1px solid var(--line);
   border-radius: 20px;
 }
@@ -2088,6 +2088,7 @@ textarea {
   background: var(--surface);
   object-fit: contain;
   padding: 1.25rem;
+  box-sizing: border-box;
 }
 
 .admin-shell .sponsor-logo-placeholder {

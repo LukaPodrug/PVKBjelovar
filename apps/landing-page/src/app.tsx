@@ -828,16 +828,6 @@ function SponsorsSection({ sponsors }: { sponsors: PublicSponsor[] }) {
   return (
     <section className="landing-sponsors-section border-t-2 border-line bg-surface" id="sponsors">
       <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="landing-kicker text-muted">Sponzori</p>
-            <h2 className="mt-2 text-2xl">Partneri kluba</h2>
-          </div>
-          <p className="landing-copy max-w-xl text-sm">
-            Hvala partnerima koji podržavaju rad kluba i razvoj mladih sportaša.
-          </p>
-        </div>
-
         <div className="landing-sponsors-track" aria-label="Sponzori kluba">
           {sponsors.map((sponsor) => (
             <a
@@ -861,16 +851,6 @@ function BoardMembersSection({ boardMembers }: { boardMembers: PublicBoardMember
   return (
     <section className="landing-board-section border-t-2 border-line bg-bg" id="board-members">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="landing-kicker text-muted">Uprava</p>
-            <h2 className="mt-2 text-3xl">Vodstvo kluba</h2>
-          </div>
-          <p className="landing-copy max-w-xl text-sm">
-            Ljudi koji vode organizaciju kluba, razvoj programa i svakodnevnu podršku sportašima.
-          </p>
-        </div>
-
         <div className="landing-board-grid">
           {boardMembers.map((boardMember) => (
             <article className="landing-board-card" key={boardMember.id}>

@@ -22,7 +22,7 @@ interface BoardMemberFormState {
 const emptyBoardMemberForm: BoardMemberFormState = {
   name: "",
   position: "",
-  displayOrder: "0",
+  displayOrder: "1",
   imageFile: null,
 };
 
@@ -255,7 +255,7 @@ export function BoardMembersPage() {
                         {boardMember.position}
                       </td>
                       <td className="px-4 py-4 align-middle text-center text-sm">
-                        {boardMember.displayOrder}
+                        {formatVisibleDisplayOrder(boardMember.displayOrder)}
                       </td>
                     </tr>
                   );
@@ -376,7 +376,7 @@ export function BoardMembersPage() {
                 <input
                   className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
                   type="number"
-                  min={0}
+                  min={1}
                   step={1}
                   value={form.displayOrder}
                   onChange={(event) =>
@@ -426,7 +426,7 @@ function createFormFromBoardMember(boardMember: BoardMemberRecord): BoardMemberF
   return {
     name: boardMember.name,
     position: boardMember.position,
-    displayOrder: String(boardMember.displayOrder),
+    displayOrder: formatVisibleDisplayOrder(boardMember.displayOrder),
     imageFile: null,
   };
 }
@@ -437,7 +437,7 @@ function buildBoardMemberFormData(form: BoardMemberFormState, mode: "create" | "
   formData.append("position", form.position);
 
   if (mode === "edit") {
-    formData.append("displayOrder", form.displayOrder || "0");
+    formData.append("displayOrder", parseStoredDisplayOrder(form.displayOrder));
   }
 
   if (form.imageFile) {
@@ -445,6 +445,15 @@ function buildBoardMemberFormData(form: BoardMemberFormState, mode: "create" | "
   }
 
   return formData;
+}
+
+function formatVisibleDisplayOrder(displayOrder: number) {
+  return String(displayOrder + 1);
+}
+
+function parseStoredDisplayOrder(displayOrder: string) {
+  const parsedOrder = Number.parseInt(displayOrder, 10);
+  return String(Number.isFinite(parsedOrder) ? Math.max(parsedOrder - 1, 0) : 0);
 }
 
 function ensureBoardMemberFormIsValid(form: BoardMemberFormState, mode: "create" | "edit") {

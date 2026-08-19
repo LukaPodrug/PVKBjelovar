@@ -1396,9 +1396,10 @@ textarea {
 
 .landing-page .landing-sponsors-track {
   display: flex;
-  gap: 1rem;
+  align-items: center;
+  gap: 2.25rem;
   overflow-x: auto;
-  padding: 0.2rem 0 0.85rem;
+  padding: 0.4rem 0 1rem;
   scroll-padding-inline: 1rem;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
@@ -1410,26 +1411,19 @@ textarea {
 
 .landing-page .landing-sponsor-card {
   display: grid;
-  flex: 0 0 min(68vw, 200px);
-  height: 104px;
-  overflow: hidden;
+  flex: 0 0 min(70vw, 240px);
+  min-height: 118px;
   place-items: center;
   scroll-snap-align: start;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 1.25rem;
-  box-shadow: var(--shadow-soft);
+  padding: 0.75rem;
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
+    filter 180ms ease,
+    opacity 180ms ease,
+    transform 180ms ease;
 }
 
 .landing-page .landing-sponsor-card:hover,
 .landing-page .landing-sponsor-card:focus-visible {
-  border-color: rgba(29, 79, 145, 0.34);
-  box-shadow: var(--shadow-card);
   outline: none;
   transform: translateY(-2px);
 }
@@ -1438,8 +1432,18 @@ textarea {
   width: auto;
   max-width: 100%;
   height: auto;
-  max-height: 72px;
+  max-height: 96px;
+  filter: grayscale(1) saturate(0.2) opacity(0.72);
   object-fit: contain;
+  transition:
+    filter 180ms ease,
+    transform 180ms ease;
+}
+
+.landing-page .landing-sponsor-card:hover img,
+.landing-page .landing-sponsor-card:focus-visible img {
+  filter: grayscale(0) saturate(1) opacity(1);
+  transform: scale(1.04);
 }
 
 .landing-page .landing-footer-grid {

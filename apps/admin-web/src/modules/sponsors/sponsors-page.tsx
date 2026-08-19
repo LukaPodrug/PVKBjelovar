@@ -22,7 +22,7 @@ interface SponsorFormState {
 const emptySponsorForm: SponsorFormState = {
   name: "",
   websiteUrl: "",
-  displayOrder: "0",
+  displayOrder: "1",
   logoFile: null,
 };
 
@@ -250,7 +250,7 @@ export function SponsorsPage() {
                         {sponsor.websiteUrl}
                       </td>
                       <td className="px-4 py-4 align-middle text-center text-sm">
-                        {sponsor.displayOrder}
+                        {formatVisibleDisplayOrder(sponsor.displayOrder)}
                       </td>
                     </tr>
                   );
@@ -351,7 +351,7 @@ export function SponsorsPage() {
                   <input
                     className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
                     type="number"
-                    min={0}
+                    min={1}
                     step={1}
                     value={form.displayOrder}
                     onChange={(event) =>
@@ -421,7 +421,7 @@ function createFormFromSponsor(sponsor: SponsorRecord): SponsorFormState {
   return {
     name: sponsor.name,
     websiteUrl: sponsor.websiteUrl,
-    displayOrder: String(sponsor.displayOrder),
+    displayOrder: formatVisibleDisplayOrder(sponsor.displayOrder),
     logoFile: null,
   };
 }
@@ -432,7 +432,7 @@ function buildSponsorFormData(form: SponsorFormState, mode: "create" | "edit") {
   formData.append("websiteUrl", form.websiteUrl);
 
   if (mode === "edit") {
-    formData.append("displayOrder", form.displayOrder || "0");
+    formData.append("displayOrder", parseStoredDisplayOrder(form.displayOrder));
   }
 
   if (form.logoFile) {
@@ -440,6 +440,15 @@ function buildSponsorFormData(form: SponsorFormState, mode: "create" | "edit") {
   }
 
   return formData;
+}
+
+function formatVisibleDisplayOrder(displayOrder: number) {
+  return String(displayOrder + 1);
+}
+
+function parseStoredDisplayOrder(displayOrder: string) {
+  const parsedOrder = Number.parseInt(displayOrder, 10);
+  return String(Number.isFinite(parsedOrder) ? Math.max(parsedOrder - 1, 0) : 0);
 }
 
 function ensureSponsorFormIsValid(form: SponsorFormState, mode: "create" | "edit") {

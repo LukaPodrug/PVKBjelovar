@@ -159,6 +159,13 @@ interface ParentChildSummary {
   attendance: AttendanceSummary;
 }
 
+interface ClubSettingsResponse {
+  clubName: string | null;
+  bankRecipient: string | null;
+  bankIban: string | null;
+  bankName: string | null;
+}
+
 interface ChildScheduleItem {
   scheduleId: string;
   occurrenceId: string | null;
@@ -1312,6 +1319,7 @@ function activeTabIconName(iconName: TabIconName): TabIconName {
     "home-outline": "home",
     "notifications-outline": "notifications",
     "person-circle-outline": "person-circle",
+    "qr-code-outline": "qr-code",
     "scan-outline": "scan",
     "trophy-outline": "trophy",
   };
@@ -2217,6 +2225,7 @@ function ParentDashboardScreen({
   const parentTabs: TabItem[] = [
     { key: "overview", label: "Pregled", icon: "home-outline" },
     { key: "schedule", label: "Raspored", icon: "calendar-outline" },
+    { key: "payments", label: "Uplate", icon: "qr-code-outline" },
     { key: "leaderboard", label: "Poredak", icon: "trophy-outline" },
     { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
     { key: "profile", label: "Profil", icon: "person-circle-outline" },
@@ -2325,6 +2334,16 @@ function ParentDashboardScreen({
                   endpoint={`/me/children/${child.playerId}/schedule`}
                 />
               ))
+            ) : activeTab === "payments" ? (
+              <TabScrollView>
+                {childrenError ? <MessageBanner tone="error" message={childrenError} /> : null}
+                <ParentPaymentQrPanel
+                  apiBaseUrl={apiBaseUrl}
+                  token={session.token}
+                  children={children}
+                  initialChildId={selectedChild?.playerId ?? selectedChildId}
+                />
+              </TabScrollView>
             ) : activeTab === "leaderboard" ? (
               renderChildScopedTab((child) => (
                 <TabScrollView>
@@ -2410,6 +2429,219 @@ function ParentChildPicker({
         </View>
       )}
     </TabScrollView>
+  );
+}
+
+function ParentPaymentQrPanel({
+  apiBaseUrl,
+  token,
+  children,
+  initialChildId,
+}: {
+  apiBaseUrl: string;
+  token: string;
+  children: ParentChildSummary[];
+  initialChildId: string | null;
+}) {
+  const [settings, setSettings] = useState<ClubSettingsResponse | null>(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [selectedPaymentChildId, setSelectedPaymentChildId] = useState<string | null>(
+    initialChildId ?? children[0]?.playerId ?? null,
+  );
+  const [monthKey, setMonthKey] = useState(getCurrentMonthKey());
+  const [amount, setAmount] = useState("");
+
+  useEffect(() => {
+    setSelectedPaymentChildId((current) => {
+      if (current && children.some((child) => child.playerId === current)) {
+        return current;
+      }
+
+      if (initialChildId && children.some((child) => child.playerId === initialChildId)) {
+        return initialChildId;
+      }
+
+      return children[0]?.playerId ?? null;
+    });
+  }, [children, initialChildId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSettings() {
+      setIsLoadingSettings(true);
+      setSettingsError(null);
+
+      try {
+        const payload = await requestJson<ClubSettingsResponse>(apiBaseUrl, "/club-settings", {
+          method: "GET",
+          token,
+        });
+
+        if (isMounted) {
+          setSettings(payload);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setSettingsError(
+            error instanceof Error ? error.message : "Podatke za uplatu nije moguće učitati.",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingSettings(false);
+        }
+      }
+    }
+
+    void loadSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [apiBaseUrl, token]);
+
+  const selectedChild = children.find((child) => child.playerId === selectedPaymentChildId) ?? null;
+  const paymentAmount = formatEpcPaymentAmount(amount);
+  const recipientName = settings?.bankRecipient?.trim() || settings?.clubName?.trim() || "";
+  const iban = normalizeIban(settings?.bankIban ?? "");
+  const description = selectedChild ? buildMembershipPaymentDescription(selectedChild, monthKey) : "";
+  const hasPaymentSettings = Boolean(recipientName && iban);
+  const qrPayload =
+    selectedChild && hasPaymentSettings && paymentAmount
+      ? buildSepaPaymentQrPayload({
+          recipientName,
+          iban,
+          amount: paymentAmount,
+          description,
+        })
+      : null;
+
+  return (
+    <>
+      <View style={styles.card}>
+        <Text style={styles.sectionEyebrow}>Uplate</Text>
+        <Text style={styles.sectionTitle}>QR nalog za banku</Text>
+
+        {isLoadingSettings ? (
+          <View style={styles.loadingBlock}>
+            <ActivityIndicator color="#123d75" />
+          </View>
+        ) : (
+          <>
+            {settingsError ? <MessageBanner tone="error" message={settingsError} /> : null}
+
+            {!hasPaymentSettings ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  Za izradu QR naloga potrebno je dodati primatelja i IBAN u postavkama kluba.
+                </Text>
+              </View>
+            ) : null}
+
+            {children.length > 1 ? (
+              <View style={styles.paymentSection}>
+                <Text style={styles.paymentFieldLabel}>Dijete</Text>
+                <View style={styles.paymentChildGrid}>
+                  {children.map((child) => {
+                    const isSelected = child.playerId === selectedPaymentChildId;
+
+                    return (
+                      <Pressable
+                        key={child.playerId}
+                        style={[
+                          styles.paymentChildOption,
+                          isSelected && styles.paymentChildOptionSelected,
+                        ]}
+                        onPress={() => setSelectedPaymentChildId(child.playerId)}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.paymentChildOptionText,
+                            isSelected && styles.paymentChildOptionTextSelected,
+                          ]}
+                        >
+                          {child.firstName} {child.lastName}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+
+            <View style={styles.paymentSection}>
+              <Text style={styles.paymentFieldLabel}>Mjesec</Text>
+              <View style={styles.paymentMonthBar}>
+                <Pressable
+                  style={styles.calendarMonthButton}
+                  onPress={() => setMonthKey((current) => shiftMonthKey(current, -1))}
+                >
+                  <Ionicons name="chevron-back" size={20} color="#123d75" />
+                </Pressable>
+                <Text style={styles.calendarMonthTitle}>{formatCalendarMonth(monthKey)}</Text>
+                <Pressable
+                  style={styles.calendarMonthButton}
+                  onPress={() => setMonthKey((current) => shiftMonthKey(current, 1))}
+                >
+                  <Ionicons name="chevron-forward" size={20} color="#123d75" />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.paymentSection}>
+              <Text style={styles.paymentFieldLabel}>Iznos u EUR</Text>
+              <TextInput
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+                placeholder="npr. 30,00"
+                placeholderTextColor="#8ca0b3"
+                style={styles.input}
+              />
+            </View>
+          </>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionEyebrow}>Skeniranje</Text>
+        <Text style={styles.sectionTitle}>Spreman nalog za plaćanje</Text>
+
+        {qrPayload ? (
+          <>
+            <View style={styles.paymentQrFrame}>
+              <QRCode value={qrPayload} size={224} />
+            </View>
+
+            <View style={styles.paymentDetails}>
+              <PaymentDetailRow label="Primatelj" value={recipientName} />
+              <PaymentDetailRow label="IBAN" value={iban} />
+              {settings?.bankName ? <PaymentDetailRow label="Banka" value={settings.bankName} /> : null}
+              <PaymentDetailRow label="Iznos" value={paymentAmount ?? ""} />
+              <PaymentDetailRow label="Opis" value={description} />
+            </View>
+          </>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              Odaberite dijete, mjesec i unesite valjani iznos kako bi se prikazao QR kod za plaćanje.
+            </Text>
+          </View>
+        )}
+      </View>
+    </>
+  );
+}
+
+function PaymentDetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.paymentDetailRow}>
+      <Text style={styles.paymentDetailLabel}>{label}</Text>
+      <Text style={styles.paymentDetailValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -3281,6 +3513,62 @@ function normalizeApiBaseUrl(value: string) {
 
 function getCurrentDateKey() {
   return formatDateKey(new Date());
+}
+
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function normalizeIban(value: string) {
+  return value.replace(/\s+/g, "").toUpperCase();
+}
+
+function parsePaymentAmount(value: string) {
+  const normalized = value.trim().replace(/\s+/g, "").replace(",", ".");
+
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+    return null;
+  }
+
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+function formatEpcPaymentAmount(value: string) {
+  const amount = parsePaymentAmount(value);
+  return amount ? `EUR${amount.toFixed(2)}` : null;
+}
+
+function buildMembershipPaymentDescription(child: ParentChildSummary, monthKey: string) {
+  return `Clanarina ${formatCalendarMonth(monthKey)} - ${child.firstName} ${child.lastName}`.slice(0, 140);
+}
+
+function buildSepaPaymentQrPayload({
+  recipientName,
+  iban,
+  amount,
+  description,
+}: {
+  recipientName: string;
+  iban: string;
+  amount: string;
+  description: string;
+}) {
+  return [
+    "BCD",
+    "002",
+    "1",
+    "SCT",
+    "",
+    recipientName.slice(0, 70),
+    iban,
+    amount,
+    "",
+    "",
+    description,
+    "",
+  ].join("\n");
 }
 
 function getWeekStartDate(value: Date) {
@@ -4424,6 +4712,87 @@ const styles = StyleSheet.create({
   childPickerArrow: {
     color: "#123d75",
     fontSize: 26,
+    fontWeight: "700",
+  },
+  paymentSection: {
+    marginTop: 18,
+  },
+  paymentFieldLabel: {
+    marginBottom: 10,
+    color: "#405365",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+  },
+  paymentChildGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  paymentChildOption: {
+    minHeight: 42,
+    maxWidth: "100%",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#c8d6e6",
+    backgroundColor: "#f7fbff",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  paymentChildOptionSelected: {
+    borderColor: "#123d75",
+    backgroundColor: "#123d75",
+  },
+  paymentChildOptionText: {
+    color: "#123d75",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  paymentChildOptionTextSelected: {
+    color: "#ffffff",
+  },
+  paymentMonthBar: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  paymentQrFrame: {
+    marginTop: 18,
+    alignSelf: "center",
+    width: 256,
+    maxWidth: "100%",
+    aspectRatio: 1,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#d6e0eb",
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  paymentDetails: {
+    marginTop: 18,
+    gap: 10,
+  },
+  paymentDetailRow: {
+    borderRadius: 16,
+    backgroundColor: "#f7fbff",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  paymentDetailLabel: {
+    color: "#5f6f82",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  paymentDetailValue: {
+    marginTop: 5,
+    color: "#102347",
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: "700",
   },
   categoryBadgeRow: {
