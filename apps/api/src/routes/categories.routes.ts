@@ -268,15 +268,14 @@ categoriesRouter.post(
   authorizeRoles(UserRole.ADMIN),
   asyncHandler(async (_request, response) => {
     const result = await prisma.$transaction(async (transaction) => {
+      // Every category is loaded, unbounded ones included: a senior squad carries no dates but is
+      // the destination for players ageing out of the oldest youth category.
       const categories = await transaction.category.findMany({
-        orderBy: [{ startDateOfBirth: "desc" }, { endDateOfBirth: "asc" }],
+        orderBy: categoryOrderBy,
         select: {
           id: true,
-          endDateOfBirth: true,
           startDateOfBirth: true,
-        },
-        where: {
-          OR: [{ startDateOfBirth: { not: null } }, { endDateOfBirth: { not: null } }],
+          endDateOfBirth: true,
         },
       });
 
@@ -286,58 +285,81 @@ categoriesRouter.post(
 
       const updatedCategories = await Promise.all(
         categories.map((category) =>
-          transaction.category.update({
-            where: { id: category.id },
-            data: {
-              startDateOfBirth: category.startDateOfBirth
-                ? addYears(category.startDateOfBirth, 1)
-                : null,
-              endDateOfBirth: category.endDateOfBirth
-                ? addYears(category.endDateOfBirth, 1)
-                : null,
-            },
-            select: {
-              id: true,
-              startDateOfBirth: true,
-              endDateOfBirth: true,
-            },
-          }),
+          category.startDateOfBirth || category.endDateOfBirth
+            ? transaction.category.update({
+                where: { id: category.id },
+                data: {
+                  startDateOfBirth: category.startDateOfBirth
+                    ? addYears(category.startDateOfBirth, 1)
+                    : null,
+                  endDateOfBirth: category.endDateOfBirth
+                    ? addYears(category.endDateOfBirth, 1)
+                    : null,
+                },
+                select: {
+                  id: true,
+                  startDateOfBirth: true,
+                  endDateOfBirth: true,
+                },
+              })
+            : Promise.resolve(category),
         ),
       );
+
+      const seniorCategoryId =
+        updatedCategories.find(
+          (category) => !category.startDateOfBirth && !category.endDateOfBirth,
+        )?.id ?? null;
 
       const players = await transaction.player.findMany({
         select: {
           id: true,
           dateOfBirth: true,
+          categories: {
+            select: {
+              categoryId: true,
+            },
+          },
         },
       });
 
-      const playerAssignments = players
-        .map((player) => {
-          const categoryId = findCategoryIdForDateOfBirth(
-            player.dateOfBirth,
-            updatedCategories,
-          );
+      // Only youth players move. A player in no category stays in none, and seniors are never
+      // promoted into a veteran squad automatically because veteran membership is a choice rather
+      // than a consequence of ageing.
+      const playerAssignments = players.flatMap((player) => {
+        if (player.categories.length === 0) {
+          return [];
+        }
 
-          return categoryId
-            ? {
-                playerId: player.id,
-                categoryId,
-              }
-            : null;
-        })
-        .filter(
-          (
-            assignment,
-          ): assignment is {
-            playerId: string;
-            categoryId: string;
-          } => assignment !== null,
+        const currentCategoryIds = player.categories.map((assignment) => assignment.categoryId);
+        const currentCategory = updatedCategories.find((category) =>
+          currentCategoryIds.includes(category.id),
         );
 
-      await transaction.playerCategory.deleteMany({});
+        if (!currentCategory?.startDateOfBirth) {
+          return [];
+        }
+
+        const nextCategoryId =
+          findYouthCategoryIdForDateOfBirth(player.dateOfBirth, updatedCategories) ??
+          seniorCategoryId ??
+          currentCategory.id;
+
+        if (currentCategoryIds.length === 1 && currentCategoryIds[0] === nextCategoryId) {
+          return [];
+        }
+
+        return [{ playerId: player.id, categoryId: nextCategoryId }];
+      });
 
       if (playerAssignments.length > 0) {
+        await transaction.playerCategory.deleteMany({
+          where: {
+            playerId: {
+              in: playerAssignments.map((assignment) => assignment.playerId),
+            },
+          },
+        });
         await transaction.playerCategory.createMany({
           data: playerAssignments,
         });
@@ -429,30 +451,27 @@ function addYears(date: Date, amount: number) {
   return nextDate;
 }
 
-function findCategoryIdForDateOfBirth(
+/**
+ * Youth categories carry a lower bound ("godište od"), and the bounds overlap: a 2016 child matches
+ * both "od 2016" and "od 2014". The tightest bound wins, which is the latest start not after the
+ * child's date of birth. Returns null once a player has aged past every youth category.
+ */
+function findYouthCategoryIdForDateOfBirth(
   dateOfBirth: Date,
   categories: Array<{
     id: string;
     startDateOfBirth: Date | null;
-    endDateOfBirth: Date | null;
   }>,
 ) {
-  const youthMatch = [...categories]
-    .sort(
-      (left, right) =>
-        (right.startDateOfBirth?.getTime() ?? Number.NEGATIVE_INFINITY) -
-        (left.startDateOfBirth?.getTime() ?? Number.NEGATIVE_INFINITY),
-    )
-    .find((category) => category.startDateOfBirth && dateOfBirth >= category.startDateOfBirth);
-  const veteranMatch = [...categories]
-    .sort(
-      (left, right) =>
-        (left.endDateOfBirth?.getTime() ?? Number.POSITIVE_INFINITY) -
-        (right.endDateOfBirth?.getTime() ?? Number.POSITIVE_INFINITY),
-    )
-    .find((category) => category.endDateOfBirth && dateOfBirth <= category.endDateOfBirth);
-
-  return youthMatch?.id ?? veteranMatch?.id ?? categories[categories.length - 1]?.id ?? null;
+  return (
+    categories
+      .filter(
+        (category): category is { id: string; startDateOfBirth: Date } =>
+          category.startDateOfBirth !== null,
+      )
+      .sort((left, right) => right.startDateOfBirth.getTime() - left.startDateOfBirth.getTime())
+      .find((category) => dateOfBirth >= category.startDateOfBirth)?.id ?? null
+  );
 }
 
 function compareUsers(

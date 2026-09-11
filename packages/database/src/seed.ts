@@ -289,35 +289,34 @@ async function main() {
       data: {
         name: "U10",
         logoUrl: `${assetBaseUrl}/categories/category-u10.svg`,
-        endDateOfBirth: new Date("2017-12-31T00:00:00.000Z"),
+        startDateOfBirth: new Date("2016-01-01T00:00:00.000Z"),
       },
     }),
     prisma.category.create({
       data: {
         name: "U12",
         logoUrl: `${assetBaseUrl}/categories/category-u12.svg`,
-        endDateOfBirth: new Date("2015-12-31T00:00:00.000Z"),
+        startDateOfBirth: new Date("2014-01-01T00:00:00.000Z"),
       },
     }),
     prisma.category.create({
       data: {
         name: "U14",
         logoUrl: `${assetBaseUrl}/categories/category-u14.svg`,
-        endDateOfBirth: new Date("2013-12-31T00:00:00.000Z"),
+        startDateOfBirth: new Date("2012-01-01T00:00:00.000Z"),
       },
     }),
     prisma.category.create({
       data: {
         name: "U16",
         logoUrl: `${assetBaseUrl}/categories/category-u16.svg`,
-        endDateOfBirth: new Date("2011-12-31T00:00:00.000Z"),
+        startDateOfBirth: new Date("2007-01-01T00:00:00.000Z"),
       },
     }),
     prisma.category.create({
       data: {
         name: "Senior Team",
         logoUrl: `${assetBaseUrl}/categories/category-senior-team.svg`,
-        endDateOfBirth: new Date("2000-12-31T00:00:00.000Z"),
       },
     }),
   ]);
