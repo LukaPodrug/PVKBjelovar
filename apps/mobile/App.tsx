@@ -183,6 +183,7 @@ interface ChildScheduleItem {
   notes: string | null;
   isCancelled: boolean;
   attended: boolean;
+  finishedAt: string | null;
   category: {
     id: string;
     name: string;
@@ -1914,12 +1915,60 @@ function AccountProfilePanel({
   );
 }
 
+/**
+ * Attendance chip for a player's or parent's practice card.
+ *
+ * A practice only proves a player was absent once the coach has finished it: until then nobody has
+ * been marked present yet, so an upcoming or still-open practice shows no chip rather than falsely
+ * reporting a miss. Staff screens pass no `attended` value at all and keep the neutral finished
+ * chip.
+ */
+function PracticeAttendanceChip({
+  practice,
+}: {
+  practice: { isCancelled: boolean; attended?: boolean; finishedAt?: string | null };
+}) {
+  if (practice.isCancelled) {
+    return (
+      <View style={[styles.statusTag, styles.statusTagCancelled]}>
+        <Text style={styles.statusTagText}>Trening je otkazan</Text>
+      </View>
+    );
+  }
+
+  if (practice.attended) {
+    return (
+      <View style={[styles.statusTag, styles.statusTagAttended]}>
+        <Text style={[styles.statusTagText, styles.statusTagTextAttended]}>Dolazak evidentiran</Text>
+      </View>
+    );
+  }
+
+  if (practice.attended === false && practice.finishedAt) {
+    return (
+      <View style={[styles.statusTag, styles.statusTagMissed]}>
+        <Text style={[styles.statusTagText, styles.statusTagTextMissed]}>Dolazak nije evidentiran</Text>
+      </View>
+    );
+  }
+
+  if (practice.finishedAt) {
+    return (
+      <View style={[styles.statusTag, styles.statusTagAttended]}>
+        <Text style={styles.statusTagText}>Trening završen</Text>
+      </View>
+    );
+  }
+
+  return null;
+}
+
 function PracticeRow({
   practice,
   onPress,
 }: {
   practice: ChildScheduleItem;
-  onPress: () => void;
+  onPress?: () => void;
 }) {
   return (
     <Pressable
@@ -1947,15 +1996,7 @@ function PracticeRow({
           : "Trener će biti dodijeljen naknadno"}
       </Text>
 
-      {practice.isCancelled ? (
-        <View style={[styles.statusTag, styles.statusTagCancelled]}>
-          <Text style={styles.statusTagText}>Trening je otkazan</Text>
-        </View>
-      ) : practice.attended ? (
-        <View style={[styles.statusTag, styles.statusTagAttended]}>
-          <Text style={styles.statusTagText}>Dolazak evidentiran</Text>
-        </View>
-      ) : null}
+      <PracticeAttendanceChip practice={practice} />
     </Pressable>
   );
 }
@@ -1995,19 +2036,7 @@ function PracticeDetailsModal({
           <ScrollView contentContainerStyle={styles.practiceDetailsContent}>
             <View style={styles.practiceDetailsBadgeRow}>
               <PracticeTypePill practiceType={practice.practiceType} />
-              {practice.isCancelled ? (
-                <View style={[styles.statusTag, styles.statusTagCancelled]}>
-                  <Text style={styles.statusTagText}>Otkazano</Text>
-                </View>
-              ) : practice.finishedAt ? (
-                <View style={[styles.statusTag, styles.statusTagAttended]}>
-                  <Text style={styles.statusTagText}>Trening završen</Text>
-                </View>
-              ) : practice.attended ? (
-                <View style={[styles.statusTag, styles.statusTagAttended]}>
-                  <Text style={styles.statusTagText}>Dolazak evidentiran</Text>
-                </View>
-              ) : null}
+              <PracticeAttendanceChip practice={practice} />
             </View>
 
             <View style={styles.practiceDetailsSection}>
@@ -3542,41 +3571,10 @@ function ChildOverview({
           </View>
         ) : (
           visiblePractices.map((practice) => (
-            <View
+            <PracticeRow
               key={`${practice.scheduleId}-${practice.occurrenceDate}`}
-              style={[styles.practiceCard, practice.isCancelled && styles.practiceCardCancelled]}
-            >
-              <View style={styles.practiceCardHeader}>
-                <View style={styles.practiceCardMeta}>
-                  <Text style={styles.practiceCardTitle}>{practice.category.name}</Text>
-                  <Text style={styles.practiceCardCopy}>
-                    {formatPracticeDate(practice.occurrenceDate)} • {formatPracticeTime(practice)}
-                  </Text>
-                </View>
-                <PracticeTypePill practiceType={practice.practiceType} />
-              </View>
-
-              <Text style={styles.practiceCoachText}>
-                {practice.coaches.length > 0
-                  ? practice.coaches
-                      .map(
-                        (assignment) =>
-                          `${assignment.coach.user.firstName} ${assignment.coach.user.lastName}`,
-                      )
-                      .join(", ")
-                  : "Trener će biti dodijeljen naknadno"}
-              </Text>
-
-              {practice.isCancelled ? (
-                <View style={[styles.statusTag, styles.statusTagCancelled]}>
-                  <Text style={styles.statusTagText}>Trening je otkazan</Text>
-                </View>
-              ) : practice.attended ? (
-                <View style={[styles.statusTag, styles.statusTagAttended]}>
-                  <Text style={styles.statusTagText}>Dolazak evidentiran</Text>
-                </View>
-              ) : null}
-            </View>
+              practice={practice}
+            />
           ))
         )}
       </View>
@@ -5227,10 +5225,19 @@ const styles = StyleSheet.create({
   statusTagAttended: {
     backgroundColor: "#dff6ea",
   },
+  statusTagMissed: {
+    backgroundColor: "#fcd9dc",
+  },
   statusTagText: {
     color: "#102347",
     fontSize: 12,
     fontWeight: "700",
+  },
+  statusTagTextAttended: {
+    color: "#0b6b3a",
+  },
+  statusTagTextMissed: {
+    color: "#a0161f",
   },
   inboxHeader: {
     flexDirection: "row",
