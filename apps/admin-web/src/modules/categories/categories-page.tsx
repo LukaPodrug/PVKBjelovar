@@ -673,9 +673,9 @@ export function CategoriesPage() {
                         })
                       }
                     >
-                      <option value="YOUTH">Mlađa kategorija</option>
+                      <option value="YOUTH">Kategorija s početnim godištem</option>
                       <option value="SENIOR">Seniori bez dobnog ograničenja</option>
-                      <option value="VETERAN">Veterani s početnim godištem</option>
+                      <option value="VETERAN">Kategorija s krajnjim godištem</option>
                     </select>
                   </label>
 

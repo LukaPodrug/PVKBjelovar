@@ -348,7 +348,7 @@ function formatCategoryAgeRule(startDateOfBirth: string | null, cutoffDate: stri
   }
 
   if (cutoffDate) {
-    return formatDate(cutoffDate);
+    return `Do ${formatDate(cutoffDate)}`;
   }
 
   return "Bez ograničenja";

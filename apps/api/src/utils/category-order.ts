@@ -1,12 +1,16 @@
 import { Prisma } from "@prisma/client";
 
 /**
- * Categories are listed youngest to oldest: the later the birth date range
- * starts, the younger the players it covers.
+ * Categories are listed youngest to oldest.
+ *
+ * A category carries either a lower bound (startDateOfBirth, "godište od" — youth) or an upper
+ * bound (endDateOfBirth, "godište do" — veterans and, in practice, every age-capped squad), never
+ * both. A later bound of either kind means younger players, so both sort descending. Nulls sort
+ * last so an unbounded senior squad ends up at the bottom rather than the top.
  */
 export const categoryOrderBy: Prisma.CategoryOrderByWithRelationInput[] = [
-  { startDateOfBirth: "desc" },
-  { endDateOfBirth: "asc" },
+  { startDateOfBirth: { sort: "desc", nulls: "last" } },
+  { endDateOfBirth: { sort: "desc", nulls: "last" } },
   { name: "asc" },
 ];
 

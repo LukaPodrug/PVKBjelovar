@@ -2089,7 +2089,7 @@ function formatBirthYear(dateIso: string) {
     .format(new Date(dateIso))
     .replace(/\.+$/, "");
 
-  return `${year}. i mlađi`;
+  return `${year}. i stariji`;
 }
 
 function createClubMonogram(name: string) {
