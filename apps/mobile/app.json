@@ -16,6 +16,7 @@
     },
     "android": {
       "package": "com.pvkmladostbjelovar.mobile",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -39,7 +40,8 @@
         {
           "color": "#123d75"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

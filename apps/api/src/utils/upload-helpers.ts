@@ -14,6 +14,11 @@ export async function resolveUploadedImageUrl(
   return optionalString(fallbackValue);
 }
 
+export function buildPersonImageTitle(firstName: string, lastName: string) {
+  const normalizePart = (value: string) => value.trim().replace(/\s+/g, "_");
+  return `${normalizePart(lastName)}_${normalizePart(firstName)}`;
+}
+
 export function getUploadedFileMap(files: unknown): Record<string, Express.Multer.File[]> {
   return (files ?? {}) as Record<string, Express.Multer.File[]>;
 }

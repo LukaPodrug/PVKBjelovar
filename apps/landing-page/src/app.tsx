@@ -11,9 +11,11 @@ import {
   fetchClubSettings,
   type PublicBoardMember,
   type PublicCategory,
+  type PublicCoach,
   type PublicSponsor,
   fetchPublicBoardMembers,
   fetchPublicCategories,
+  fetchPublicCoaches,
   fetchPublicSponsors,
   submitSignup,
 } from "./lib/public-api";
@@ -99,6 +101,11 @@ function LandingHomePage() {
     queryFn: fetchPublicCategories,
   });
 
+  const coachesQuery = useQuery({
+    queryKey: ["public-coaches"],
+    queryFn: fetchPublicCoaches,
+  });
+
   const boardMembersQuery = useQuery({
     queryKey: ["public-board-members"],
     queryFn: fetchPublicBoardMembers,
@@ -167,6 +174,7 @@ function LandingHomePage() {
   const newsFeed = newsQuery.data;
   const newsItems = newsFeed?.items ?? [];
   const categories = categoriesQuery.data ?? [];
+  const coaches = coachesQuery.data ?? [];
   const boardMembers = boardMembersQuery.data ?? [];
   const sponsors = sponsorsQuery.data ?? [];
   const {
@@ -232,6 +240,7 @@ function LandingHomePage() {
         clubName={clubName}
         clubSubtitle={clubSubtitle}
         logoUrl={clubSettings?.logoUrl ?? null}
+        showCoachesLink={coaches.length > 0}
         showBoardMembersLink={boardMembers.length > 0}
         showSponsorsLink={sponsors.length > 0}
       />
@@ -350,6 +359,12 @@ function LandingHomePage() {
             )}
           </div>
         </section>
+
+        <CoachesSection
+          coaches={coaches}
+          isError={coachesQuery.isError}
+          isLoading={coachesQuery.isLoading}
+        />
 
         <section className="bg-bg" id="signup">
           <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
@@ -671,12 +686,14 @@ function LandingHeader({
   clubName,
   clubSubtitle,
   logoUrl,
+  showCoachesLink = false,
   showBoardMembersLink = false,
   showSponsorsLink = false,
 }: {
   clubName: string;
   clubSubtitle: string;
   logoUrl: string | null;
+  showCoachesLink?: boolean;
   showBoardMembersLink?: boolean;
   showSponsorsLink?: boolean;
 }) {
@@ -731,8 +748,13 @@ function LandingHeader({
             <a className="landing-header-link" href="/#categories">
               Kategorije
             </a>
+            {showCoachesLink ? (
+              <a className="landing-header-link" href="/#coaches">
+                Treneri
+              </a>
+            ) : null}
             <a className="landing-header-link" href="/#signup">
-              Prijava
+              Upis djeteta
             </a>
             {showBoardMembersLink ? (
               <a className="landing-header-link" href="/#board-members">
@@ -758,8 +780,13 @@ function LandingHeader({
           <a className="landing-mobile-nav-link" href="/#categories" onClick={() => setIsMobileNavOpen(false)}>
             Kategorije
           </a>
+          {showCoachesLink ? (
+            <a className="landing-mobile-nav-link" href="/#coaches" onClick={() => setIsMobileNavOpen(false)}>
+              Treneri
+            </a>
+          ) : null}
           <a className="landing-mobile-nav-link" href="/#signup" onClick={() => setIsMobileNavOpen(false)}>
-            Prijava
+            Upis djeteta
           </a>
           {showBoardMembersLink ? (
             <a className="landing-mobile-nav-link" href="/#board-members" onClick={() => setIsMobileNavOpen(false)}>
@@ -901,6 +928,135 @@ function SponsorLogoLink({
     >
       <img src={sponsor.logoUrl} alt={isDuplicate ? "" : sponsor.name} />
     </a>
+  );
+}
+
+function CoachesSection({
+  coaches,
+  isLoading,
+  isError,
+}: {
+  coaches: PublicCoach[];
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  const { carouselRef, carouselState, scrollCarousel } = useHorizontalCarouselControls(
+    coaches.length,
+  );
+
+  return (
+    <section className="border-b-2 border-line bg-surface" id="coaches">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="landing-kicker text-muted">Treneri</p>
+            <h2 className="mt-2 text-4xl leading-tight">Stručni tim uz svaku kategoriju.</h2>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="landing-panel h-80 animate-pulse border-2 border-line bg-panel"
+              />
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="border-2 border-line bg-signal px-5 py-4 text-sm font-medium text-surface">
+            Trenere trenutno nije moguće učitati iz javnog API-ja.
+          </div>
+        ) : coaches.length === 0 ? (
+          <div className="landing-panel border-2 border-line bg-bg p-6 text-center">
+            <p className="landing-kicker text-muted">Treneri</p>
+            <h3 className="mt-3 text-3xl">Nema objavljenih trenera.</h3>
+            <p className="landing-copy mx-auto mt-3 max-w-2xl text-sm">
+              Trenerski tim će se prikazati ovdje čim profili budu aktivni.
+            </p>
+          </div>
+        ) : (
+          <div className={`landing-public-carousel ${carouselState.hasOverflow ? "has-controls" : ""}`}>
+            <div
+              ref={carouselRef}
+              className={`landing-coaches-grid ${carouselState.hasOverflow ? "is-overflowing" : ""}`}
+              aria-label="Treneri"
+            >
+              {coaches.map((coach) => (
+                <CoachCard key={coach.id} coach={coach} />
+              ))}
+            </div>
+
+            {carouselState.hasOverflow ? (
+              <>
+                <button
+                  className="landing-public-carousel-button is-left"
+                  type="button"
+                  aria-label="Prethodni treneri"
+                  disabled={!carouselState.canScrollLeft}
+                  onClick={() => scrollCarousel(-1)}
+                >
+                  ‹
+                </button>
+                <button
+                  className="landing-public-carousel-button is-right"
+                  type="button"
+                  aria-label="Sljedeći treneri"
+                  disabled={!carouselState.canScrollRight}
+                  onClick={() => scrollCarousel(1)}
+                >
+                  ›
+                </button>
+              </>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function CoachCard({ coach }: { coach: PublicCoach }) {
+  const [isImageBroken, setIsImageBroken] = useState(false);
+  const fullName = `${coach.user.firstName} ${coach.user.lastName}`;
+  const categories = coach.categories.map((assignment) => assignment.category);
+
+  return (
+    <article className="landing-coach-card">
+      <div className="landing-coach-photo">
+        {coach.user.profileImageUrl && !isImageBroken ? (
+          <img
+            src={coach.user.profileImageUrl}
+            alt={fullName}
+            onError={() => setIsImageBroken(true)}
+          />
+        ) : (
+          <span aria-hidden="true">{createClubMonogram(fullName)}</span>
+        )}
+      </div>
+
+      <div className="landing-coach-card-copy">
+        <div>
+          <h3>{fullName}</h3>
+          {coach.isConditioningCoach ? (
+            <p className="landing-coach-role">Kondicijski trener</p>
+          ) : null}
+        </div>
+
+        <div className="landing-coach-category-list" aria-label={`Kategorije za ${fullName}`}>
+          {categories.length > 0 ? (
+            categories.map((category) => (
+              <span className="landing-coach-category-chip" key={category.id}>
+                {category.logoUrl ? <img src={category.logoUrl} alt="" /> : null}
+                {category.name}
+              </span>
+            ))
+          ) : (
+            <span className="landing-coach-category-empty">Bez dodijeljene kategorije</span>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 

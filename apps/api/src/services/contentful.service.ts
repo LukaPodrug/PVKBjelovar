@@ -38,6 +38,7 @@ class ContentfulService {
     try {
       const environment = await this.getEnvironment();
       const upload = await environment.createUpload({ file: file.buffer });
+      const fileName = createAssetFileName(title, file);
 
       let asset = await environment.createAsset({
         fields: {
@@ -47,7 +48,7 @@ class ContentfulService {
           file: {
             [env.contentfulLocale]: {
               contentType: file.mimetype,
-              fileName: file.originalname,
+              fileName,
               uploadFrom: {
                 sys: {
                   type: "Link",
@@ -89,6 +90,39 @@ class ContentfulService {
       throw error;
     }
   }
+}
+
+function createAssetFileName(title: string, file: Express.Multer.File) {
+  const name =
+    title
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "image";
+  const extension = resolveImageExtension(file);
+
+  return `${name}${extension}`;
+}
+
+function resolveImageExtension(file: Express.Multer.File) {
+  const extensionByMimeType: Record<string, string> = {
+    "image/avif": ".avif",
+    "image/gif": ".gif",
+    "image/heic": ".heic",
+    "image/heif": ".heif",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/svg+xml": ".svg",
+    "image/webp": ".webp",
+  };
+  const mappedExtension = extensionByMimeType[file.mimetype.toLowerCase()];
+
+  if (mappedExtension) {
+    return mappedExtension;
+  }
+
+  const originalExtension = /\.[a-zA-Z0-9]{1,8}$/.exec(file.originalname)?.[0];
+  return originalExtension?.toLowerCase() ?? ".img";
 }
 
 function isContentfulAuthError(error: unknown): boolean {

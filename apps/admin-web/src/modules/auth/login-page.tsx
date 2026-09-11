@@ -6,6 +6,7 @@ import { api } from "../core/api";
 import { applyBrowserBranding } from "../core/browser-branding";
 import { adminClubSettingsDefaults, resolveSettingValue } from "../core/club-settings-defaults";
 import type { AuthResponse, ClubSettings } from "../core/types";
+import { PasswordInput } from "../ui/password-input";
 import { useAuth } from "./auth-context";
 
 export function LoginPage() {
@@ -106,19 +107,20 @@ export function LoginPage() {
                 />
               </label>
 
-              <label className="block">
-                <span className="mb-2 block ui-kicker text-muted">
+              <div className="block">
+                <label className="mb-2 block ui-kicker text-muted" htmlFor="login-password">
                   Lozinka
-                </span>
-                <input
+                </label>
+                <PasswordInput
+                  id="login-password"
                   className="w-full border-2 border-line bg-white px-4 py-3 outline-none placeholder:text-muted focus:bg-surface"
-                  type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Unesite lozinku"
+                  autoComplete="current-password"
                   required
                 />
-              </label>
+              </div>
 
               {errorMessage ? (
                 <div className="border-2 border-line bg-signal px-4 py-3 text-sm font-medium text-surface">

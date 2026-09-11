@@ -21,7 +21,7 @@ import {
   parseStringArrayInput,
   requireString,
 } from "../utils/request-parsers";
-import { resolveUploadedImageUrl } from "../utils/upload-helpers";
+import { buildPersonImageTitle, resolveUploadedImageUrl } from "../utils/upload-helpers";
 
 const coachInclude = {
   user: true,
@@ -33,6 +33,61 @@ const coachInclude = {
 } as const;
 
 export const coachesRouter = Router();
+
+coachesRouter.get(
+  "/public",
+  asyncHandler(async (_request, response) => {
+    const coaches = await prisma.coach.findMany({
+      where: {
+        user: {
+          accountStatus: AccountStatus.ACTIVE,
+        },
+      },
+      select: {
+        id: true,
+        isConditioningCoach: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImageUrl: true,
+          },
+        },
+        categories: {
+          select: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+                logoUrl: true,
+              },
+            },
+          },
+          orderBy: {
+            category: {
+              name: "asc",
+            },
+          },
+        },
+      },
+      orderBy: [
+        {
+          user: {
+            lastName: "asc",
+          },
+        },
+        {
+          user: {
+            firstName: "asc",
+          },
+        },
+      ],
+    });
+
+    response.json(coaches);
+  }),
+);
 
 coachesRouter.use(authenticateRequest, authorizeRoles(UserRole.ADMIN, UserRole.COACH));
 
@@ -129,13 +184,13 @@ coachesRouter.post(
     const email = normalizeEmail(request.body.email, "email");
     const temporaryPassword = generateTemporaryPassword();
     const passwordHash = await hashPassword(temporaryPassword);
-    const profileImageUrl = await resolveUploadedImageUrl(
-      request.file,
-      `Coach ${email} profile image`,
-      request.body.profileImageUrl,
-    );
     const firstName = requireString(request.body.firstName, "firstName");
     const lastName = requireString(request.body.lastName, "lastName");
+    const profileImageUrl = await resolveUploadedImageUrl(
+      request.file,
+      buildPersonImageTitle(firstName, lastName),
+      request.body.profileImageUrl,
+    );
     const existingUser = await prisma.user.findUnique({
       where: { email },
       include: { coach: true },
@@ -261,6 +316,12 @@ coachesRouter.patch(
     }
 
     const requestedIsConditioningCoach = parseOptionalBooleanInput(request.body.isConditioningCoach);
+    const firstName = request.body.firstName
+      ? requireString(request.body.firstName, "firstName")
+      : existingCoach.user.firstName;
+    const lastName = request.body.lastName
+      ? requireString(request.body.lastName, "lastName")
+      : existingCoach.user.lastName;
 
     const coach = await prisma.coach.update({
       where: { id: coachId },
@@ -268,8 +329,8 @@ coachesRouter.patch(
         isConditioningCoach: requestedIsConditioningCoach,
         user: {
           update: {
-            firstName: request.body.firstName ? requireString(request.body.firstName, "firstName") : undefined,
-            lastName: request.body.lastName ? requireString(request.body.lastName, "lastName") : undefined,
+            firstName: request.body.firstName ? firstName : undefined,
+            lastName: request.body.lastName ? lastName : undefined,
             email: request.body.email ? normalizeEmail(request.body.email, "email") : undefined,
             phone: request.body.phone !== undefined ? optionalString(request.body.phone) : undefined,
             profileImageUrl:
@@ -278,7 +339,7 @@ coachesRouter.patch(
                 : request.file || request.body.profileImageUrl
                 ? await resolveUploadedImageUrl(
                     request.file,
-                    `Coach ${coachId} profile image`,
+                    buildPersonImageTitle(firstName, lastName),
                     request.body.profileImageUrl,
                   )
                 : undefined,

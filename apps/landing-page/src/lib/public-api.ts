@@ -21,6 +21,24 @@ export interface PublicCategory {
   endDateOfBirth: string | null;
 }
 
+export interface PublicCoach {
+  id: string;
+  isConditioningCoach: boolean;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    profileImageUrl: string | null;
+  };
+  categories: Array<{
+    category: {
+      id: string;
+      name: string;
+      logoUrl: string | null;
+    };
+  }>;
+}
+
 export interface PublicCategoryPlayerAssignment {
   playerId: string;
   player: {
@@ -134,6 +152,10 @@ export function fetchClubSettings() {
 
 export function fetchPublicCategories() {
   return requestJson<PublicCategory[]>("/categories/public");
+}
+
+export function fetchPublicCoaches() {
+  return requestJson<PublicCoach[]>("/coaches/public");
 }
 
 export function fetchPublicBoardMembers() {

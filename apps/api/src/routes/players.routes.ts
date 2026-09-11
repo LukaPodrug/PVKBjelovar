@@ -27,7 +27,7 @@ import {
   parseStringArrayInput,
   requireString,
 } from "../utils/request-parsers";
-import { resolveUploadedImageUrl } from "../utils/upload-helpers";
+import { buildPersonImageTitle, resolveUploadedImageUrl } from "../utils/upload-helpers";
 
 const playerInclude = {
   user: true,
@@ -137,7 +137,7 @@ playersRouter.post(
       : buildDefaultPlayerUsername(firstName, lastName, oib);
     const profileImageUrl = await resolveUploadedImageUrl(
       request.file,
-      `Player ${request.body.firstName ?? "new"} ${request.body.lastName ?? ""} profile image`,
+      buildPersonImageTitle(firstName, lastName),
       request.body.profileImageUrl,
     );
 
@@ -255,6 +255,12 @@ playersRouter.patch(
         id: true,
         userId: true,
         membershipExpiresAt: true,
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
         _count: {
           select: {
             parents: true,
@@ -272,6 +278,12 @@ playersRouter.patch(
       request.body.username !== undefined ? parseUsernameInput(request.body.username) : undefined;
     const email =
       request.body.email !== undefined ? normalizeOptionalEmail(request.body.email) : undefined;
+    const firstName = request.body.firstName
+      ? requireString(request.body.firstName, "firstName")
+      : existingPlayer.user.firstName;
+    const lastName = request.body.lastName
+      ? requireString(request.body.lastName, "lastName")
+      : existingPlayer.user.lastName;
 
     if (username) {
       const conflictingUser = await prisma.user.findUnique({
@@ -326,8 +338,8 @@ playersRouter.patch(
             : undefined,
         user: {
           update: {
-            firstName: request.body.firstName ? requireString(request.body.firstName, "firstName") : undefined,
-            lastName: request.body.lastName ? requireString(request.body.lastName, "lastName") : undefined,
+            firstName: request.body.firstName ? firstName : undefined,
+            lastName: request.body.lastName ? lastName : undefined,
             email,
             username,
             phone: request.body.phone !== undefined ? optionalString(request.body.phone) : undefined,
@@ -337,7 +349,7 @@ playersRouter.patch(
                 : request.file || request.body.profileImageUrl
                 ? await resolveUploadedImageUrl(
                     request.file,
-                    `Player ${playerId} profile image`,
+                    buildPersonImageTitle(firstName, lastName),
                     request.body.profileImageUrl,
                   )
                 : undefined,

@@ -5,6 +5,7 @@ import { api } from "../core/api";
 import { adminClubSettingsDefaults, resolveSettingValue } from "../core/club-settings-defaults";
 import type { AdminCoachProfile, ClubSettings } from "../core/types";
 import { FeedbackToast } from "../ui/feedback-toast";
+import { PasswordInput } from "../ui/password-input";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -693,14 +694,18 @@ export function SettingsPage() {
               }}
             >
               <div className="grid gap-5">
-                <label className="block">
-                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                <div className="block">
+                  <label
+                    className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted"
+                    htmlFor="current-password"
+                  >
                     Trenutna lozinka
-                  </span>
-                  <input
+                  </label>
+                  <PasswordInput
+                    id="current-password"
                     className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                    type="password"
                     value={passwordForm.currentPassword}
+                    autoComplete="current-password"
                     onChange={(event) =>
                       setPasswordForm((current) => ({
                         ...current,
@@ -709,16 +714,20 @@ export function SettingsPage() {
                     }
                     required
                   />
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                <div className="block">
+                  <label
+                    className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted"
+                    htmlFor="new-password"
+                  >
                     Nova lozinka
-                  </span>
-                  <input
+                  </label>
+                  <PasswordInput
+                    id="new-password"
                     className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                    type="password"
                     value={passwordForm.newPassword}
+                    autoComplete="new-password"
                     onChange={(event) =>
                       setPasswordForm((current) => ({
                         ...current,
@@ -727,16 +736,20 @@ export function SettingsPage() {
                     }
                     required
                   />
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                <div className="block">
+                  <label
+                    className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted"
+                    htmlFor="confirm-new-password"
+                  >
                     Potvrdite novu lozinku
-                  </span>
-                  <input
+                  </label>
+                  <PasswordInput
+                    id="confirm-new-password"
                     className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                    type="password"
                     value={passwordForm.confirmNewPassword}
+                    autoComplete="new-password"
                     onChange={(event) =>
                       setPasswordForm((current) => ({
                         ...current,
@@ -745,7 +758,7 @@ export function SettingsPage() {
                     }
                     required
                   />
-                </label>
+                </div>
               </div>
               <div className="flex flex-wrap gap-3">
                 <button

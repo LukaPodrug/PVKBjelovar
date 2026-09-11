@@ -73,6 +73,50 @@ textarea {
   font: inherit;
 }
 
+.password-input-wrap {
+  position: relative;
+}
+
+.password-input-control {
+  padding-right: 3.5rem !important;
+}
+
+.password-visibility-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  display: inline-grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.password-visibility-toggle:hover {
+  background: var(--panel);
+  color: var(--accent);
+  box-shadow: none !important;
+}
+
+.password-visibility-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.password-visibility-toggle svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 ::selection {
   background: var(--accent);
   color: var(--surface);

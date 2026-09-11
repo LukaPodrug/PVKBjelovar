@@ -16,7 +16,11 @@ import {
   parsePaginationInput,
   requireString,
 } from "../utils/request-parsers";
-import { getUploadedFileMap, resolveUploadedImageUrl } from "../utils/upload-helpers";
+import {
+  buildPersonImageTitle,
+  getUploadedFileMap,
+  resolveUploadedImageUrl,
+} from "../utils/upload-helpers";
 
 const signupInclude = {
   suggestedCategory: true,
@@ -48,6 +52,10 @@ signupsRouter.post(
     const files = getUploadedFileMap(request.files);
 
     const childDateOfBirth = parseDateInput(request.body.childDateOfBirth, "childDateOfBirth");
+    const parentOneFirstName = requireString(request.body.parentOneFirstName, "parentOneFirstName");
+    const parentOneLastName = requireString(request.body.parentOneLastName, "parentOneLastName");
+    const childFirstName = requireString(request.body.childFirstName, "childFirstName");
+    const childLastName = requireString(request.body.childLastName, "childLastName");
     const hasSecondParent = Boolean(
       request.body.parentTwoFirstName ||
         request.body.parentTwoLastName ||
@@ -55,9 +63,14 @@ signupsRouter.post(
         request.body.parentTwoPhone,
     );
 
+    const parentTwoFirstName = hasSecondParent
+      ? requireString(request.body.parentTwoFirstName, "parentTwoFirstName")
+      : null;
+    const parentTwoLastName = hasSecondParent
+      ? requireString(request.body.parentTwoLastName, "parentTwoLastName")
+      : null;
+
     if (hasSecondParent) {
-      requireString(request.body.parentTwoFirstName, "parentTwoFirstName");
-      requireString(request.body.parentTwoLastName, "parentTwoLastName");
       requireString(request.body.parentTwoEmail, "parentTwoEmail");
       requireString(request.body.parentTwoPhone, "parentTwoPhone");
     }
@@ -66,33 +79,33 @@ signupsRouter.post(
 
     const signupRequest = await prisma.signupRequest.create({
       data: {
-        parentOneFirstName: requireString(request.body.parentOneFirstName, "parentOneFirstName"),
-        parentOneLastName: requireString(request.body.parentOneLastName, "parentOneLastName"),
+        parentOneFirstName,
+        parentOneLastName,
         parentOneEmail: normalizeEmail(request.body.parentOneEmail, "parentOneEmail"),
         parentOnePhone: requireString(request.body.parentOnePhone, "parentOnePhone"),
         parentOneProfileImageUrl: await resolveUploadedImageUrl(
           files.parentOneProfileImage?.[0],
-          "Signup parent one profile image",
+          buildPersonImageTitle(parentOneFirstName, parentOneLastName),
           request.body.parentOneProfileImageUrl,
         ),
-        parentTwoFirstName: hasSecondParent ? requireString(request.body.parentTwoFirstName, "parentTwoFirstName") : null,
-        parentTwoLastName: hasSecondParent ? requireString(request.body.parentTwoLastName, "parentTwoLastName") : null,
+        parentTwoFirstName,
+        parentTwoLastName,
         parentTwoEmail: hasSecondParent ? normalizeEmail(request.body.parentTwoEmail, "parentTwoEmail") : null,
         parentTwoPhone: hasSecondParent ? requireString(request.body.parentTwoPhone, "parentTwoPhone") : null,
         parentTwoProfileImageUrl: hasSecondParent
           ? await resolveUploadedImageUrl(
               files.parentTwoProfileImage?.[0],
-              "Signup parent two profile image",
+              buildPersonImageTitle(parentTwoFirstName!, parentTwoLastName!),
               request.body.parentTwoProfileImageUrl,
             )
           : null,
-        childFirstName: requireString(request.body.childFirstName, "childFirstName"),
-        childLastName: requireString(request.body.childLastName, "childLastName"),
+        childFirstName,
+        childLastName,
         childDateOfBirth,
         childOib: requireString(request.body.childOib, "childOib"),
         childProfileImageUrl: await resolveUploadedImageUrl(
           files.childProfileImage?.[0],
-          "Signup child profile image",
+          buildPersonImageTitle(childFirstName, childLastName),
           request.body.childProfileImageUrl,
         ),
         gdprConsent: parseBooleanInput(request.body.gdprConsent, "gdprConsent"),

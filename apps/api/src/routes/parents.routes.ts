@@ -21,7 +21,7 @@ import {
   parseStringArrayInput,
   requireString,
 } from "../utils/request-parsers";
-import { resolveUploadedImageUrl } from "../utils/upload-helpers";
+import { buildPersonImageTitle, resolveUploadedImageUrl } from "../utils/upload-helpers";
 
 const parentInclude = {
   user: true,
@@ -110,9 +110,11 @@ parentsRouter.post(
     const primaryPlayerIds = new Set(parseStringArrayInput(request.body.primaryPlayerIds));
     const password = optionalString(request.body.password) ?? generateTemporaryPassword();
     const passwordHash = await hashPassword(password);
+    const firstName = requireString(request.body.firstName, "firstName");
+    const lastName = requireString(request.body.lastName, "lastName");
     const profileImageUrl = await resolveUploadedImageUrl(
       request.file,
-      `Parent ${request.body.email ?? "new"} profile image`,
+      buildPersonImageTitle(firstName, lastName),
       request.body.profileImageUrl,
     );
 
@@ -123,8 +125,8 @@ parentsRouter.post(
             role: UserRole.PARENT,
             email: normalizeEmail(request.body.email, "email"),
             passwordHash,
-            firstName: requireString(request.body.firstName, "firstName"),
-            lastName: requireString(request.body.lastName, "lastName"),
+            firstName,
+            lastName,
             phone: requireString(request.body.phone, "phone"),
             profileImageUrl,
             accountStatus:
@@ -179,6 +181,12 @@ parentsRouter.patch(
     const existingParent = await prisma.parent.findUnique({
       where: { id: parentId },
       select: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
         players: {
           select: {
             playerId: true,
@@ -190,6 +198,13 @@ parentsRouter.patch(
     if (!existingParent) {
       throw new AppError("Roditelj nije pronađen.", 404);
     }
+
+    const firstName = request.body.firstName
+      ? requireString(request.body.firstName, "firstName")
+      : existingParent.user.firstName;
+    const lastName = request.body.lastName
+      ? requireString(request.body.lastName, "lastName")
+      : existingParent.user.lastName;
 
     if (request.body.playerIds !== undefined) {
       const nextPlayerIds = new Set(playerIds);
@@ -205,8 +220,8 @@ parentsRouter.patch(
       data: {
         user: {
           update: {
-            firstName: request.body.firstName ? requireString(request.body.firstName, "firstName") : undefined,
-            lastName: request.body.lastName ? requireString(request.body.lastName, "lastName") : undefined,
+            firstName: request.body.firstName ? firstName : undefined,
+            lastName: request.body.lastName ? lastName : undefined,
             email: request.body.email ? normalizeEmail(request.body.email, "email") : undefined,
             phone: request.body.phone ? requireString(request.body.phone, "phone") : undefined,
             profileImageUrl:
@@ -215,7 +230,7 @@ parentsRouter.patch(
                 : request.file || request.body.profileImageUrl
                 ? await resolveUploadedImageUrl(
                     request.file,
-                    `Parent ${parentId} profile image`,
+                    buildPersonImageTitle(firstName, lastName),
                     request.body.profileImageUrl,
                   )
                 : undefined,

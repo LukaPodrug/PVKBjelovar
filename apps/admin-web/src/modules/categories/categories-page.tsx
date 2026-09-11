@@ -17,6 +17,7 @@ import { DatePicker } from "../ui/date-picker";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
+import { downloadCategoryPlayersWorkbook } from "./category-players-xlsx";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -103,6 +104,7 @@ export function CategoriesPage() {
   );
   const [categoriesPage, setCategoriesPage] = useState(1);
   const [categoryPlayersPage, setCategoryPlayersPage] = useState(1);
+  const [exportingCategoryId, setExportingCategoryId] = useState<string | null>(null);
 
   const categoriesQuery = useQuery({
     queryKey: ["categories", "management", categoriesPage],
@@ -434,6 +436,30 @@ export function CategoriesPage() {
     setManagedPlayerId(playerId);
   };
 
+  const exportCategoryPlayers = async (category: CategoryRecord) => {
+    setFeedback(null);
+    setExportingCategoryId(category.id);
+
+    try {
+      const assignments = await fetchAllCategoryPlayers(category.id);
+      const result = await downloadCategoryPlayersWorkbook(category.name, assignments);
+      setFeedback({
+        tone: "success",
+        message:
+          result.failedImageCount > 0
+            ? `Izvezeno igrača iz kategorije ${category.name}: ${assignments.length}. Umetnuto slika: ${result.embeddedImageCount}. Slike koje nije moguće učitati: ${result.failedImageCount}.`
+            : `Izvezeno igrača iz kategorije ${category.name}: ${assignments.length}. Umetnuto slika: ${result.embeddedImageCount}.`,
+      });
+    } catch (error) {
+      setFeedback({
+        tone: "error",
+        message: getMutationErrorMessage(error, "Izvoz igrača nije uspio."),
+      });
+    } finally {
+      setExportingCategoryId(null);
+    }
+  };
+
   return (
     <section className="space-y-6">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
@@ -503,6 +529,7 @@ export function CategoriesPage() {
                     <th className="px-4 py-4">Godište</th>
                     <th className="px-4 py-4">Treneri</th>
                     <th className="px-4 py-4">Igrači</th>
+                    <th className="px-4 py-4">Izvoz</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -526,6 +553,21 @@ export function CategoriesPage() {
                         </td>
                         <td className="px-4 py-4 align-middle text-center text-sm">{category.coaches.length}</td>
                         <td className="px-4 py-4 align-middle text-center text-sm">{category.playerCount}</td>
+                        <td className="px-4 py-4 align-middle text-center">
+                          <button
+                            className="ui-pill ui-pill-button ui-pill--outline inline-flex items-center gap-2"
+                            type="button"
+                            aria-label={`Izvezi igrače kategorije ${category.name} u Excel`}
+                            disabled={category.playerCount === 0 || exportingCategoryId !== null}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void exportCategoryPlayers(category);
+                            }}
+                          >
+                            <DownloadIcon />
+                            {exportingCategoryId === category.id ? "Izvoz..." : "Excel"}
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -1348,6 +1390,47 @@ function getMutationErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+async function fetchAllCategoryPlayers(categoryId: string) {
+  const assignments: CategoryPlayerAssignment[] = [];
+  let page = 1;
+
+  while (true) {
+    const response = await api.get<PaginatedResponse<CategoryPlayerAssignment>>(
+      `/categories/${categoryId}/players`,
+      {
+        params: { page, pageSize: 50 },
+      },
+    );
+    const pageData = response.data;
+    assignments.push(...pageData.items);
+
+    if (page >= pageData.totalPages) {
+      return assignments;
+    }
+
+    page += 1;
+  }
+}
+
+function DownloadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
+    </svg>
+  );
 }
 
 function formatNumericDate(dateIso: string) {

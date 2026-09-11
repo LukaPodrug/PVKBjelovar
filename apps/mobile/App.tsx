@@ -3,9 +3,17 @@ import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
+import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import QRCode from "react-native-qrcode-svg";
-import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -49,6 +57,11 @@ interface AuthUser {
 interface AuthResponse {
   token: string;
   user: AuthUser;
+}
+
+interface StoredAuthState {
+  apiBaseUrl: string;
+  session: AuthResponse;
 }
 
 interface ApiErrorResponse {
@@ -263,6 +276,8 @@ const defaultApiBaseUrl =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://pvkbjelovar.onrender.com/api";
 
+const authStorageKey = "water-polo-club-mobile-auth";
+
 const roleContent: Record<
   UserRole,
   {
@@ -309,6 +324,66 @@ const emptyPasswordForm: ChangePasswordFormState = {
   confirmNewPassword: "",
 };
 
+async function readStoredAuthState(): Promise<StoredAuthState | null> {
+  const raw =
+    Platform.OS === "web"
+      ? typeof window === "undefined"
+        ? null
+        : window.localStorage.getItem(authStorageKey)
+      : await SecureStore.getItemAsync(authStorageKey);
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredAuthState>;
+
+    if (!parsed.session?.token || !parsed.session.user) {
+      await writeStoredAuthState(null);
+      return null;
+    }
+
+    return {
+      apiBaseUrl:
+        typeof parsed.apiBaseUrl === "string" && parsed.apiBaseUrl.trim()
+          ? normalizeApiBaseUrl(parsed.apiBaseUrl)
+          : defaultApiBaseUrl,
+      session: parsed.session,
+    };
+  } catch {
+    await writeStoredAuthState(null);
+    return null;
+  }
+}
+
+async function writeStoredAuthState(state: StoredAuthState | null) {
+  if (Platform.OS === "web") {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!state) {
+      window.localStorage.removeItem(authStorageKey);
+      return;
+    }
+
+    window.localStorage.setItem(authStorageKey, JSON.stringify(state));
+    return;
+  }
+
+  if (!state) {
+    await SecureStore.deleteItemAsync(authStorageKey);
+    return;
+  }
+
+  await SecureStore.setItemAsync(authStorageKey, JSON.stringify(state));
+}
+
+function reportAuthStorageError(error: unknown) {
+  console.warn("Auth session storage failed", error);
+}
+
 export default function App() {
   const [session, setSession] = useState<AuthResponse | null>(null);
   const [loginForm, setLoginForm] = useState<LoginFormState>(initialLoginForm);
@@ -317,6 +392,41 @@ export default function App() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function restoreSession() {
+      try {
+        const storedAuthState = await readStoredAuthState();
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (storedAuthState) {
+          setSession(storedAuthState.session);
+          setLoginForm((currentForm) => ({
+            ...currentForm,
+            apiBaseUrl: storedAuthState.apiBaseUrl,
+          }));
+        }
+      } catch (error) {
+        reportAuthStorageError(error);
+      } finally {
+        if (isMounted) {
+          setIsRestoringSession(false);
+        }
+      }
+    }
+
+    void restoreSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!toastMessage) {
@@ -343,7 +453,8 @@ export default function App() {
     setSuccessMessage(null);
 
     try {
-      const payload = await requestJson<AuthResponse>(normalizeApiBaseUrl(nextLoginForm.apiBaseUrl), "/auth/login", {
+      const apiBaseUrl = normalizeApiBaseUrl(nextLoginForm.apiBaseUrl);
+      const payload = await requestJson<AuthResponse>(apiBaseUrl, "/auth/login", {
         method: "POST",
         body: JSON.stringify({
           identifier: nextLoginForm.identifier.trim(),
@@ -351,7 +462,12 @@ export default function App() {
         }),
       });
 
+      await writeStoredAuthState({ apiBaseUrl, session: payload }).catch(reportAuthStorageError);
       setSession(payload);
+      setLoginForm({
+        ...nextLoginForm,
+        apiBaseUrl,
+      });
       setPasswordForm({
         currentPassword: nextLoginForm.password,
         newPassword: "",
@@ -388,13 +504,19 @@ export default function App() {
         },
       );
 
-      setSession({
+      const nextSession = {
         ...session,
         user: {
           ...session.user,
           mustChangePassword: false,
         },
-      });
+      };
+
+      await writeStoredAuthState({
+        apiBaseUrl: normalizeApiBaseUrl(loginForm.apiBaseUrl),
+        session: nextSession,
+      }).catch(reportAuthStorageError);
+      setSession(nextSession);
       setToastMessage({ tone: "success", message: "Lozinka je uspješno promijenjena." });
       setPasswordForm(emptyPasswordForm);
     } catch (error) {
@@ -405,6 +527,7 @@ export default function App() {
   }
 
   function handleLogout() {
+    void writeStoredAuthState(null).catch(reportAuthStorageError);
     setSession(null);
     setLoginForm(initialLoginForm);
     setPasswordForm(emptyPasswordForm);
@@ -413,13 +536,33 @@ export default function App() {
   }
 
   function handleUserUpdate(user: AuthUser) {
-    setSession((currentSession) =>
-      currentSession
-        ? {
-            ...currentSession,
-            user,
-          }
-        : currentSession,
+    setSession((currentSession) => {
+      if (!currentSession) {
+        return currentSession;
+      }
+
+      const nextSession = {
+        ...currentSession,
+        user,
+      };
+
+      void writeStoredAuthState({
+        apiBaseUrl: normalizeApiBaseUrl(loginForm.apiBaseUrl),
+        session: nextSession,
+      }).catch(reportAuthStorageError);
+
+      return nextSession;
+    });
+  }
+
+  if (isRestoringSession) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="dark" />
+        <View style={styles.restoringSessionScreen}>
+          <ActivityIndicator color="#123d75" />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -428,7 +571,7 @@ export default function App() {
       <StatusBar style="dark" />
       <KeyboardAvoidingView
         style={styles.safeArea}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         {!session ? (
           <LoginScreen
@@ -474,11 +617,17 @@ function LoginScreen({
   form: LoginFormState;
   errorMessage: string | null;
   isBusy: boolean;
-  onChange: (value: LoginFormState) => void;
+  onChange: Dispatch<SetStateAction<LoginFormState>>;
   onLogin: () => void;
 }) {
   return (
-    <ScrollView contentContainerStyle={styles.screenContent} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.authScrollView}
+      contentContainerStyle={[styles.screenContent, styles.authScreenContent]}
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.heroPanel}>
         <Image source={clubLogoSource} style={styles.loginLogo} resizeMode="contain" />
         <Text style={styles.heroBadge}>PVK Mladost Bjelovar</Text>
@@ -492,15 +641,21 @@ function LoginScreen({
           label="E-pošta ili korisničko ime"
           value={form.identifier}
           autoCapitalize="none"
+          autoComplete="username"
           autoCorrect={false}
+          importantForAutofill="yes"
           keyboardType="default"
-          onChangeText={(identifier) => onChange({ ...form, identifier })}
+          textContentType="username"
+          onChangeText={(identifier) => onChange((current) => ({ ...current, identifier }))}
         />
         <LabeledInput
           label="Lozinka"
           value={form.password}
+          autoComplete="current-password"
+          importantForAutofill="yes"
           secureTextEntry
-          onChangeText={(password) => onChange({ ...form, password })}
+          textContentType="password"
+          onChangeText={(password) => onChange((current) => ({ ...current, password }))}
         />
 
         {errorMessage ? <MessageBanner tone="error" message={errorMessage} /> : null}
@@ -516,7 +671,6 @@ function LoginScreen({
             <Text style={styles.primaryButtonText}>Prijava</Text>
           )}
         </Pressable>
-
       </View>
     </ScrollView>
   );
@@ -535,12 +689,18 @@ function PasswordChangeScreen({
   errorMessage: string | null;
   isBusy: boolean;
   user: AuthUser;
-  onChange: (value: ChangePasswordFormState) => void;
+  onChange: Dispatch<SetStateAction<ChangePasswordFormState>>;
   onLogout: () => void;
   onSubmit: () => void;
 }) {
   return (
-    <ScrollView contentContainerStyle={styles.screenContent} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.authScrollView}
+      contentContainerStyle={[styles.screenContent, styles.authScreenContent]}
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.heroPanel}>
         <Text style={styles.heroBadge}>{roleContent[user.role].badge}</Text>
         <Text style={styles.heroTitle}>Postavite novu lozinku</Text>
@@ -555,20 +715,31 @@ function PasswordChangeScreen({
         <LabeledInput
           label="Trenutna lozinka"
           value={form.currentPassword}
+          autoComplete="current-password"
+          importantForAutofill="yes"
           secureTextEntry
-          onChangeText={(currentPassword) => onChange({ ...form, currentPassword })}
+          textContentType="password"
+          onChangeText={(currentPassword) => onChange((current) => ({ ...current, currentPassword }))}
         />
         <LabeledInput
           label="Nova lozinka"
           value={form.newPassword}
+          autoComplete="new-password"
+          importantForAutofill="yes"
           secureTextEntry
-          onChangeText={(newPassword) => onChange({ ...form, newPassword })}
+          textContentType="newPassword"
+          onChangeText={(newPassword) => onChange((current) => ({ ...current, newPassword }))}
         />
         <LabeledInput
           label="Potvrda nove lozinke"
           value={form.confirmNewPassword}
+          autoComplete="new-password"
+          importantForAutofill="yes"
           secureTextEntry
-          onChangeText={(confirmNewPassword) => onChange({ ...form, confirmNewPassword })}
+          textContentType="newPassword"
+          onChangeText={(confirmNewPassword) =>
+            onChange((current) => ({ ...current, confirmNewPassword }))
+          }
         />
 
         {errorMessage ? <MessageBanner tone="error" message={errorMessage} /> : null}
@@ -1612,7 +1783,10 @@ function AccountProfilePanel({
           label="Korisničko ime"
           value={username}
           autoCapitalize="none"
+          autoComplete="username"
           autoCorrect={false}
+          importantForAutofill="yes"
+          textContentType="username"
           onChangeText={setUsername}
         />
 
@@ -1636,7 +1810,10 @@ function AccountProfilePanel({
         <LabeledInput
           label="Trenutna lozinka"
           value={passwordForm.currentPassword}
+          autoComplete="current-password"
+          importantForAutofill="yes"
           secureTextEntry
+          textContentType="password"
           onChangeText={(currentPassword) =>
             setPasswordForm((current) => ({ ...current, currentPassword }))
           }
@@ -1644,7 +1821,10 @@ function AccountProfilePanel({
         <LabeledInput
           label="Nova lozinka"
           value={passwordForm.newPassword}
+          autoComplete="new-password"
+          importantForAutofill="yes"
           secureTextEntry
+          textContentType="newPassword"
           onChangeText={(newPassword) =>
             setPasswordForm((current) => ({ ...current, newPassword }))
           }
@@ -1652,7 +1832,10 @@ function AccountProfilePanel({
         <LabeledInput
           label="Potvrda nove lozinke"
           value={passwordForm.confirmNewPassword}
+          autoComplete="new-password"
+          importantForAutofill="yes"
           secureTextEntry
+          textContentType="newPassword"
           onChangeText={(confirmNewPassword) =>
             setPasswordForm((current) => ({ ...current, confirmNewPassword }))
           }
@@ -1966,7 +2149,6 @@ function PlayerAttendanceScreen({
   const [isSubmittingScan, setIsSubmittingScan] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pushToken, setPushToken] = useState<string | null>(null);
-  const [categories, setCategories] = useState<MeCategory[]>([]);
   const [activeTab, setActiveTab] = useState("schedule");
 
   useEffect(() => {
@@ -1977,21 +2159,6 @@ function PlayerAttendanceScreen({
         setPushToken(token);
       }
     });
-
-    requestJson<MeCategory[]>(apiBaseUrl, "/me/categories", {
-      method: "GET",
-      token: session.token,
-    })
-      .then((payload) => {
-        if (isActive) {
-          setCategories(payload);
-        }
-      })
-      .catch(() => {
-        if (isActive) {
-          setCategories([]);
-        }
-      });
 
     return () => {
       isActive = false;
@@ -2065,7 +2232,6 @@ function PlayerAttendanceScreen({
   const playerTabs: TabItem[] = [
     { key: "schedule", label: "Raspored", icon: "calendar-outline" },
     { key: "checkin", label: "Dolazak", icon: "scan-outline" },
-    { key: "leaderboard", label: "Poredak", icon: "trophy-outline" },
     { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
     { key: "profile", label: "Profil", icon: "person-circle-outline" },
   ];
@@ -2127,10 +2293,6 @@ function PlayerAttendanceScreen({
                 </View>
               )}
             </View>
-          </TabScrollView>
-        ) : activeTab === "leaderboard" ? (
-          <TabScrollView>
-            <LeaderboardCard apiBaseUrl={apiBaseUrl} token={session.token} categories={categories} />
           </TabScrollView>
         ) : activeTab === "notifications" ? (
           <TabScrollView>
@@ -2299,7 +2461,6 @@ function ParentDashboardScreen({
   const parentTabs: TabItem[] = [
     { key: "overview", label: "Pregled", icon: "home-outline" },
     { key: "schedule", label: "Raspored", icon: "calendar-outline" },
-    { key: "leaderboard", label: "Poredak", icon: "trophy-outline" },
     { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
     { key: "profile", label: "Profil", icon: "person-circle-outline" },
   ];
@@ -2423,16 +2584,6 @@ function ParentDashboardScreen({
                   token={session.token}
                   endpoint={`/me/children/${child.playerId}/schedule`}
                 />
-              ))
-            ) : activeTab === "leaderboard" ? (
-              renderChildScopedTab((child) => (
-                <TabScrollView>
-                  <LeaderboardCard
-                    apiBaseUrl={apiBaseUrl}
-                    token={session.token}
-                    categories={child.categories}
-                  />
-                </TabScrollView>
               ))
             ) : activeTab === "notifications" ? (
               <TabScrollView>
@@ -3430,7 +3581,6 @@ function ChildOverview({
         )}
       </View>
 
-      <LeaderboardCard apiBaseUrl={apiBaseUrl} token={token} categories={child.categories} />
     </>
   );
 }
@@ -3478,22 +3628,43 @@ function membershipToneStyle(tone: MembershipTone) {
   }
 }
 
+interface LabeledInputProps extends Omit<ComponentProps<typeof TextInput>, "placeholderTextColor" | "style"> {
+  label: string;
+}
+
 function LabeledInput({
   label,
+  secureTextEntry,
   ...props
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  secureTextEntry?: boolean;
-  autoCapitalize?: "none" | "sentences" | "words" | "characters";
-  autoCorrect?: boolean;
-  keyboardType?: "default" | "email-address" | "url";
-}) {
+}: LabeledInputProps) {
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
   return (
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>{label}</Text>
-      <TextInput placeholderTextColor="#7a899a" style={styles.input} {...props} />
+      <View style={secureTextEntry ? styles.passwordInputWrap : undefined}>
+        <TextInput
+          placeholderTextColor="#7a899a"
+          style={[styles.input, secureTextEntry && styles.passwordInput]}
+          secureTextEntry={secureTextEntry && !isPasswordVisible}
+          {...props}
+        />
+        {secureTextEntry ? (
+          <Pressable
+            accessibilityLabel={isPasswordVisible ? "Sakrij lozinku" : "Prikaži lozinku"}
+            accessibilityRole="button"
+            hitSlop={8}
+            style={styles.passwordVisibilityButton}
+            onPress={() => setIsPasswordVisible((current) => !current)}
+          >
+            <Ionicons
+              name={isPasswordVisible ? "eye-off-outline" : "eye-outline"}
+              size={22}
+              color="#405365"
+            />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -3794,6 +3965,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#ffffff",
   },
+  restoringSessionScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tabShell: {
     flex: 1,
     backgroundColor: "#f3f7fb",
@@ -4021,6 +4197,13 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     gap: 18,
   },
+  authScrollView: {
+    flex: 1,
+  },
+  authScreenContent: {
+    flexGrow: 1,
+    paddingBottom: 40,
+  },
   heroPanel: {
     alignItems: "center",
     borderRadius: 28,
@@ -4207,6 +4390,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  passwordInputWrap: {
+    position: "relative",
+    justifyContent: "center",
+  },
+  passwordInput: {
+    paddingRight: 58,
+  },
+  passwordVisibilityButton: {
+    position: "absolute",
+    right: 7,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   primaryButton: {
     marginTop: 20,
