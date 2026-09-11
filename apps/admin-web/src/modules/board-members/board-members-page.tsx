@@ -243,13 +243,8 @@ export function BoardMembersPage() {
                       }`}
                       onClick={() => openEditForm(boardMember)}
                     >
-                      <td className="px-4 py-4 align-middle">
-                        <div className="flex items-center justify-center gap-3">
-                          <span className="board-member-table-image">
-                            <img src={boardMember.imageUrl} alt={boardMember.name} />
-                          </span>
-                          <strong className="text-sm">{boardMember.name}</strong>
-                        </div>
+                      <td className="px-4 py-4 align-middle text-center">
+                        <strong className="text-sm">{boardMember.name}</strong>
                       </td>
                       <td className="px-4 py-4 align-middle text-center text-sm font-medium">
                         {boardMember.position}

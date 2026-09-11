@@ -1,16 +1,18 @@
 import { Prisma } from "@prisma/client";
 
 /**
- * Categories are listed youngest to oldest.
+ * Categories are listed youth first (youngest squad first), then the senior squad, then veterans
+ * (again youngest first).
  *
- * A category carries either a lower bound (startDateOfBirth, "godište od" — youth) or an upper
- * bound (endDateOfBirth, "godište do" — veterans and, in practice, every age-capped squad), never
- * both. A later bound of either kind means younger players, so both sort descending. Nulls sort
- * last so an unbounded senior squad ends up at the bottom rather than the top.
+ * A category carries either a lower bound (startDateOfBirth, "godište od" — youth), an upper bound
+ * (endDateOfBirth, "godište do" — a minimum-age veteran band), or neither (seniors). Youth sort
+ * ahead of everything else on a non-null lower bound, latest first. Within the rest, a null upper
+ * bound sorts first so the unlimited senior squad sits between youth and veterans, and the veteran
+ * bands follow with the latest cut-off — the youngest band — first.
  */
 export const categoryOrderBy: Prisma.CategoryOrderByWithRelationInput[] = [
   { startDateOfBirth: { sort: "desc", nulls: "last" } },
-  { endDateOfBirth: { sort: "desc", nulls: "last" } },
+  { endDateOfBirth: { sort: "desc", nulls: "first" } },
   { name: "asc" },
 ];
 
