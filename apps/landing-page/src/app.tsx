@@ -1193,26 +1193,36 @@ function LandingFooter({
           </section>
         ) : null}
 
-        {socialLinks.length > 0 ? (
+        <div className="landing-footer-community">
+          {socialLinks.length > 0 ? (
+            <section className="landing-footer-column">
+              <p className="landing-kicker text-muted">Društvene mreže</p>
+              <div className="landing-footer-social-links mt-4">
+                {socialLinks.map((item) => (
+                  <a
+                    key={item.platform}
+                    className="landing-footer-social-link"
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={item.label}
+                    title={item.label}
+                  >
+                    <SocialIcon platform={item.platform} />
+                  </a>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <section className="landing-footer-column">
-            <p className="landing-kicker text-muted">Društvene mreže</p>
-            <div className="landing-footer-social-links mt-4">
-              {socialLinks.map((item) => (
-                <a
-                  key={item.platform}
-                  className="landing-footer-social-link"
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={item.label}
-                  title={item.label}
-                >
-                  <SocialIcon platform={item.platform} />
-                </a>
-              ))}
+            <p className="landing-kicker text-muted">Dokumenti</p>
+            <div className="landing-footer-list mt-4">
+              <Link to="/pravila-privatnosti">Pravila privatnosti</Link>
+              <Link to="/brisanje-racuna">Brisanje računa</Link>
             </div>
           </section>
-        ) : null}
+        </div>
 
         {bankDetails.length > 0 ? (
           <section className="landing-footer-column">
@@ -1228,13 +1238,6 @@ function LandingFooter({
           </section>
         ) : null}
 
-        <section className="landing-footer-column">
-          <p className="landing-kicker text-muted">Dokumenti</p>
-          <div className="landing-footer-list mt-4">
-            <Link to="/pravila-privatnosti">Pravila privatnosti</Link>
-            <Link to="/brisanje-racuna">Brisanje računa</Link>
-          </div>
-        </section>
       </div>
     </footer>
   );

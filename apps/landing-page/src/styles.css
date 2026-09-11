@@ -1668,6 +1668,10 @@ textarea {
   text-align: center;
 }
 
+.landing-page .landing-footer-community {
+  display: contents;
+}
+
 .landing-page .landing-footer-list {
   display: grid;
   gap: 0.8rem;
@@ -2769,6 +2773,13 @@ textarea {
 }
 
 @media (min-width: 1024px) {
+  .landing-page .landing-footer-community {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: 1.5rem;
+  }
+
   .landing-page .schedule-desktop-view {
     display: block;
   }
