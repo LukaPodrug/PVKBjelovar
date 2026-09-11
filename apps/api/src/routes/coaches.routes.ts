@@ -21,6 +21,7 @@ import {
   parseStringArrayInput,
   requireString,
 } from "../utils/request-parsers";
+import { nestedCategoryOrderBy } from "../utils/category-order";
 import { buildPersonImageTitle, resolveUploadedImageUrl } from "../utils/upload-helpers";
 
 const coachInclude = {
@@ -64,11 +65,7 @@ coachesRouter.get(
               },
             },
           },
-          orderBy: {
-            category: {
-              name: "asc",
-            },
-          },
+          orderBy: nestedCategoryOrderBy,
         },
       },
       orderBy: [

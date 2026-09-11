@@ -1,4 +1,4 @@
-import { Prisma, UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
@@ -19,6 +19,7 @@ import {
   buildPaginatedResponse,
   requireString,
 } from "../utils/request-parsers";
+import { categoryOrderBy } from "../utils/category-order";
 import { resolveUploadedImageUrl } from "../utils/upload-helpers";
 
 const categoryInclude = {
@@ -62,12 +63,6 @@ const categoryPlayerInclude = {
 
 const defaultPublicCategoryPlayersLimit = 24;
 const maxPublicCategoryPlayersLimit = 48;
-const categoryOrderBy: Prisma.CategoryOrderByWithRelationInput[] = [
-  { startDateOfBirth: "desc" },
-  { endDateOfBirth: "asc" },
-  { name: "asc" },
-];
-
 export const categoriesRouter = Router();
 
 categoriesRouter.get(
