@@ -1036,25 +1036,23 @@ function CoachCard({ coach }: { coach: PublicCoach }) {
       </div>
 
       <div className="landing-coach-card-copy">
-        <div>
+        <div className="landing-person-card-heading">
           <h3>{fullName}</h3>
           {coach.isConditioningCoach ? (
             <p className="landing-coach-role">Kondicijski trener</p>
           ) : null}
         </div>
 
-        <div className="landing-coach-category-list" aria-label={`Kategorije za ${fullName}`}>
-          {categories.length > 0 ? (
-            categories.map((category) => (
+        {categories.length > 0 ? (
+          <div className="landing-coach-category-list" aria-label={`Kategorije za ${fullName}`}>
+            {categories.map((category) => (
               <span className="landing-coach-category-chip" key={category.id}>
                 {category.logoUrl ? <img src={category.logoUrl} alt="" /> : null}
                 {category.name}
               </span>
-            ))
-          ) : (
-            <span className="landing-coach-category-empty">Bez dodijeljene kategorije</span>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -1075,11 +1073,15 @@ function BoardMembersSection({ boardMembers }: { boardMembers: PublicBoardMember
             aria-label="Članovi uprave"
           >
             {boardMembers.map((boardMember) => (
-              <article className="landing-board-card" key={boardMember.id}>
-                <img src={boardMember.imageUrl} alt={boardMember.name} />
-                <div className="landing-board-card-copy">
-                  <h3>{boardMember.name}</h3>
-                  <p>{boardMember.position}</p>
+              <article className="landing-coach-card landing-board-card" key={boardMember.id}>
+                <div className="landing-coach-photo">
+                  <img src={boardMember.imageUrl} alt={boardMember.name} />
+                </div>
+                <div className="landing-coach-card-copy landing-board-card-copy">
+                  <div className="landing-person-card-heading">
+                    <h3>{boardMember.name}</h3>
+                    <p className="landing-coach-role">{boardMember.position}</p>
+                  </div>
                 </div>
               </article>
             ))}
