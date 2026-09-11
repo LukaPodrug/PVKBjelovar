@@ -37,6 +37,7 @@ interface CategoryFormState {
 interface StartNewSeasonResult {
   categoriesUpdated: number;
   playersReassigned: number;
+  veteransAdded: number;
 }
 
 interface ManagedPlayerFormState {
@@ -367,7 +368,7 @@ export function CategoriesPage() {
     onSuccess: async (result) => {
       setFeedback({
         tone: "success",
-        message: `Nova sezona je pokrenuta. Ažurirano kategorija: ${result.categoriesUpdated}. Premješteno igrača: ${result.playersReassigned}.`,
+        message: `Nova sezona je pokrenuta. Ažurirano kategorija: ${result.categoriesUpdated}. Premješteno igrača: ${result.playersReassigned}. Novih veteranskih kategorija: ${result.veteransAdded}.`,
       });
       setSelectedCategoryId(null);
       setFormMode("create");

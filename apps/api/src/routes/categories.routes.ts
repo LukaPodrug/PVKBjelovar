@@ -323,51 +323,79 @@ categoriesRouter.post(
         },
       });
 
-      // Only youth players move. A player in no category stays in none, and seniors are never
-      // promoted into a veteran squad automatically because veteran membership is a choice rather
-      // than a consequence of ageing.
-      const playerAssignments = players.flatMap((player) => {
+      // A player in no category stays in none, and a senior is never promoted into a veteran squad
+      // automatically: veteran membership is a minimum-age squad you opt into, not somewhere you
+      // arrive by getting older.
+      const youthReplacements: Array<{ playerId: string; categoryId: string }> = [];
+      const veteranAdditions: Array<{ playerId: string; categoryId: string }> = [];
+
+      for (const player of players) {
         if (player.categories.length === 0) {
-          return [];
+          continue;
         }
 
         const currentCategoryIds = player.categories.map((assignment) => assignment.categoryId);
-        const currentCategory = updatedCategories.find((category) =>
+        const currentCategories = updatedCategories.filter((category) =>
           currentCategoryIds.includes(category.id),
         );
+        const isYouthPlayer = currentCategories.some((category) => category.startDateOfBirth);
+        const isVeteranPlayer = currentCategories.some((category) => category.endDateOfBirth);
 
-        if (!currentCategory?.startDateOfBirth) {
-          return [];
+        if (isYouthPlayer) {
+          // Youth players hold a single squad and move up through it.
+          const nextCategoryId =
+            findYouthCategoryIdForDateOfBirth(player.dateOfBirth, updatedCategories) ??
+            seniorCategoryId ??
+            currentCategoryIds[0];
+
+          if (currentCategoryIds.length !== 1 || currentCategoryIds[0] !== nextCategoryId) {
+            youthReplacements.push({ playerId: player.id, categoryId: nextCategoryId });
+          }
+
+          continue;
         }
 
-        const nextCategoryId =
-          findYouthCategoryIdForDateOfBirth(player.dateOfBirth, updatedCategories) ??
-          seniorCategoryId ??
-          currentCategory.id;
-
-        if (currentCategoryIds.length === 1 && currentCategoryIds[0] === nextCategoryId) {
-          return [];
+        if (!isVeteranPlayer) {
+          continue;
         }
 
-        return [{ playerId: player.id, categoryId: nextCategoryId }];
-      });
+        // Veteran squads accumulate: a 35+ player who turns 40 joins 40+ and stays in 35+ too, so
+        // existing membership is never taken away.
+        for (const category of updatedCategories) {
+          if (
+            category.endDateOfBirth &&
+            player.dateOfBirth <= category.endDateOfBirth &&
+            !currentCategoryIds.includes(category.id)
+          ) {
+            veteranAdditions.push({ playerId: player.id, categoryId: category.id });
+          }
+        }
+      }
 
-      if (playerAssignments.length > 0) {
+      if (youthReplacements.length > 0) {
         await transaction.playerCategory.deleteMany({
           where: {
             playerId: {
-              in: playerAssignments.map((assignment) => assignment.playerId),
+              in: youthReplacements.map((assignment) => assignment.playerId),
             },
           },
         });
         await transaction.playerCategory.createMany({
-          data: playerAssignments,
+          data: youthReplacements,
+        });
+      }
+
+      if (veteranAdditions.length > 0) {
+        await transaction.playerCategory.createMany({
+          data: veteranAdditions,
+          skipDuplicates: true,
         });
       }
 
       return {
         categoriesUpdated: updatedCategories.length,
-        playersReassigned: playerAssignments.length,
+        playersReassigned: youthReplacements.length,
+        veteransAdded: veteranAdditions.length,
       };
     });
 
