@@ -62,7 +62,7 @@ export const env = {
   port: readNumber("PORT", 4000),
   databaseUrl: requireString("DATABASE_URL"),
   jwtSecret: requireString("JWT_SECRET"),
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "30d",
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:5173",
   frontendUrls: (() => {
     const values = readStringList("FRONTEND_URLS", "FRONTEND_URL");

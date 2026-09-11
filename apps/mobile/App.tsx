@@ -399,8 +399,10 @@ export default function App() {
     let isMounted = true;
 
     async function restoreSession() {
+      let storedAuthState: StoredAuthState | null = null;
+
       try {
-        const storedAuthState = await readStoredAuthState();
+        storedAuthState = await readStoredAuthState();
 
         if (!isMounted) {
           return;
@@ -410,7 +412,7 @@ export default function App() {
           setSession(storedAuthState.session);
           setLoginForm((currentForm) => ({
             ...currentForm,
-            apiBaseUrl: storedAuthState.apiBaseUrl,
+            apiBaseUrl: storedAuthState!.apiBaseUrl,
           }));
         }
       } catch (error) {
@@ -420,12 +422,56 @@ export default function App() {
           setIsRestoringSession(false);
         }
       }
+
+      if (!storedAuthState || !isMounted) {
+        return;
+      }
+
+      // Renewed in the background, never blocking the first paint: the stored token is still good
+      // for this launch, and the API can be slow to wake up.
+      try {
+        const refreshed = await requestJson<AuthResponse>(
+          storedAuthState.apiBaseUrl,
+          "/auth/refresh",
+          { method: "POST", token: storedAuthState.session.token },
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        setSession(refreshed);
+        await writeStoredAuthState({
+          apiBaseUrl: storedAuthState.apiBaseUrl,
+          session: refreshed,
+        });
+      } catch {
+        // An expired token is dealt with by the session-expiry handler. Anything else (offline, API
+        // asleep) leaves the stored session untouched so the app still works.
+      }
     }
 
     void restoreSession();
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  // A single handler for every authenticated request in the app: clear the stored session and fall
+  // back to the login screen rather than leaving a signed-in shell that can load nothing.
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      void writeStoredAuthState(null).catch(reportAuthStorageError);
+      setSession(null);
+      setLoginForm(initialLoginForm);
+      setPasswordForm(emptyPasswordForm);
+      setSuccessMessage(null);
+      setErrorMessage("Sesija je istekla. Prijavite se ponovno.");
+    });
+
+    return () => {
+      setSessionExpiredHandler(null);
     };
   }, []);
 
@@ -3739,6 +3785,19 @@ function buildInitials(value: string) {
   return (parts[0]?.charAt(0) ?? "?") + (parts[1]?.charAt(0) ?? "");
 }
 
+/**
+ * Raised when an authenticated request is rejected, i.e. the stored token has expired or the
+ * account was disabled. Distinct from a normal error so the app can drop to the login screen
+ * instead of showing a failure on a screen the user can no longer load.
+ */
+class SessionExpiredError extends Error {}
+
+let sessionExpiredHandler: (() => void) | null = null;
+
+function setSessionExpiredHandler(handler: (() => void) | null) {
+  sessionExpiredHandler = handler;
+}
+
 async function requestJson<T>(
   apiBaseUrl: string,
   path: string,
@@ -3760,10 +3819,17 @@ async function requestJson<T>(
 
   const responseBody = (await response.json().catch(() => null)) as ApiErrorResponse | T | null;
 
+  const errorMessage = (responseBody as ApiErrorResponse | null)?.message;
+
+  // Only an authenticated call can have an expired session; a 401 from the login form is simply
+  // wrong credentials and must not tear down anything.
+  if (response.status === 401 && options.token) {
+    sessionExpiredHandler?.();
+    throw new SessionExpiredError("Sesija je istekla. Prijavite se ponovno.");
+  }
+
   if (!response.ok) {
-    throw new Error(
-      (responseBody as ApiErrorResponse | null)?.message ?? "Zahtjev nije uspio. Pokušajte ponovno.",
-    );
+    throw new Error(errorMessage ?? "Zahtjev nije uspio. Pokušajte ponovno.");
   }
 
   return responseBody as T;

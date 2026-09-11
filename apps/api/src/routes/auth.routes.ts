@@ -86,6 +86,40 @@ authRouter.post(
   }),
 );
 
+/**
+ * Exchanges a still-valid token for a fresh one, giving the session a sliding expiry: a user who
+ * opens the app within the token lifetime never has to sign in again. An expired token cannot be
+ * renewed here and the client is expected to send the user back to the login screen.
+ */
+authRouter.post(
+  "/refresh",
+  authenticateRequest,
+  asyncHandler(async (request, response) => {
+    const auth = request.auth!;
+
+    const token = signAuthToken({
+      sub: auth.userId,
+      role: auth.role,
+      email: auth.email,
+      username: auth.username,
+    });
+
+    response.json({
+      token,
+      user: {
+        userId: auth.userId,
+        role: auth.role,
+        email: auth.email,
+        username: auth.username,
+        firstName: auth.firstName,
+        lastName: auth.lastName,
+        profileImageUrl: auth.profileImageUrl,
+        mustChangePassword: auth.mustChangePassword,
+      },
+    });
+  }),
+);
+
 authRouter.patch(
   "/change-password",
   authenticateRequest,
