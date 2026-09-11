@@ -69,6 +69,7 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
         ],
       },
       select: {
+        id: true,
         email: true,
         username: true,
       },
@@ -91,17 +92,20 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
     }),
   ]);
 
-  const existingParentEmails = existingUsers
-    .map((user) => user.email)
-    .filter((email): email is string => Boolean(email))
-    .filter((email) => normalizedParentEmails.includes(email));
   const playerUsernameAlreadyExists = existingUsers.some((user) => user.username === playerUsername);
 
-  if (existingParentEmails.length > 0) {
-    throw new AppError("Jedna od e-adresa roditelja već je registrirana.", 409, {
-      emails: existingParentEmails,
-    });
-  }
+  // A parent may already exist from a sibling's signup, or be a coach/admin whose child joins the
+  // club. Either way the account is reused as-is: details from this signup are ignored so an
+  // established profile is never overwritten by a newer form submission.
+  const existingUserByEmail = new Map(
+    existingUsers
+      .filter((user) => user.email && normalizedParentEmails.includes(user.email.toLowerCase()))
+      .map((user) => [user.email!.toLowerCase(), user] as const),
+  );
+  const existingPrimaryUser = existingUserByEmail.get(signup.parentOneEmail.toLowerCase()) ?? null;
+  const existingSecondaryUser = signup.parentTwoEmail
+    ? existingUserByEmail.get(signup.parentTwoEmail.toLowerCase()) ?? null
+    : null;
 
   if (existingPlayer) {
     throw new AppError("Igrač s ovim OIB-om već postoji.", 409);
@@ -111,57 +115,74 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
     throw new AppError("Račun igrača za ovu prijavu već postoji.", 409);
   }
 
-  const primaryPassword = generateTemporaryPassword();
-  const secondaryPassword = signup.parentTwoEmail ? generateTemporaryPassword() : null;
+  const primaryPassword = existingPrimaryUser ? null : generateTemporaryPassword();
+  const secondaryPassword =
+    signup.parentTwoEmail && !existingSecondaryUser ? generateTemporaryPassword() : null;
   const playerPassword = generateTemporaryPassword();
 
   const [primaryPasswordHash, secondaryPasswordHash, playerPasswordHash] = await Promise.all([
-    hashPassword(primaryPassword),
+    primaryPassword ? hashPassword(primaryPassword) : Promise.resolve(null),
     secondaryPassword ? hashPassword(secondaryPassword) : Promise.resolve(null),
     hashPassword(playerPassword),
   ]);
 
   const result = await prisma.$transaction(async (transaction) => {
-    const primaryParent = await transaction.parent.create({
-      data: {
-        user: {
-          create: {
-            role: UserRole.PARENT,
-            email: signup.parentOneEmail.toLowerCase(),
-            passwordHash: primaryPasswordHash,
-            firstName: signup.parentOneFirstName,
-            lastName: signup.parentOneLastName,
-            phone: signup.parentOnePhone,
-            profileImageUrl: signup.parentOneProfileImageUrl,
-            accountStatus: AccountStatus.ACTIVE,
-            mustChangePassword: true,
-          },
-        },
-      },
-      include: { user: true },
-    });
+    // Gives the existing account a parent profile without touching any of its user fields. A coach
+    // or admin keeps their original role and simply gains parent access alongside it; an account
+    // that is already a parent is returned untouched.
+    const attachParentProfile = (userId: string) =>
+      transaction.parent.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+        include: { user: true },
+      });
 
-    const secondaryParent =
-      signup.parentTwoEmail && secondaryPasswordHash
-        ? await transaction.parent.create({
-            data: {
-              user: {
-                create: {
-                  role: UserRole.PARENT,
-                  email: signup.parentTwoEmail.toLowerCase(),
-                  passwordHash: secondaryPasswordHash,
-                  firstName: signup.parentTwoFirstName ?? "",
-                  lastName: signup.parentTwoLastName ?? "",
-                  phone: signup.parentTwoPhone ?? undefined,
-                  profileImageUrl: signup.parentTwoProfileImageUrl,
-                  accountStatus: AccountStatus.ACTIVE,
-                  mustChangePassword: true,
-                },
+    const primaryParent = existingPrimaryUser
+      ? await attachParentProfile(existingPrimaryUser.id)
+      : await transaction.parent.create({
+          data: {
+            user: {
+              create: {
+                role: UserRole.PARENT,
+                email: signup.parentOneEmail.toLowerCase(),
+                passwordHash: primaryPasswordHash,
+                firstName: signup.parentOneFirstName,
+                lastName: signup.parentOneLastName,
+                phone: signup.parentOnePhone,
+                profileImageUrl: signup.parentOneProfileImageUrl,
+                accountStatus: AccountStatus.ACTIVE,
+                mustChangePassword: true,
               },
             },
-            include: { user: true },
-          })
-        : null;
+          },
+          include: { user: true },
+        });
+
+    const secondaryParent = !signup.parentTwoEmail
+      ? null
+      : existingSecondaryUser
+        ? await attachParentProfile(existingSecondaryUser.id)
+        : secondaryPasswordHash
+          ? await transaction.parent.create({
+              data: {
+                user: {
+                  create: {
+                    role: UserRole.PARENT,
+                    email: signup.parentTwoEmail.toLowerCase(),
+                    passwordHash: secondaryPasswordHash,
+                    firstName: signup.parentTwoFirstName ?? "",
+                    lastName: signup.parentTwoLastName ?? "",
+                    phone: signup.parentTwoPhone ?? undefined,
+                    profileImageUrl: signup.parentTwoProfileImageUrl,
+                    accountStatus: AccountStatus.ACTIVE,
+                    mustChangePassword: true,
+                  },
+                },
+              },
+              include: { user: true },
+            })
+          : null;
 
     const player = await transaction.player.create({
       data: {
@@ -249,36 +270,51 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
 
   const clubName = clubSettings?.clubName ?? env.defaultClubName;
 
-  const emailResults = await Promise.all([
-    emailService.sendCredentialsEmail({
-      to: result.primaryParent.user.email ?? signup.parentOneEmail,
-      firstName: result.primaryParent.user.firstName,
+  const childFullName = `${signup.childFirstName} ${signup.childLastName}`;
+  const childCredentials = {
+    label: `Račun igrača ${childFullName}`,
+    login: playerUsername,
+    password: playerPassword,
+  };
+
+  // A brand new parent gets their own credentials; one that already had an account keeps their
+  // password and is only told that the child was added.
+  const notifyParent = (
+    parent: { user: { email: string | null; firstName: string } },
+    fallbackEmail: string | null,
+    password: string | null,
+  ) => {
+    const to = parent.user.email ?? fallbackEmail;
+
+    if (!to) {
+      return Promise.resolve(false);
+    }
+
+    if (!password) {
+      return emailService.sendChildAddedEmail({
+        to,
+        firstName: parent.user.firstName,
+        clubName,
+        childFullName,
+        childLogin: playerUsername,
+        childPassword: playerPassword,
+      });
+    }
+
+    return emailService.sendCredentialsEmail({
+      to,
+      firstName: parent.user.firstName,
       clubName,
-      login: result.primaryParent.user.email ?? signup.parentOneEmail,
-      password: primaryPassword,
-      additionalCredentials: [
-        {
-          label: `Račun igrača ${signup.childFirstName} ${signup.childLastName}`,
-          login: playerUsername,
-          password: playerPassword,
-        },
-      ],
-    }),
-    result.secondaryParent && secondaryPassword
-      ? emailService.sendCredentialsEmail({
-          to: result.secondaryParent.user.email ?? signup.parentTwoEmail ?? "",
-          firstName: result.secondaryParent.user.firstName,
-          clubName,
-          login: result.secondaryParent.user.email ?? signup.parentTwoEmail ?? "",
-          password: secondaryPassword,
-          additionalCredentials: [
-            {
-              label: `Račun igrača ${signup.childFirstName} ${signup.childLastName}`,
-              login: playerUsername,
-              password: playerPassword,
-            },
-          ],
-        })
+      login: to,
+      password,
+      additionalCredentials: [childCredentials],
+    });
+  };
+
+  const emailResults = await Promise.all([
+    notifyParent(result.primaryParent, signup.parentOneEmail, primaryPassword),
+    result.secondaryParent
+      ? notifyParent(result.secondaryParent, signup.parentTwoEmail, secondaryPassword)
       : Promise.resolve(false),
   ]);
 

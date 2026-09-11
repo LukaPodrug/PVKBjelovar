@@ -22,6 +22,15 @@ export interface CredentialsEmailInput {
   }>;
 }
 
+export interface ChildAddedEmailInput {
+  to: string;
+  firstName: string;
+  clubName: string;
+  childFullName: string;
+  childLogin: string;
+  childPassword: string;
+}
+
 class EmailService {
   private readonly resend = env.resendApiKey ? new Resend(env.resendApiKey) : null;
   private readonly transporter: Transporter | null =
@@ -99,6 +108,41 @@ class EmailService {
       `<p><strong>Prijava:</strong> ${input.login}<br /><strong>Privremena lozinka:</strong> ${input.password}</p>`,
       ...additionalHtmlSections,
       "<p>Prijavite se i promijenite lozinku pri prvom pristupu.</p>",
+    ].join("");
+
+    return this.sendEmail({
+      to: input.to,
+      subject,
+      text,
+      html,
+    });
+  }
+
+  /**
+   * Sent when a child is approved onto a parent account that already exists. The parent keeps their
+   * current password, so only the new player credentials are included.
+   */
+  async sendChildAddedEmail(input: ChildAddedEmailInput): Promise<boolean> {
+    const subject = `${input.clubName} - novi igrač na vašem računu`;
+    const text = [
+      `Pozdrav ${input.firstName},`,
+      "",
+      `${input.childFullName} je dodan/a na vaš postojeći račun za klub ${input.clubName}.`,
+      "Vaši pristupni podaci ostaju nepromijenjeni.",
+      "",
+      `Račun igrača ${input.childFullName}:`,
+      `Prijava: ${input.childLogin}`,
+      `Privremena lozinka: ${input.childPassword}`,
+      "",
+      "Igrač neka promijeni lozinku pri prvom pristupu.",
+    ].join("\n");
+
+    const html = [
+      `<p>Pozdrav ${input.firstName},</p>`,
+      `<p><strong>${input.childFullName}</strong> je dodan/a na vaš postojeći račun za klub <strong>${input.clubName}</strong>.</p>`,
+      "<p>Vaši pristupni podaci ostaju nepromijenjeni.</p>",
+      `<p><strong>Račun igrača ${input.childFullName}</strong><br /><strong>Prijava:</strong> ${input.childLogin}<br /><strong>Privremena lozinka:</strong> ${input.childPassword}</p>`,
+      "<p>Igrač neka promijeni lozinku pri prvom pristupu.</p>",
     ].join("");
 
     return this.sendEmail({

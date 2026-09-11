@@ -4,7 +4,7 @@ import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
 import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
-import { authorizeRoles } from "../middlewares/authorize";
+import { authorizeParentAccess, authorizeRoles } from "../middlewares/authorize";
 import { computeCategoryLeaderboard } from "../services/leaderboard.service";
 import { isExpoPushToken } from "../services/push.service";
 import { parseLeaderboardWindow, parsePaginationInput, requireString } from "../utils/request-parsers";
@@ -20,7 +20,7 @@ export const meRouter = Router();
 // helpers such as notifications, push devices, categories, and leaderboard are shared by every role.
 meRouter.use(authenticateRequest);
 
-const parentOnly = authorizeRoles(UserRole.PARENT);
+const parentOnly = authorizeParentAccess;
 const playerOnly = authorizeRoles(UserRole.PLAYER);
 const allRoles = authorizeRoles(UserRole.ADMIN, UserRole.COACH, UserRole.PARENT, UserRole.PLAYER);
 
