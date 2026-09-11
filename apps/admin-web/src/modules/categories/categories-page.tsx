@@ -687,6 +687,7 @@ export function CategoriesPage() {
                       <DatePicker
                         className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
                         value={form.startDateOfBirth}
+                        boundary="start"
                         onChange={(value) =>
                           setForm((current) => ({
                             ...current,
@@ -707,6 +708,7 @@ export function CategoriesPage() {
                       <DatePicker
                         className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
                         value={form.endDateOfBirth}
+                        boundary="end"
                         onChange={(value) =>
                           setForm((current) => ({
                             ...current,

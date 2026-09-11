@@ -8,6 +8,11 @@ interface DatePickerProps {
   disabled?: boolean;
   required?: boolean;
   placeholder?: string;
+  /**
+   * Restricts the picker to a year boundary. Category age limits only care about the year, so
+   * "start" always resolves to 01.01. and "end" to 31.12. of whichever year is picked.
+   */
+  boundary?: "start" | "end";
 }
 
 const weekDayLabels = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"];
@@ -19,13 +24,14 @@ export function DatePicker({
   disabled = false,
   required = false,
   placeholder = "dd.mm.yyyy.",
+  boundary,
 }: DatePickerProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [draftValue, setDraftValue] = useState(formatDisplayDate(value));
-  const [visibleMonth, setVisibleMonth] = useState(() => getInitialMonth(value));
+  const [visibleMonth, setVisibleMonth] = useState(() => getInitialMonth(value, boundary));
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0, width: 330 });
   const selectedDate = useMemo(() => parseIsoDate(value), [value]);
   const calendarDays = useMemo(() => buildCalendarDays(visibleMonth), [visibleMonth]);
@@ -36,9 +42,9 @@ export function DatePicker({
     }
 
     if (value) {
-      setVisibleMonth(getInitialMonth(value));
+      setVisibleMonth(getInitialMonth(value, boundary));
     }
-  }, [isEditing, value]);
+  }, [boundary, isEditing, value]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -105,10 +111,11 @@ export function DatePicker({
   };
 
   const selectDate = (date: Date) => {
-    const nextValue = toIsoDateValue(date);
+    const boundaryDate = applyYearBoundary(date, boundary);
+    const nextValue = toIsoDateValue(boundaryDate);
     onChange(nextValue);
     setDraftValue(formatDisplayDate(nextValue));
-    setVisibleMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+    setVisibleMonth(new Date(boundaryDate.getFullYear(), boundaryDate.getMonth(), 1));
     setIsOpen(false);
   };
 
@@ -241,8 +248,18 @@ export function DatePicker({
   );
 }
 
-function getInitialMonth(value: string) {
-  const date = parseIsoDate(value) ?? new Date();
+function applyYearBoundary(date: Date, boundary: "start" | "end" | undefined) {
+  if (!boundary) {
+    return date;
+  }
+
+  return boundary === "start"
+    ? new Date(date.getFullYear(), 0, 1)
+    : new Date(date.getFullYear(), 11, 31);
+}
+
+function getInitialMonth(value: string, boundary?: "start" | "end") {
+  const date = parseIsoDate(value) ?? applyYearBoundary(new Date(), boundary);
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
