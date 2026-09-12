@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ChangeEvent, type CSSProperties, useEffect, useId, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { CategoryDetailsDrawer } from "./components/category-details-drawer";
+import { createCategoryMonogram } from "./lib/category-monogram";
 import { DatePicker } from "./components/date-picker";
 import { FeedbackToast } from "./components/feedback-toast";
 import { applyBrowserBranding } from "./lib/browser-branding";
@@ -1325,7 +1326,7 @@ function CategoryShowcaseCard({
           />
         ) : (
           <div className="landing-category-showcase-monogram">
-            {createClubMonogram(category.name)}
+            {createCategoryMonogram(category.name)}
           </div>
         )}
       </div>

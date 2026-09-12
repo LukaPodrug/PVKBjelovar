@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { fetchPublicCategoryDetail, type PublicCategory } from "../lib/public-api";
+import { createCategoryMonogram } from "../lib/category-monogram";
 
 interface CategoryDetailsDrawerProps {
   categoryId: string;
@@ -125,7 +126,7 @@ export function CategoryDetailsDrawer({
                     />
                   ) : (
                     <div className="landing-drawer-logo landing-drawer-logo-fallback border-2 border-line">
-                      {createMonogram(title)}
+                      {createCategoryMonogram(title)}
                     </div>
                   )}
                 </div>
