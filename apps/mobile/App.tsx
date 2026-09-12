@@ -1472,7 +1472,7 @@ function TabBar({
             key={item.key}
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
-            style={[styles.tabBarItem, isActive && styles.tabBarItemActive]}
+            style={styles.tabBarItem}
             onPress={() => onSelect(item.key)}
           >
             <View style={[styles.tabBarIconWrap, isActive && styles.tabBarIconWrapActive]}>
@@ -4246,13 +4246,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 5,
   },
-  tabBarItemActive: {
-    backgroundColor: Platform.OS === "android" ? "#f2f7fd" : "transparent",
-  },
   tabBarIconWrap: {
     width: 34,
     height: 30,
-    borderRadius: 999,
+    // Half the height: an oversized radius on a non-square box is clamped differently per platform,
+    // which is what made this read as a rectangle on Android.
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
   },
