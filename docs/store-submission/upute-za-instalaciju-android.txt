@@ -1,0 +1,112 @@
+PVK MLADOST BJELOVAR - UPUTE ZA INSTALACIJU APLIKACIJE (Android)
+Verzija aplikacije: 1.1.1
+
+
+O ČEMU SE RADI
+------------------------------------------------------------
+Aplikacija se trenutno nalazi u postupku provjere na Google Play
+trgovini. Dok provjera traje, aplikaciju možete instalirati izravno
+pomoću datoteke koja se nalazi uz ove upute (datoteka s nastavkom
+.apk).
+
+Kada aplikacija postane dostupna na Google Play trgovini, javit ćemo
+vam i tada je preporučujemo instalirati odande.
+
+
+ŠTO VAM JE POTREBNO
+------------------------------------------------------------
+- Android telefon ili tablet
+- Klupski korisnički račun (e-pošta ili korisničko ime i lozinka)
+
+Ako nemate korisnički račun, javite se klubu na adresu navedenu na
+kraju ovih uputa.
+
+
+KORAK 1 - PREUZIMANJE DATOTEKE
+------------------------------------------------------------
+1. Na telefonu otvorite mapu na Google Driveu koju vam je poslao klub.
+2. Dodirnite datoteku s nastavkom .apk.
+3. Odaberite Preuzmi (Download).
+4. Pričekajte da se preuzimanje dovrši.
+
+Napomena: preuzimanje obavite na samom telefonu, a ne na računalu.
+
+
+KORAK 2 - DOPUŠTENJE ZA INSTALACIJU
+------------------------------------------------------------
+Android iz sigurnosnih razloga ne dopušta odmah instalaciju aplikacija
+koje nisu preuzete s Google Play trgovine. To dopuštenje treba uključiti
+ručno i to je potpuno uobičajen postupak.
+
+1. Otvorite preuzetu datoteku (Preuzimanja / Downloads).
+2. Pojavit će se poruka da instalacija nije dopuštena iz ovog izvora.
+3. Dodirnite Postavke (Settings).
+4. Uključite opciju Dopusti iz ovog izvora
+   (Allow from this source / Install unknown apps).
+5. Vratite se natrag tipkom za povratak.
+
+Ovisno o modelu telefona, nazivi opcija mogu se malo razlikovati.
+
+
+KORAK 3 - INSTALACIJA
+------------------------------------------------------------
+1. Dodirnite Instaliraj (Install).
+2. Ako se pojavi poruka Play Protecta da aplikacija nije prepoznata,
+   odaberite Svejedno instaliraj (Install anyway).
+   Ta se poruka pojavljuje kod svih aplikacija koje se ne instaliraju
+   s Google Play trgovine.
+3. Pričekajte da instalacija završi i dodirnite Otvori (Open).
+
+
+KORAK 4 - PRVA PRIJAVA
+------------------------------------------------------------
+1. Otvorite aplikaciju.
+2. U prvo polje unesite e-poštu ili korisničko ime.
+3. U drugo polje unesite lozinku.
+4. Dodirnite Prijava.
+5. Ako aplikacija zatraži promjenu lozinke, postavite novu lozinku
+   i zapamtite je.
+
+Nakon prve prijave aplikacija vas pamti, pa se kod svakog sljedećeg
+otvaranja ne morate ponovno prijavljivati.
+
+
+VAŽNO - KADA APLIKACIJA DOĐE NA GOOGLE PLAY
+------------------------------------------------------------
+Ova se verzija neće sama ažurirati.
+
+Kada vas obavijestimo da je aplikacija dostupna na Google Play
+trgovini, učinite sljedeće:
+
+1. Deinstalirajte ovu verziju aplikacije s telefona.
+2. Instalirajte aplikaciju s Google Play trgovine.
+
+Deinstalacija je obavezna jer se verzija s Google Playa neće moći
+instalirati preko ove verzije. Vaši se podaci nalaze na klupskom
+poslužitelju, pa se nakon ponovne prijave sve vraća na svoje mjesto.
+
+
+ČESTA PITANJA
+------------------------------------------------------------
+Je li instalacija sigurna?
+Da. Upozorenja koja vidite Android prikazuje za svaku aplikaciju koja
+se ne instalira s Google Play trgovine i ne znače da s aplikacijom
+nešto nije u redu.
+
+Zašto aplikacija traži pristup kameri?
+Kamera se koristi isključivo za skeniranje QR koda kod evidencije
+dolazaka na trening.
+
+Ima li aplikacija oglase ili naplatu?
+Ne. Aplikacija ne sadrži oglase niti kupnje unutar aplikacije.
+
+Ne mogu se prijaviti.
+Provjerite jeste li točno unijeli e-poštu odnosno korisničko ime i
+lozinku. Ako i dalje ne ide, javite se klubu.
+
+
+PODRŠKA
+------------------------------------------------------------
+E-pošta: pvkmladostbjelovar@gmail.com
+Telefon: +385 91 202 2384
+Web: https://pvkmladostbjelovar1934.com
