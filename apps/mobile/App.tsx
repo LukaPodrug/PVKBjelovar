@@ -5,6 +5,11 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
 import {
   useEffect,
@@ -21,7 +26,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -386,6 +390,14 @@ function reportAuthStorageError(error: unknown) {
 }
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppShell />
+    </SafeAreaProvider>
+  );
+}
+
+function AppShell() {
   const [session, setSession] = useState<AuthResponse | null>(null);
   const [loginForm, setLoginForm] = useState<LoginFormState>(initialLoginForm);
   const [passwordForm, setPasswordForm] = useState<ChangePasswordFormState>(emptyPasswordForm);
@@ -614,7 +626,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
       <KeyboardAvoidingView
         style={styles.safeArea}
@@ -1448,8 +1460,10 @@ function TabBar({
   activeKey: string;
   onSelect: (key: string) => void;
 }) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 12 }]}>
       {items.map((item) => {
         const isActive = item.key === activeKey;
 
@@ -4209,7 +4223,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   tabBar: {
-    minHeight: Platform.OS === "ios" ? 86 : 76,
     flexDirection: "row",
     alignItems: "stretch",
     borderTopWidth: 1,
@@ -4217,7 +4230,6 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === "ios" ? "rgba(255, 255, 255, 0.96)" : "#ffffff",
     paddingHorizontal: 10,
     paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 20 : 12,
     shadowColor: "#102347",
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: Platform.OS === "ios" ? 0.08 : 0,
