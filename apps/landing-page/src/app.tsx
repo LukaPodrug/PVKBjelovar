@@ -822,45 +822,51 @@ function LandingHeader({
 }
 
 // Deep links like /#signup (e.g. from a QR code) arrive before the sections exist, so the
-// browser's own anchor jump misses. Scroll once the content has loaded, and keep following
-// the target while images above it settle, until the visitor starts scrolling themselves.
+// browser's own anchor jump misses. Jump to the target right away and keep it pinned while
+// the sections above it load and resize, until shortly after the content is ready or the
+// visitor starts scrolling themselves.
 function useScrollToInitialHash(isContentReady: boolean) {
-  const [initialHash] = useState(() => window.location.hash);
+  const [targetId] = useState(() => decodeURIComponent(window.location.hash.slice(1)));
+  const [isFollowing, setIsFollowing] = useState(() => targetId !== "");
 
   useEffect(() => {
-    const targetId = decodeURIComponent(initialHash.slice(1));
-
-    if (!targetId || !isContentReady) {
+    if (!isFollowing) {
       return;
     }
 
-    let isFollowing = true;
     const scrollToTarget = () => {
-      if (isFollowing) {
-        document.getElementById(targetId)?.scrollIntoView({ behavior: "instant", block: "start" });
-      }
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "instant", block: "start" });
     };
-    const stopFollowing = () => {
-      isFollowing = false;
-    };
+    const stopFollowing = () => setIsFollowing(false);
     const interactionEvents = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
 
     scrollToTarget();
 
     const resizeObserver = new ResizeObserver(scrollToTarget);
     resizeObserver.observe(document.body);
-    const stopTimer = window.setTimeout(stopFollowing, 4000);
+    // Safety net in case a request hangs and the content never reports ready.
+    const giveUpTimer = window.setTimeout(stopFollowing, 10000);
     interactionEvents.forEach((eventName) =>
       window.addEventListener(eventName, stopFollowing, { passive: true }),
     );
 
     return () => {
-      stopFollowing();
       resizeObserver.disconnect();
-      window.clearTimeout(stopTimer);
+      window.clearTimeout(giveUpTimer);
       interactionEvents.forEach((eventName) => window.removeEventListener(eventName, stopFollowing));
     };
-  }, [initialHash, isContentReady]);
+  }, [isFollowing, targetId]);
+
+  useEffect(() => {
+    if (!isFollowing || !isContentReady) {
+      return;
+    }
+
+    // Give images above the target a moment to settle before letting go.
+    const settleTimer = window.setTimeout(() => setIsFollowing(false), 1500);
+
+    return () => window.clearTimeout(settleTimer);
+  }, [isFollowing, isContentReady]);
 }
 
 function useHorizontalCarouselControls(itemCount: number) {
