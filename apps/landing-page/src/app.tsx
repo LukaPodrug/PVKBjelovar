@@ -1359,10 +1359,7 @@ function NewsCard({ item }: { item: NewsItem }) {
           <p className="landing-copy text-sm">{item.summary}</p>
         </div>
 
-        <div className="landing-news-card-cta">
-          <span>{item.ctaLabel}</span>
-          <span aria-hidden="true">↗</span>
-        </div>
+        <span className="landing-news-card-cta">{item.ctaLabel}</span>
       </div>
     </Link>
   );
