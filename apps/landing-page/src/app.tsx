@@ -1396,12 +1396,7 @@ function CategoryShowcaseCard({
       </div>
 
       <div className="landing-category-showcase-body">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="min-w-0 text-[1.9rem] leading-tight">{category.name}</h3>
-          <span aria-hidden="true" className="landing-category-showcase-arrow">
-            ↗
-          </span>
-        </div>
+        <h3 className="min-w-0 text-[1.9rem] leading-tight">{category.name}</h3>
 
         <div className="landing-category-showcase-age">
           <span>Dobna granica</span>
