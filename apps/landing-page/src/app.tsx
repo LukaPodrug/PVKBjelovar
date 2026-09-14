@@ -212,6 +212,15 @@ function LandingHomePage() {
     setVisibleNewsCount(initialVisibleNewsCount);
   }, [newsItems.length]);
 
+  useScrollToInitialHash(
+    !clubSettingsQuery.isLoading &&
+      !newsQuery.isLoading &&
+      !categoriesQuery.isLoading &&
+      !coachesQuery.isLoading &&
+      !boardMembersQuery.isLoading &&
+      !sponsorsQuery.isLoading,
+  );
+
   useEffect(() => {
     if (!selectedCategoryId) {
       return;
@@ -241,9 +250,6 @@ function LandingHomePage() {
         clubName={clubName}
         clubSubtitle={clubSubtitle}
         logoUrl={clubSettings?.logoUrl ?? null}
-        showCoachesLink={coaches.length > 0}
-        showBoardMembersLink={boardMembers.length > 0}
-        showSponsorsLink={sponsors.length > 0}
       />
 
       <main>
@@ -687,17 +693,27 @@ function LandingHeader({
   clubName,
   clubSubtitle,
   logoUrl,
-  showCoachesLink = false,
-  showBoardMembersLink = false,
-  showSponsorsLink = false,
 }: {
   clubName: string;
   clubSubtitle: string;
   logoUrl: string | null;
-  showCoachesLink?: boolean;
-  showBoardMembersLink?: boolean;
-  showSponsorsLink?: boolean;
 }) {
+  // Queried here (sharing the landing page's cache keys) so every page shows the same links.
+  const coachesQuery = useQuery({
+    queryKey: ["public-coaches"],
+    queryFn: fetchPublicCoaches,
+  });
+  const boardMembersQuery = useQuery({
+    queryKey: ["public-board-members"],
+    queryFn: fetchPublicBoardMembers,
+  });
+  const sponsorsQuery = useQuery({
+    queryKey: ["public-sponsors"],
+    queryFn: fetchPublicSponsors,
+  });
+  const showCoachesLink = (coachesQuery.data?.length ?? 0) > 0;
+  const showBoardMembersLink = (boardMembersQuery.data?.length ?? 0) > 0;
+  const showSponsorsLink = (sponsorsQuery.data?.length ?? 0) > 0;
   const [isLogoBroken, setIsLogoBroken] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const clubMonogram = createClubMonogram(clubName);
@@ -803,6 +819,48 @@ function LandingHeader({
       </div>
     </header>
   );
+}
+
+// Deep links like /#signup (e.g. from a QR code) arrive before the sections exist, so the
+// browser's own anchor jump misses. Scroll once the content has loaded, and keep following
+// the target while images above it settle, until the visitor starts scrolling themselves.
+function useScrollToInitialHash(isContentReady: boolean) {
+  const [initialHash] = useState(() => window.location.hash);
+
+  useEffect(() => {
+    const targetId = decodeURIComponent(initialHash.slice(1));
+
+    if (!targetId || !isContentReady) {
+      return;
+    }
+
+    let isFollowing = true;
+    const scrollToTarget = () => {
+      if (isFollowing) {
+        document.getElementById(targetId)?.scrollIntoView({ behavior: "instant", block: "start" });
+      }
+    };
+    const stopFollowing = () => {
+      isFollowing = false;
+    };
+    const interactionEvents = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
+
+    scrollToTarget();
+
+    const resizeObserver = new ResizeObserver(scrollToTarget);
+    resizeObserver.observe(document.body);
+    const stopTimer = window.setTimeout(stopFollowing, 4000);
+    interactionEvents.forEach((eventName) =>
+      window.addEventListener(eventName, stopFollowing, { passive: true }),
+    );
+
+    return () => {
+      stopFollowing();
+      resizeObserver.disconnect();
+      window.clearTimeout(stopTimer);
+      interactionEvents.forEach((eventName) => window.removeEventListener(eventName, stopFollowing));
+    };
+  }, [initialHash, isContentReady]);
 }
 
 function useHorizontalCarouselControls(itemCount: number) {
@@ -1353,17 +1411,7 @@ function PrivacyPolicyPage() {
     queryKey: ["public-club-settings"],
     queryFn: fetchClubSettings,
   });
-  const boardMembersQuery = useQuery({
-    queryKey: ["public-board-members"],
-    queryFn: fetchPublicBoardMembers,
-  });
-  const sponsorsQuery = useQuery({
-    queryKey: ["public-sponsors"],
-    queryFn: fetchPublicSponsors,
-  });
   const clubSettings = clubSettingsQuery.data;
-  const boardMembers = boardMembersQuery.data ?? [];
-  const sponsors = sponsorsQuery.data ?? [];
   const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
   const clubSubtitle = resolveSettingValue(
     clubSettings?.clubSubtitle,
@@ -1391,8 +1439,6 @@ function PrivacyPolicyPage() {
         clubName={clubName}
         clubSubtitle={clubSubtitle}
         logoUrl={clubSettings?.logoUrl ?? null}
-        showBoardMembersLink={boardMembers.length > 0}
-        showSponsorsLink={sponsors.length > 0}
       />
 
       <main className="border-b-2 border-line bg-bg">
@@ -1545,17 +1591,7 @@ function AccountDeletionPage() {
     queryKey: ["public-club-settings"],
     queryFn: fetchClubSettings,
   });
-  const boardMembersQuery = useQuery({
-    queryKey: ["public-board-members"],
-    queryFn: fetchPublicBoardMembers,
-  });
-  const sponsorsQuery = useQuery({
-    queryKey: ["public-sponsors"],
-    queryFn: fetchPublicSponsors,
-  });
   const clubSettings = clubSettingsQuery.data;
-  const boardMembers = boardMembersQuery.data ?? [];
-  const sponsors = sponsorsQuery.data ?? [];
   const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
   const clubSubtitle = resolveSettingValue(
     clubSettings?.clubSubtitle,
@@ -1583,8 +1619,6 @@ function AccountDeletionPage() {
         clubName={clubName}
         clubSubtitle={clubSubtitle}
         logoUrl={clubSettings?.logoUrl ?? null}
-        showBoardMembersLink={boardMembers.length > 0}
-        showSponsorsLink={sponsors.length > 0}
       />
 
       <main className="border-b-2 border-line bg-bg">
@@ -1681,14 +1715,6 @@ function ArticlePage() {
     queryKey: ["landing-news"],
     queryFn: fetchNewsFeed,
   });
-  const boardMembersQuery = useQuery({
-    queryKey: ["public-board-members"],
-    queryFn: fetchPublicBoardMembers,
-  });
-  const sponsorsQuery = useQuery({
-    queryKey: ["public-sponsors"],
-    queryFn: fetchPublicSponsors,
-  });
 
   const clubSettings = clubSettingsQuery.data;
   const clubName = resolveSettingValue(clubSettings?.clubName, landingClubSettingsDefaults.clubName);
@@ -1705,8 +1731,6 @@ function ArticlePage() {
     landingClubSettingsDefaults.contactPhone,
   );
   const article = newsQuery.data?.items.find((item) => item.slug === slug) ?? null;
-  const boardMembers = boardMembersQuery.data ?? [];
-  const sponsors = sponsorsQuery.data ?? [];
   const relatedArticles =
     newsQuery.data?.items.filter((item) => item.slug !== slug).slice(0, 2) ?? [];
   const galleryImages = article
@@ -1776,8 +1800,6 @@ function ArticlePage() {
         clubName={clubName}
         clubSubtitle={clubSubtitle}
         logoUrl={clubSettings?.logoUrl ?? null}
-        showBoardMembersLink={boardMembers.length > 0}
-        showSponsorsLink={sponsors.length > 0}
       />
 
       <main>

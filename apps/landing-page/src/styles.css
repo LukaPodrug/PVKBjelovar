@@ -44,6 +44,11 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Keep anchored sections clear of the sticky header. */
+section[id] {
+  scroll-margin-top: 5.5rem;
+}
+
 html,
 body,
 #root {
