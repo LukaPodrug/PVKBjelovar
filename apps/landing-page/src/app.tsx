@@ -66,6 +66,12 @@ const privacyContactEmail = "pvkmladostbjelovar@gmail.com";
 const privacyContactPhone = "+385 91 202 2384";
 const privacyLegalName = "PLIVAČKO VATERPOLSKI KLUB MLADOST";
 const privacyLegalAddress = "Petra Zrinskog 3, 43000 Bjelovar, Hrvatska";
+const iosAppUrl = "https://apps.apple.com/hr/app/pvk-mladost-bjelovar/id6803112338?l=hr";
+// Temporary APK download until the Google Play listing passes review. Once it does, point this at
+// the Play Store listing and flip `androidAppIsOnPlayStore` so the button reads "Google Play".
+const androidAppUrl =
+  "https://drive.google.com/drive/folders/1zifEQwDQfhsjpudKz7wx-_d_ducCaHGw?usp=drive_link";
+const androidAppIsOnPlayStore = false;
 
 export function App() {
   return (
@@ -421,6 +427,7 @@ function LandingHomePage() {
                     <p className="mt-3 text-sm leading-7 text-ink">
                       Nakon što administrator potvrdi prijavu, roditelji će e-poštom dobiti pristupne podatke za mobilnu aplikaciju.
                     </p>
+                    <AppDownloadButtons className="mt-4" />
                   </div>
                 </div>
               </div>
@@ -1271,6 +1278,11 @@ function LandingFooter({
           </section>
         ) : null}
 
+        <section className="landing-footer-column">
+          <p className="landing-kicker text-muted">Mobilna aplikacija</p>
+          <AppDownloadButtons className="landing-app-buttons--centered mt-4" />
+        </section>
+
         <div className="landing-footer-community">
           {socialLinks.length > 0 ? (
             <section className="landing-footer-column">
@@ -1318,6 +1330,35 @@ function LandingFooter({
 
       </div>
     </footer>
+  );
+}
+
+function AppDownloadButtons({ className = "" }: { className?: string }) {
+  return (
+    <div className={`landing-app-buttons ${className}`.trim()}>
+      <a className="landing-app-button" href={iosAppUrl} target="_blank" rel="noreferrer">
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M16.37 12.64c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.23 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.38.81 1.4-.02 2.28-1.27 3.13-2.52.99-1.45 1.4-2.85 1.42-2.92-.03-.01-2.72-1.04-2.75-4.14ZM13.8 5.01c.71-.87 1.2-2.07 1.06-3.27-1.03.04-2.28.69-3.02 1.55-.66.76-1.24 1.99-1.09 3.16 1.15.09 2.33-.58 3.05-1.44Z" />
+        </svg>
+        <span>
+          <small>Preuzmite na</small>
+          <strong>App Store</strong>
+        </span>
+      </a>
+      <a className="landing-app-button" href={androidAppUrl} target="_blank" rel="noreferrer">
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          {androidAppIsOnPlayStore ? (
+            <path d="M4.2 2.3c-.25.26-.4.67-.4 1.2v17c0 .53.15.94.41 1.2l.07.06 9.52-9.52v-.23L4.27 2.24l-.07.06Zm12.76 12.9-3.17-3.18v-.23l3.17-3.17.07.04 3.76 2.14c1.07.61 1.07 1.6 0 2.21l-3.76 2.14-.07.05Zm.07-.05-3.25-3.25-9.58 9.58c.35.38.94.42 1.6.05l11.23-6.38m0-6.5L5.8 2.27c-.66-.37-1.25-.33-1.6.05l9.58 9.58 3.25-3.25Z" />
+          ) : (
+            <path d="M17.52 15.34a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-11.04 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm11.4-6.02 2-3.46a.42.42 0 0 0-.73-.42l-2.02 3.5A12.5 12.5 0 0 0 12 7.83c-1.84 0-3.58.4-5.13 1.11L4.85 5.44a.42.42 0 0 0-.73.42l2 3.46C2.69 11.19.34 14.66 0 18.76h24c-.34-4.1-2.69-7.57-6.12-9.44Z" />
+          )}
+        </svg>
+        <span>
+          <small>{androidAppIsOnPlayStore ? "Nabavite na" : "Preuzmite za"}</small>
+          <strong>{androidAppIsOnPlayStore ? "Google Play" : "Android"}</strong>
+        </span>
+      </a>
+    </div>
   );
 }
 

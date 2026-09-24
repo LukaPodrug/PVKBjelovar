@@ -1780,6 +1780,69 @@ textarea {
   fill: currentColor;
 }
 
+.landing-page .landing-app-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.landing-page .landing-app-buttons--centered {
+  justify-content: center;
+}
+
+.landing-page .landing-app-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 150px;
+  min-height: 48px;
+  border: 1px solid var(--ink);
+  border-radius: 12px;
+  padding: 0.4rem 1rem 0.4rem 0.8rem;
+  background: var(--ink);
+  color: #ffffff;
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.landing-page .landing-app-button:hover,
+.landing-page .landing-app-button:focus-visible {
+  box-shadow: var(--shadow-soft);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.landing-page .landing-app-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.landing-page .landing-app-button svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.landing-page .landing-app-button span {
+  display: grid;
+  line-height: 1.15;
+}
+
+.landing-page .landing-app-button small {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+
+.landing-page .landing-app-button strong {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
 .landing-page .landing-privacy-content {
   display: grid;
   gap: 1.4rem;
