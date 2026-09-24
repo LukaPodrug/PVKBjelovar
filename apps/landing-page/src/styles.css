@@ -1683,9 +1683,21 @@ textarea {
 
 .landing-page .landing-footer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 320px));
-  justify-content: center;
-  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 2rem 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .landing-page .landing-footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .landing-page .landing-footer-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .landing-page .landing-footer-column {
@@ -1693,8 +1705,11 @@ textarea {
   text-align: center;
 }
 
-.landing-page .landing-footer-community {
-  display: contents;
+.landing-page .landing-footer-stack {
+  display: grid;
+  align-content: start;
+  gap: 2rem;
+  min-width: 0;
 }
 
 .landing-page .landing-footer-list {
@@ -1740,6 +1755,7 @@ textarea {
 
 .landing-page .landing-footer-list strong {
   display: block;
+  overflow-wrap: anywhere;
   margin-top: 0.4rem;
   color: var(--ink);
   font-size: 0.94rem;
@@ -1786,8 +1802,16 @@ textarea {
   gap: 0.6rem;
 }
 
-.landing-page .landing-app-buttons--centered {
+.landing-page .landing-app-buttons--stacked {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.landing-page .landing-app-buttons--stacked .landing-app-button {
   justify-content: center;
+  width: 100%;
+  min-height: 54px;
+  border-radius: 18px;
 }
 
 .landing-page .landing-app-button {
@@ -2861,13 +2885,6 @@ textarea {
 }
 
 @media (min-width: 1024px) {
-  .landing-page .landing-footer-community {
-    display: grid;
-    min-width: 0;
-    align-content: start;
-    gap: 1.5rem;
-  }
-
   .landing-page .schedule-desktop-view {
     display: block;
   }

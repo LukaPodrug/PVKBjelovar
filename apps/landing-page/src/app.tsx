@@ -1278,12 +1278,26 @@ function LandingFooter({
           </section>
         ) : null}
 
-        <section className="landing-footer-column">
-          <p className="landing-kicker text-muted">Mobilna aplikacija</p>
-          <AppDownloadButtons className="landing-app-buttons--centered mt-4" />
-        </section>
+        {bankDetails.length > 0 ? (
+          <section className="landing-footer-column">
+            <p className="landing-kicker text-muted">Podaci za uplatu</p>
+            <div className="landing-footer-list mt-4">
+              {bankDetails.map((item) => (
+                <div key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
-        <div className="landing-footer-community">
+        <div className="landing-footer-stack">
+          <section className="landing-footer-column">
+            <p className="landing-kicker text-muted">Mobilna aplikacija</p>
+            <AppDownloadButtons className="landing-app-buttons--stacked mt-4" />
+          </section>
+
           {socialLinks.length > 0 ? (
             <section className="landing-footer-column">
               <p className="landing-kicker text-muted">Društvene mreže</p>
@@ -1304,30 +1318,15 @@ function LandingFooter({
               </div>
             </section>
           ) : null}
-
-          <section className="landing-footer-column">
-            <p className="landing-kicker text-muted">Dokumenti</p>
-            <div className="landing-footer-list mt-4">
-              <Link to="/pravila-privatnosti">Pravila privatnosti</Link>
-              <Link to="/brisanje-racuna">Brisanje računa</Link>
-            </div>
-          </section>
         </div>
 
-        {bankDetails.length > 0 ? (
-          <section className="landing-footer-column">
-            <p className="landing-kicker text-muted">Podaci za uplatu</p>
-            <div className="landing-footer-list mt-4">
-              {bankDetails.map((item) => (
-                <div key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
+        <section className="landing-footer-column">
+          <p className="landing-kicker text-muted">Dokumenti</p>
+          <div className="landing-footer-list mt-4">
+            <Link to="/pravila-privatnosti">Pravila privatnosti</Link>
+            <Link to="/brisanje-racuna">Brisanje računa</Link>
+          </div>
+        </section>
       </div>
     </footer>
   );
