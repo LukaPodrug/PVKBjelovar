@@ -3343,34 +3343,14 @@ function LeaderboardCard({
       <Text style={styles.sectionTitle}>Ljestvica dolazaka</Text>
 
       {categories.length > 1 ? (
-        <View style={styles.leaderboardSegmentedControl}>
-          {categories.map((category) => {
-            const isSelected = category.id === selectedCategoryId;
-
-            return (
-              <Pressable
-                key={category.id}
-                style={[styles.leaderboardSegment, isSelected && styles.leaderboardSegmentSelected]}
-                onPress={() => {
-                  setSelectedCategoryId(category.id);
-                  setPage(1);
-                }}
-              >
-                <Text
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.78}
-                  numberOfLines={1}
-                  style={[
-                    styles.leaderboardSegmentText,
-                    isSelected && styles.leaderboardSegmentTextSelected,
-                  ]}
-                >
-                  {category.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <CategorySegmentedControl
+          categories={categories}
+          selectedCategoryId={selectedCategoryId}
+          onSelect={(categoryId) => {
+            setSelectedCategoryId(categoryId);
+            setPage(1);
+          }}
+        />
       ) : null}
 
       <View style={styles.leaderboardSegmentedControl}>
@@ -3455,6 +3435,97 @@ function LeaderboardCard({
           ) : null}
         </>
       )}
+    </View>
+  );
+}
+
+/** Up to this many categories share the track equally; beyond it the track scrolls sideways. */
+const maxFixedCategorySegments = 3;
+
+/**
+ * Category switcher shared by the leaderboard and contacts cards. A handful of categories split the
+ * track evenly; admins see every category, so a longer list becomes a horizontal scroller where each
+ * segment keeps a readable, full-size label instead of shrinking to fit.
+ */
+function CategorySegmentedControl({
+  categories,
+  selectedCategoryId,
+  onSelect,
+}: {
+  categories: MeCategory[];
+  selectedCategoryId: string | null;
+  onSelect: (categoryId: string) => void;
+}) {
+  const isScrollable = categories.length > maxFixedCategorySegments;
+  const [scrollState, setScrollState] = useState({ offset: 0, contentWidth: 0, viewportWidth: 0 });
+  const hiddenOnLeft = scrollState.offset > 4;
+  const hiddenOnRight =
+    scrollState.contentWidth - scrollState.viewportWidth - scrollState.offset > 4;
+
+  const segments = categories.map((category) => {
+    const isSelected = category.id === selectedCategoryId;
+
+    return (
+      <Pressable
+        key={category.id}
+        style={[
+          styles.leaderboardSegment,
+          isScrollable && styles.leaderboardSegmentScrollable,
+          isSelected && styles.leaderboardSegmentSelected,
+        ]}
+        onPress={() => onSelect(category.id)}
+      >
+        <Text
+          adjustsFontSizeToFit={!isScrollable}
+          minimumFontScale={0.78}
+          numberOfLines={1}
+          style={[
+            styles.leaderboardSegmentText,
+            isSelected && styles.leaderboardSegmentTextSelected,
+          ]}
+        >
+          {category.name}
+        </Text>
+      </Pressable>
+    );
+  });
+
+  if (!isScrollable) {
+    return <View style={styles.leaderboardSegmentedControl}>{segments}</View>;
+  }
+
+  return (
+    <View style={styles.categorySegmentScrollerWrap}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={32}
+        style={styles.categorySegmentScroller}
+        contentContainerStyle={styles.categorySegmentScrollerContent}
+        onLayout={(event) => {
+          const viewportWidth = event.nativeEvent.layout.width;
+          setScrollState((current) => ({ ...current, viewportWidth }));
+        }}
+        onContentSizeChange={(contentWidth) =>
+          setScrollState((current) => ({ ...current, contentWidth }))
+        }
+        onScroll={(event) => {
+          const offset = event.nativeEvent.contentOffset.x;
+          setScrollState((current) => ({ ...current, offset }));
+        }}
+      >
+        {segments}
+      </ScrollView>
+      {hiddenOnLeft ? (
+        <View pointerEvents="none" style={[styles.categorySegmentHint, styles.categorySegmentHintLeft]}>
+          <Ionicons name="chevron-back" size={16} color="#123d75" />
+        </View>
+      ) : null}
+      {hiddenOnRight ? (
+        <View pointerEvents="none" style={[styles.categorySegmentHint, styles.categorySegmentHintRight]}>
+          <Ionicons name="chevron-forward" size={16} color="#123d75" />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -3594,31 +3665,11 @@ function CategoryContactsCard({
       <Text style={styles.sectionTitle}>Roditelji igrača</Text>
 
       {categories && categories.length > 1 ? (
-        <View style={styles.leaderboardSegmentedControl}>
-          {categories.map((category) => {
-            const isSelected = category.id === selectedCategoryId;
-
-            return (
-              <Pressable
-                key={category.id}
-                style={[styles.leaderboardSegment, isSelected && styles.leaderboardSegmentSelected]}
-                onPress={() => setSelectedCategoryId(category.id)}
-              >
-                <Text
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.78}
-                  numberOfLines={1}
-                  style={[
-                    styles.leaderboardSegmentText,
-                    isSelected && styles.leaderboardSegmentTextSelected,
-                  ]}
-                >
-                  {category.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <CategorySegmentedControl
+          categories={categories}
+          selectedCategoryId={selectedCategoryId}
+          onSelect={setSelectedCategoryId}
+        />
       ) : null}
 
       <TextInput
@@ -5702,6 +5753,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 8,
     paddingVertical: 10,
+  },
+  leaderboardSegmentScrollable: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
+    minWidth: 76,
+    paddingHorizontal: 16,
+  },
+  categorySegmentScrollerWrap: {
+    marginTop: 16,
+    position: "relative",
+  },
+  categorySegmentScroller: {
+    flexGrow: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#c8d6e6",
+    backgroundColor: "#edf4fb",
+  },
+  categorySegmentScrollerContent: {
+    padding: 4,
+    gap: 4,
+  },
+  categorySegmentHint: {
+    position: "absolute",
+    top: 1,
+    bottom: 1,
+    width: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(237, 244, 251, 0.94)",
+  },
+  categorySegmentHintLeft: {
+    left: 1,
+    borderTopLeftRadius: 15,
+    borderBottomLeftRadius: 15,
+  },
+  categorySegmentHintRight: {
+    right: 1,
+    borderTopRightRadius: 15,
+    borderBottomRightRadius: 15,
   },
   leaderboardSegmentSelected: {
     backgroundColor: "#123d75",
