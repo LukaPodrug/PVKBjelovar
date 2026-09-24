@@ -188,6 +188,7 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
       data: {
         dateOfBirth: signup.childDateOfBirth,
         oib: signup.childOib,
+        address: signup.childAddress,
         gdprConsent: signup.gdprConsent,
         sourceSignup: {
           connect: {

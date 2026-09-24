@@ -22,7 +22,7 @@ Aplikacija i klupski sustav mogu obradivati:
 
 - podatke racuna: ime, prezime, e-postu, korisnicko ime, ulogu korisnika i lozinku u zasticenom obliku
 - kontakt podatke: e-postu i telefonski broj
-- podatke o igracima i clanstvu: datum rodenja, OIB, kategoriju, povezane roditelje, status clanstva i evidenciju dolazaka
+- podatke o igracima i clanstvu: datum rodenja, OIB, adresu stanovanja, kategoriju, povezane roditelje, status clanstva i evidenciju dolazaka
 - raspored i sportske podatke: termine treninga, dodijeljene trenere, prisutnosti, poredak i obavijesti
 - tehnicke podatke: token za push obavijesti i podatke potrebne za sigurnu prijavu i rad aplikacije
 
@@ -49,7 +49,7 @@ Podaci se mogu obradivati putem pruzatelja usluga koji omogucuju hosting, bazu p
 
 ## 6. Djeca i roditelji
 
-Aplikacija moze prikazivati podatke djece koja su clanovi kluba. Roditelji imaju pristup podacima svoje djece, a igraci imaju pristup podacima potrebnima za raspored, dolaske i obavijesti.
+Aplikacija moze prikazivati podatke djece koja su clanovi kluba. Roditelji imaju pristup podacima svoje djece, a igraci imaju pristup podacima potrebnima za raspored, dolaske i obavijesti. Treneri vide kontakt podatke roditelja (ime, telefon i e-postu) igraca u kategorijama koje vode, kako bi ih mogli kontaktirati.
 
 ## 7. Brisanje racuna i prava korisnika
 

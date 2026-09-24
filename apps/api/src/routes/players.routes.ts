@@ -175,6 +175,7 @@ playersRouter.post(
       data: {
         dateOfBirth: parseDateInput(request.body.dateOfBirth, "dateOfBirth"),
         oib,
+        address: optionalString(request.body.address),
         gdprConsent: parseBooleanInput(request.body.gdprConsent, "gdprConsent"),
         membershipExpiresAt: parseOptionalDateInput(request.body.membershipExpiresAt),
         user: {
@@ -328,6 +329,7 @@ playersRouter.patch(
           ? parseDateInput(request.body.dateOfBirth, "dateOfBirth")
           : undefined,
         oib: request.body.oib ? requireString(request.body.oib, "oib") : undefined,
+        address: request.body.address !== undefined ? optionalString(request.body.address) : undefined,
         gdprConsent:
           request.body.gdprConsent !== undefined
             ? parseBooleanInput(request.body.gdprConsent, "gdprConsent")

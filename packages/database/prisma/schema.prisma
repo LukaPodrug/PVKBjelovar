@@ -166,6 +166,7 @@ model Player {
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   dateOfBirth         DateTime
   oib                 String           @unique
+  address             String?
   gdprConsent         Boolean
   membershipExpiresAt DateTime?
   sourceSignupId      String?          @unique
@@ -418,6 +419,7 @@ model SignupRequest {
   childLastName                String
   childDateOfBirth             DateTime
   childOib                     String
+  childAddress                 String?
   childProfileImageUrl         String?
   gdprConsent                  Boolean
   suggestedCategoryId          String?

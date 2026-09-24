@@ -247,6 +247,7 @@ export function ApprovalsPage() {
                     lines={[
                       `Datum rođenja: ${formatNumericDate(selectedSignup.childDateOfBirth)}`,
                       `OIB: ${selectedSignup.childOib}`,
+                      `Adresa: ${selectedSignup.childAddress ?? "Nije unesena"}`,
                     ]}
                   />
                 }

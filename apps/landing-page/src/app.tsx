@@ -36,6 +36,7 @@ interface SignupFormState {
   childLastName: string;
   childDateOfBirth: string;
   childOib: string;
+  childAddress: string;
   childProfileImage: File | null;
   gdprConsent: boolean;
 }
@@ -55,6 +56,7 @@ const emptySignupForm: SignupFormState = {
   childLastName: "",
   childDateOfBirth: "",
   childOib: "",
+  childAddress: "",
   childProfileImage: null,
   gdprConsent: false,
 };
@@ -128,6 +130,7 @@ function LandingHomePage() {
       formData.append("childLastName", signupForm.childLastName);
       formData.append("childDateOfBirth", signupForm.childDateOfBirth);
       formData.append("childOib", signupForm.childOib);
+      formData.append("childAddress", signupForm.childAddress);
       formData.append("gdprConsent", String(signupForm.gdprConsent));
 
       if (showSecondParent) {
@@ -597,6 +600,16 @@ function LandingHomePage() {
                         }
                         required
                       />
+                      <div className="md:col-span-2">
+                        <InputField
+                          label="Adresa stanovanja"
+                          value={signupForm.childAddress}
+                          onChange={(value) =>
+                            setSignupForm((current) => ({ ...current, childAddress: value }))
+                          }
+                          required
+                        />
+                      </div>
                     </div>
                     <FileField
                       label="Profilna fotografija"
@@ -1479,7 +1492,7 @@ function PrivacyPolicyPage() {
                 <ul>
                   <li>Podatke računa: ime, prezime, e-pošta, korisničko ime, lozinka u zaštićenom obliku i uloga korisnika.</li>
                   <li>Kontakt podatke: e-pošta i telefonski broj kada su uneseni u klupski sustav.</li>
-                  <li>Podatke o igračima i članstvu: datum rođenja, OIB, kategorija, povezani roditelji, status članstva i evidencija dolazaka.</li>
+                  <li>Podatke o igračima i članstvu: datum rođenja, OIB, adresa stanovanja, kategorija, povezani roditelji, status članstva i evidencija dolazaka.</li>
                   <li>Raspored i sportske podatke: termini treninga, dodijeljeni treneri, prisutnosti, poredak i obavijesti vezane uz treninge.</li>
                   <li>Tehničke podatke: token za push obavijesti i osnovne podatke potrebne za sigurnu prijavu i rad aplikacije.</li>
                 </ul>
@@ -1523,7 +1536,9 @@ function PrivacyPolicyPage() {
                 <p>
                   Aplikacija može prikazivati podatke djece koja su članovi kluba.
                   Roditelji imaju pristup podacima svoje djece, a igrači imaju pristup
-                  podacima potrebnima za raspored, dolaske i obavijesti.
+                  podacima potrebnima za raspored, dolaske i obavijesti. Treneri vide
+                  kontakt podatke roditelja (ime, telefon i e-poštu) igrača u
+                  kategorijama koje vode, kako bi ih mogli kontaktirati.
                 </p>
               </section>
 

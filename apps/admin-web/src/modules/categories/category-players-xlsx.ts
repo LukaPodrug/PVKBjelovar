@@ -1,4 +1,5 @@
-import type { CategoryPlayerAssignment } from "../core/types";
+import { formatDate, formatDateTime } from "../core/date";
+import type { CategoryPlayerAssignment, PlayerRecord } from "../core/types";
 
 interface WorkbookExportResult {
   embeddedImageCount: number;
@@ -42,13 +43,42 @@ export async function createCategoryPlayersWorkbook(
   const worksheet = workbook.addWorksheet(createWorksheetName(categoryName), {
     views: [{ state: "frozen", ySplit: 1 }],
   });
+  // Every assignment gets the same set of parent columns, sized to the child with the most parents.
+  const parentColumnCount = Math.max(
+    1,
+    ...assignments.map(({ player }) => player.parents.length),
+  );
+  const parentColumns = Array.from({ length: parentColumnCount }, (_, index) => {
+    const label = parentColumnCount === 1 ? "Roditelj" : `Roditelj ${index + 1}`;
+
+    return [
+      { header: label, key: `parent${index}Name`, width: 26 },
+      { header: `${label} - telefon`, key: `parent${index}Phone`, width: 18 },
+      { header: `${label} - e-pošta`, key: `parent${index}Email`, width: 30 },
+    ];
+  }).flat();
+
   worksheet.columns = [
-    { header: "Ime", key: "firstName", width: 24 },
-    { header: "Prezime", key: "lastName", width: 24 },
-    { header: "OIB", key: "oib", width: 17 },
+    { header: "Ime", key: "firstName", width: 18 },
+    { header: "Prezime", key: "lastName", width: 20 },
+    { header: "Datum rođenja", key: "dateOfBirth", width: 15 },
+    { header: "OIB", key: "oib", width: 14 },
+    { header: "Adresa stanovanja", key: "address", width: 36 },
+    { header: "Kategorije", key: "categories", width: 20 },
+    { header: "E-pošta igrača", key: "email", width: 28 },
+    { header: "Telefon igrača", key: "phone", width: 18 },
+    { header: "Članarina vrijedi do", key: "membershipExpiresAt", width: 20 },
+    ...parentColumns,
+    { header: "GDPR suglasnost", key: "gdprConsent", width: 17 },
+    { header: "Prijava zaprimljena", key: "signupSubmittedAt", width: 20 },
+    { header: "Upisan u klub", key: "enrolledAt", width: 20 },
     { header: "Slika", key: "image", width: 15 },
   ];
-  worksheet.autoFilter = "A1:D1";
+  const imageColumnIndex = worksheet.columns.length - 1;
+  worksheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: worksheet.columns.length },
+  };
   worksheet.getRow(1).height = 26;
   worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   worksheet.getRow(1).fill = {
@@ -56,7 +86,7 @@ export async function createCategoryPlayersWorkbook(
     pattern: "solid",
     fgColor: { argb: "FF1D4F91" },
   };
-  worksheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
+  worksheet.getRow(1).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   worksheet.getColumn("oib").numFmt = "@";
 
   const profileImages = await mapWithConcurrency(assignments, 6, ({ player }) =>
@@ -66,9 +96,7 @@ export async function createCategoryPlayersWorkbook(
   assignments.forEach(({ player }, index) => {
     const profileImage = profileImages[index];
     const row = worksheet.addRow({
-      firstName: player.user.firstName,
-      lastName: player.user.lastName,
-      oib: player.oib,
+      ...buildPlayerRowValues(player),
       image:
         profileImage?.status === "missing"
           ? "Nema slike"
@@ -77,8 +105,9 @@ export async function createCategoryPlayersWorkbook(
             : "",
     });
     row.height = 54;
-    row.alignment = { vertical: "middle" };
+    row.alignment = { vertical: "middle", wrapText: true };
     row.getCell("oib").alignment = { vertical: "middle", horizontal: "center" };
+    row.getCell("gdprConsent").alignment = { vertical: "middle", horizontal: "center" };
     row.getCell("image").alignment = { vertical: "middle", horizontal: "center" };
 
     if (profileImage?.status === "embedded") {
@@ -87,7 +116,7 @@ export async function createCategoryPlayersWorkbook(
         extension: "png",
       });
       worksheet.addImage(imageId, {
-        tl: { col: 3.25, row: row.number - 0.94 },
+        tl: { col: imageColumnIndex + 0.25, row: row.number - 0.94 },
         ext: { width: imageSize, height: imageSize },
       });
     }
@@ -111,6 +140,37 @@ export async function createCategoryPlayersWorkbook(
     file: new Blob([new Uint8Array(output)], { type: workbookMimeType }),
     embeddedImageCount: profileImages.filter((image) => image.status === "embedded").length,
     failedImageCount: profileImages.filter((image) => image.status === "failed").length,
+  };
+}
+
+function buildPlayerRowValues(player: PlayerRecord): Record<string, string> {
+  // Primary contact first so "Roditelj 1" is always the parent the club reaches out to.
+  const parents = [...player.parents].sort(
+    (left, right) => Number(right.isPrimaryContact) - Number(left.isPrimaryContact),
+  );
+  const parentValues = Object.fromEntries(
+    parents.flatMap(({ parent }, index) => [
+      [`parent${index}Name`, `${parent.user.firstName} ${parent.user.lastName}`.trim()],
+      [`parent${index}Phone`, parent.user.phone ?? ""],
+      [`parent${index}Email`, parent.user.email ?? ""],
+    ]),
+  );
+
+  return {
+    firstName: player.user.firstName,
+    lastName: player.user.lastName,
+    dateOfBirth: formatDate(player.dateOfBirth),
+    oib: player.oib,
+    address: player.address ?? "",
+    categories: player.categories.map(({ category }) => category.name).join(", "),
+    email: player.user.email ?? "",
+    phone: player.user.phone ?? "",
+    membershipExpiresAt: player.membershipExpiresAt ? formatDate(player.membershipExpiresAt) : "",
+    ...parentValues,
+    gdprConsent: player.gdprConsent ? "Da" : "Ne",
+    // Players added by hand in the admin panel never went through the public signup form.
+    signupSubmittedAt: player.sourceSignup ? formatDateTime(player.sourceSignup.createdAt) : "",
+    enrolledAt: formatDateTime(player.createdAt),
   };
 }
 

@@ -106,8 +106,13 @@ export interface PlayerRecord {
   id: string;
   dateOfBirth: string;
   oib: string;
+  address: string | null;
   gdprConsent: boolean;
   membershipExpiresAt: string | null;
+  createdAt: string;
+  sourceSignup?: {
+    createdAt: string;
+  } | null;
   user: PersonUser;
   categories: Array<{
     categoryId: string;
@@ -282,6 +287,7 @@ export interface SignupRequest {
   childLastName: string;
   childDateOfBirth: string;
   childOib: string;
+  childAddress: string | null;
   childProfileImageUrl: string | null;
   gdprConsent: boolean;
   suggestedCategoryId: string | null;

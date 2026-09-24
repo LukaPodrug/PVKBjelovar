@@ -23,6 +23,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -276,6 +277,25 @@ interface LeaderboardResponse {
 }
 
 type LeaderboardWindow = "week" | "month" | "all";
+
+interface ContactPerson {
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+}
+
+interface CategoryContactParent extends ContactPerson {
+  parentId: string;
+  isPrimaryContact: boolean;
+}
+
+interface CategoryContactPlayer extends ContactPerson {
+  playerId: string;
+  profileImageUrl: string | null;
+  dateOfBirth: string;
+  parents: CategoryContactParent[];
+}
 
 const defaultApiBaseUrl =
   process.env.EXPO_PUBLIC_API_URL ??
@@ -909,6 +929,7 @@ function StaffAttendanceScreen({
   const [qrSession, setQrSession] = useState<AttendanceQrSessionResponse | null>(null);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [categories, setCategories] = useState<MeCategory[]>([]);
+  const [contactCategories, setContactCategories] = useState<MeCategory[] | null>(null);
   const [activeTab, setActiveTab] = useState("practices");
   const visiblePractices = practices.filter((practice) => practice.occurrenceDate === selectedDateKey);
 
@@ -929,6 +950,7 @@ function StaffAttendanceScreen({
         });
 
         if (isActive) {
+          setContactCategories(scopedCategories);
           setCategories(
             scopedCategories.length > 0
               ? scopedCategories
@@ -939,6 +961,7 @@ function StaffAttendanceScreen({
         }
       } catch (error) {
         if (isActive) {
+          setContactCategories([]);
           const publicCategories = await requestJson<MeCategory[]>(apiBaseUrl, "/categories/public", {
             method: "GET",
           }).catch(() => []);
@@ -1090,6 +1113,7 @@ function StaffAttendanceScreen({
 
   const staffTabs: TabItem[] = [
     { key: "practices", label: "Treninzi", icon: "calendar-outline" },
+    { key: "contacts", label: "Kontakti", icon: "people-outline" },
     { key: "leaderboard", label: "Poredak", icon: "trophy-outline" },
     { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
     { key: "profile", label: "Profil", icon: "person-circle-outline" },
@@ -1236,6 +1260,14 @@ function StaffAttendanceScreen({
                 })
               )}
             </View>
+          </TabScrollView>
+        ) : activeTab === "contacts" ? (
+          <TabScrollView>
+            <CategoryContactsCard
+              apiBaseUrl={apiBaseUrl}
+              token={session.token}
+              categories={contactCategories}
+            />
           </TabScrollView>
         ) : activeTab === "leaderboard" ? (
           <TabScrollView>
@@ -3462,6 +3494,260 @@ function LeaderboardRow({
   );
 }
 
+/**
+ * Staff contact sheet: players in the coach's categories with their parents' phone and e-mail, so a
+ * coach can call, text, or e-mail a family directly. Adult players without a linked parent show
+ * their own contact details instead.
+ */
+function CategoryContactsCard({
+  apiBaseUrl,
+  token,
+  categories,
+}: {
+  apiBaseUrl: string;
+  token: string;
+  categories: MeCategory[] | null;
+}) {
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    categories?.[0]?.id ?? null,
+  );
+  const [contacts, setContacts] = useState<CategoryContactPlayer[]>([]);
+  const [search, setSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      categories &&
+      (!selectedCategoryId || !categories.some((category) => category.id === selectedCategoryId))
+    ) {
+      setSelectedCategoryId(categories[0]?.id ?? null);
+    }
+  }, [categories, selectedCategoryId]);
+
+  useEffect(() => {
+    if (!selectedCategoryId) {
+      setContacts([]);
+      setIsLoading(categories === null);
+      return;
+    }
+
+    let isActive = true;
+
+    async function loadContacts() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const payload = await requestJson<CategoryContactPlayer[]>(
+          apiBaseUrl,
+          `/me/contacts?categoryId=${encodeURIComponent(selectedCategoryId!)}`,
+          { method: "GET", token },
+        );
+
+        if (isActive) {
+          setContacts(payload);
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setContacts([]);
+          setError(loadError instanceof Error ? loadError.message : "Kontakte nije moguće učitati.");
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadContacts();
+
+    return () => {
+      isActive = false;
+    };
+  }, [apiBaseUrl, token, selectedCategoryId, categories]);
+
+  if (categories !== null && categories.length === 0) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.sectionEyebrow}>Kontakti</Text>
+        <Text style={styles.sectionTitle}>Nema dodijeljenih kategorija</Text>
+        <Text style={styles.sectionCopy}>
+          Kontakti roditelja prikazuju se za kategorije koje vodite.
+        </Text>
+      </View>
+    );
+  }
+
+  const searchTerm = normalizeSearchText(search.trim());
+  const visibleContacts = searchTerm
+    ? contacts.filter((player) =>
+        [player, ...player.parents].some((person) =>
+          normalizeSearchText(`${person.firstName} ${person.lastName}`).includes(searchTerm),
+        ),
+      )
+    : contacts;
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.sectionEyebrow}>Kontakti</Text>
+      <Text style={styles.sectionTitle}>Roditelji igrača</Text>
+
+      {categories && categories.length > 1 ? (
+        <View style={styles.leaderboardSegmentedControl}>
+          {categories.map((category) => {
+            const isSelected = category.id === selectedCategoryId;
+
+            return (
+              <Pressable
+                key={category.id}
+                style={[styles.leaderboardSegment, isSelected && styles.leaderboardSegmentSelected]}
+                onPress={() => setSelectedCategoryId(category.id)}
+              >
+                <Text
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                  numberOfLines={1}
+                  style={[
+                    styles.leaderboardSegmentText,
+                    isSelected && styles.leaderboardSegmentTextSelected,
+                  ]}
+                >
+                  {category.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
+      <TextInput
+        style={[styles.input, styles.contactSearchInput]}
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Pretraži igrača ili roditelja"
+        placeholderTextColor="#8a98a8"
+        autoCorrect={false}
+        clearButtonMode="while-editing"
+      />
+
+      {error ? <MessageBanner tone="error" message={error} /> : null}
+
+      {isLoading ? (
+        <View style={styles.loadingBlock}>
+          <ActivityIndicator color="#123d75" />
+        </View>
+      ) : visibleContacts.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>
+            {searchTerm ? "Nema rezultata za pretragu." : "U ovoj kategoriji još nema igrača."}
+          </Text>
+        </View>
+      ) : (
+        visibleContacts.map((player) => (
+          <ContactPlayerCard key={player.playerId} player={player} />
+        ))
+      )}
+    </View>
+  );
+}
+
+function ContactPlayerCard({ player }: { player: CategoryContactPlayer }) {
+  const playerName = `${player.firstName} ${player.lastName}`;
+
+  return (
+    <View style={styles.contactPlayerCard}>
+      <View style={styles.contactPlayerHeader}>
+        <ImageFirstAvatar
+          name={playerName}
+          imageUrl={player.profileImageUrl}
+          containerStyle={styles.leaderboardAvatar}
+          textStyle={styles.leaderboardAvatarText}
+        />
+        <View style={styles.leaderboardRowMeta}>
+          <Text style={styles.leaderboardRowName}>{playerName}</Text>
+          <Text style={styles.leaderboardRowCopy}>
+            Rođen/a {formatDateValue(player.dateOfBirth)}
+          </Text>
+        </View>
+      </View>
+
+      {player.parents.length > 0 ? (
+        player.parents.map((parent) => (
+          <ContactPersonRow
+            key={parent.parentId}
+            person={parent}
+            caption={parent.isPrimaryContact ? "Primarni kontakt" : "Roditelj"}
+          />
+        ))
+      ) : player.phone || player.email ? (
+        <ContactPersonRow person={player} caption="Kontakt igrača" />
+      ) : (
+        <Text style={styles.contactEmptyText}>Nema unesenih kontakt podataka.</Text>
+      )}
+    </View>
+  );
+}
+
+function ContactPersonRow({ person, caption }: { person: ContactPerson; caption: string }) {
+  const dialablePhone = person.phone?.replace(/[^\d+]/g, "") ?? "";
+
+  function openLink(url: string) {
+    void Linking.openURL(url).catch(() => undefined);
+  }
+
+  return (
+    <View style={styles.contactPersonRow}>
+      <Text style={styles.contactPersonCaption}>{caption}</Text>
+      <Text style={styles.contactPersonName}>
+        {`${person.firstName} ${person.lastName}`.trim()}
+      </Text>
+      {person.phone ? <Text style={styles.contactPersonDetail}>{person.phone}</Text> : null}
+      {person.email ? <Text style={styles.contactPersonDetail}>{person.email}</Text> : null}
+
+      <View style={styles.contactActionRow}>
+        {dialablePhone ? (
+          <>
+            <Pressable
+              style={styles.contactActionButton}
+              accessibilityLabel={`Nazovi ${person.firstName}`}
+              onPress={() => openLink(`tel:${dialablePhone}`)}
+            >
+              <Ionicons name="call-outline" size={16} color="#123d75" />
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.contactActionText}>Nazovi</Text>
+            </Pressable>
+            <Pressable
+              style={styles.contactActionButton}
+              accessibilityLabel={`Pošalji poruku ${person.firstName}`}
+              onPress={() => openLink(`sms:${dialablePhone}`)}
+            >
+              <Ionicons name="chatbubble-outline" size={16} color="#123d75" />
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.contactActionText}>Poruka</Text>
+            </Pressable>
+          </>
+        ) : null}
+        {person.email ? (
+          <Pressable
+            style={styles.contactActionButton}
+            accessibilityLabel={`Pošalji e-poštu ${person.firstName}`}
+            onPress={() => openLink(`mailto:${person.email}`)}
+          >
+            <Ionicons name="mail-outline" size={16} color="#123d75" />
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.contactActionText}>Mail</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+}
+
 function ChildOverviewPanel({ child }: { child: ParentChildSummary }) {
   const membership = describeMembership(child.membershipExpiresAt);
 
@@ -5440,6 +5726,77 @@ const styles = StyleSheet.create({
     height: 52,
     alignItems: "flex-start",
     justifyContent: "flex-start",
+  },
+  contactSearchInput: {
+    marginTop: 16,
+  },
+  contactPlayerCard: {
+    marginTop: 12,
+    gap: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#d6e0eb",
+    backgroundColor: "#f9fbfd",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  contactPlayerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  contactPersonRow: {
+    gap: 2,
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e3eaf2",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  contactPersonCaption: {
+    color: "#5f6f82",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  contactPersonName: {
+    color: "#102347",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  contactPersonDetail: {
+    color: "#405365",
+    fontSize: 13,
+  },
+  contactActionRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    gap: 6,
+  },
+  contactActionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#c8d6e6",
+    backgroundColor: "#f7fbff",
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+  },
+  contactActionText: {
+    flexShrink: 1,
+    color: "#123d75",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  contactEmptyText: {
+    color: "#5f6f82",
+    fontSize: 13,
   },
   leaderboardRow: {
     marginTop: 12,

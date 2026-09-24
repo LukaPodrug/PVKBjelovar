@@ -43,6 +43,11 @@ const categoryPlayerInclude = {
   player: {
     include: {
       user: true,
+      sourceSignup: {
+        select: {
+          createdAt: true,
+        },
+      },
       categories: {
         include: {
           category: true,

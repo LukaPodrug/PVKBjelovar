@@ -35,6 +35,7 @@ interface PlayerFormState {
   phone: string;
   dateOfBirth: string;
   oib: string;
+  address: string;
   gdprConsent: boolean;
   membershipExpiresAt: string;
   categoryIds: string[];
@@ -63,6 +64,7 @@ const emptyPlayerForm: PlayerFormState = {
   phone: "",
   dateOfBirth: "",
   oib: "",
+  address: "",
   gdprConsent: false,
   membershipExpiresAt: "",
   categoryIds: [],
@@ -706,6 +708,21 @@ export function PlayersPage() {
                     />
                   </label>
 
+                  <label className="block lg:col-span-2">
+                    <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                      Adresa stanovanja
+                    </span>
+                    <input
+                      className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                      type="text"
+                      value={form.address}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, address: event.target.value }))
+                      }
+                      placeholder="Ulica i kućni broj, poštanski broj i mjesto"
+                    />
+                  </label>
+
                   <label className="block">
                     <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                       Telefon
@@ -1206,6 +1223,7 @@ function createFormFromPlayer(player: PlayerRecord): PlayerFormState {
     phone: player.user.phone ?? "",
     dateOfBirth: toDateInputValue(player.dateOfBirth),
     oib: player.oib,
+    address: player.address ?? "",
     gdprConsent: player.gdprConsent,
     membershipExpiresAt: player.membershipExpiresAt
       ? toDateInputValue(player.membershipExpiresAt)
@@ -1227,6 +1245,7 @@ function buildPlayerFormData(form: PlayerFormState) {
   formData.append("phone", form.phone);
   formData.append("dateOfBirth", form.dateOfBirth);
   formData.append("oib", form.oib);
+  formData.append("address", form.address);
   formData.append("gdprConsent", String(form.gdprConsent));
   formData.append("membershipExpiresAt", form.membershipExpiresAt);
   formData.append("categoryIds", JSON.stringify(form.categoryIds));

@@ -580,6 +580,82 @@ meRouter.get(
 );
 
 /**
+ * Contact sheet for a category: every player with their parents' phone and e-mail, so staff can
+ * reach a family straight from the mobile app. Admins can open any category; coaches only the
+ * categories they are assigned to.
+ */
+meRouter.get(
+  "/contacts",
+  authorizeRoles(UserRole.ADMIN, UserRole.COACH),
+  asyncHandler(async (request, response) => {
+    const { userId, role } = request.auth!;
+    const categoryId = requireString(request.query.categoryId, "categoryId");
+
+    const hasAccess =
+      role === UserRole.ADMIN
+        ? await prisma.category.count({ where: { id: categoryId } })
+        : await prisma.coachCategory.count({
+            where: { categoryId, coach: { userId } },
+          });
+
+    if (!hasAccess) {
+      throw new AppError(
+        role === UserRole.ADMIN
+          ? "Kategorija nije pronađena."
+          : "Nemate pristup kontaktima ove kategorije.",
+        role === UserRole.ADMIN ? 404 : 403,
+      );
+    }
+
+    const contactUserSelect = {
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      profileImageUrl: true,
+    } as const;
+
+    const players = await prisma.player.findMany({
+      where: { categories: { some: { categoryId } } },
+      orderBy: [{ user: { lastName: "asc" } }, { user: { firstName: "asc" } }],
+      select: {
+        id: true,
+        dateOfBirth: true,
+        user: { select: contactUserSelect },
+        parents: {
+          orderBy: { isPrimaryContact: "desc" },
+          select: {
+            parentId: true,
+            isPrimaryContact: true,
+            parent: { select: { user: { select: contactUserSelect } } },
+          },
+        },
+      },
+    });
+
+    response.json(
+      players.map((player) => ({
+        playerId: player.id,
+        firstName: player.user.firstName,
+        lastName: player.user.lastName,
+        profileImageUrl: player.user.profileImageUrl,
+        dateOfBirth: player.dateOfBirth,
+        email: player.user.email,
+        phone: player.user.phone,
+        parents: player.parents.map((link) => ({
+          parentId: link.parentId,
+          isPrimaryContact: link.isPrimaryContact,
+          firstName: link.parent.user.firstName,
+          lastName: link.parent.user.lastName,
+          email: link.parent.user.email,
+          phone: link.parent.user.phone,
+        })),
+      })),
+    );
+  }),
+);
+
+/**
  * Resolves which player rows the requester is allowed to see highlighted on a category leaderboard,
  * and doubles as the access guard. Admins can see every category, coaches can see assigned
  * categories, players must belong to the category, and parents must have at least one child in it.

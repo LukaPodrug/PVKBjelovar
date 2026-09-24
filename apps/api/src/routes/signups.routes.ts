@@ -103,6 +103,7 @@ signupsRouter.post(
         childLastName,
         childDateOfBirth,
         childOib: requireString(request.body.childOib, "childOib"),
+        childAddress: requireString(request.body.childAddress, "childAddress"),
         childProfileImageUrl: await resolveUploadedImageUrl(
           files.childProfileImage?.[0],
           buildPersonImageTitle(childFirstName, childLastName),

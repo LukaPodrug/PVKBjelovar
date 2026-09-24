@@ -39,6 +39,7 @@ interface QuickPlayerFormState {
   lastName: string;
   dateOfBirth: string;
   oib: string;
+  address: string;
   gdprConsent: boolean;
 }
 
@@ -57,6 +58,7 @@ const emptyQuickPlayerForm: QuickPlayerFormState = {
   lastName: "",
   dateOfBirth: "",
   oib: "",
+  address: "",
   gdprConsent: false,
 };
 
@@ -211,6 +213,7 @@ export function ParentsPage() {
       formData.append("phone", "");
       formData.append("dateOfBirth", quickPlayerForm.dateOfBirth);
       formData.append("oib", quickPlayerForm.oib);
+      formData.append("address", quickPlayerForm.address);
       formData.append("gdprConsent", String(quickPlayerForm.gdprConsent));
       formData.append("membershipExpiresAt", "");
       formData.append("categoryIds", JSON.stringify([]));
@@ -755,6 +758,22 @@ export function ParentsPage() {
                                 setQuickPlayerForm((current) => ({
                                   ...current,
                                   oib: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="block sm:col-span-2">
+                            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                              Adresa stanovanja
+                            </span>
+                            <input
+                              className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              type="text"
+                              value={quickPlayerForm.address}
+                              onChange={(event) =>
+                                setQuickPlayerForm((current) => ({
+                                  ...current,
+                                  address: event.target.value,
                                 }))
                               }
                             />
