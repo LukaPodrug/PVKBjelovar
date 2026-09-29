@@ -293,6 +293,7 @@ export interface SignupRequest {
   suggestedCategoryId: string | null;
   assignedCategoryId: string | null;
   declineReason: string | null;
+  reviewedAt: string | null;
   createdAt: string;
   suggestedCategory: CategoryOption | null;
   assignedCategory: CategoryOption | null;

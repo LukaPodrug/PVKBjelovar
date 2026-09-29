@@ -27,8 +27,9 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
     throw new AppError("Zahtjev za prijavu nije pronađen.", 404);
   }
 
-  if (signup.status !== SignupStatus.PENDING) {
-    throw new AppError("Moguće je odobriti samo prijave na čekanju.", 400);
+  // A declined signup can be approved straight away once the admin has fixed its details.
+  if (signup.status === SignupStatus.APPROVED) {
+    throw new AppError("Prijava je već odobrena.", 400);
   }
 
   const parentEmails = [signup.parentOneEmail, signup.parentTwoEmail].filter(
@@ -350,6 +351,32 @@ export async function declineSignupRequest(input: DeclineSignupInput) {
       reviewedById: input.reviewerId,
       reviewedAt: new Date(),
       declineReason: input.declineReason ?? null,
+    },
+  });
+}
+
+export async function reopenSignupRequest(signupRequestId: string) {
+  const signup = await prisma.signupRequest.findUnique({
+    where: { id: signupRequestId },
+  });
+
+  if (!signup) {
+    throw new AppError("Zahtjev za prijavu nije pronađen.", 404);
+  }
+
+  if (signup.status !== SignupStatus.DECLINED) {
+    throw new AppError("Na čekanje je moguće vratiti samo odbijene prijave.", 400);
+  }
+
+  return prisma.signupRequest.update({
+    where: {
+      id: signup.id,
+    },
+    data: {
+      status: SignupStatus.PENDING,
+      reviewedById: null,
+      reviewedAt: null,
+      declineReason: null,
     },
   });
 }

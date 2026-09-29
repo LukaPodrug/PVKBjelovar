@@ -41,6 +41,8 @@ interface SignupFormState {
   gdprConsent: boolean;
 }
 
+const duplicateParentEmailMessage = "Roditelji moraju imati različite e-adrese.";
+
 const emptySignupForm: SignupFormState = {
   parentOneFirstName: "",
   parentOneLastName: "",
@@ -180,6 +182,10 @@ function LandingHomePage() {
     },
   });
 
+  const hasDuplicateParentEmails =
+    showSecondParent &&
+    signupForm.parentTwoEmail.trim() !== "" &&
+    signupForm.parentTwoEmail.trim().toLowerCase() === signupForm.parentOneEmail.trim().toLowerCase();
   const clubSettings = clubSettingsQuery.data;
   const newsFeed = newsQuery.data;
   const newsItems = newsFeed?.items ?? [];
@@ -445,6 +451,12 @@ function LandingHomePage() {
                   onSubmit={(event) => {
                     event.preventDefault();
                     setSignupFeedback(null);
+
+                    if (hasDuplicateParentEmails) {
+                      setSignupFeedback({ tone: "error", message: duplicateParentEmailMessage });
+                      return;
+                    }
+
                     signupMutation.mutate();
                   }}
                 >
@@ -517,7 +529,7 @@ function LandingHomePage() {
                       {showSecondParent ? "Ukloni roditelja 2" : "Dodaj roditelja 2"}
                     </button>
                     <div className="landing-signup-note border-2 border-line bg-panel px-4 py-4 text-sm leading-7 text-ink">
-                      Drugi roditelj nije obavezan, ali ako ga uključite potrebno je ispuniti sva njegova kontaktna polja.
+                      Drugi roditelj nije obavezan, ali ako ga uključite potrebno je ispuniti sva njegova kontaktna polja. Svaki roditelj mora imati svoju e-adresu jer ona služi za prijavu u aplikaciju.
                     </div>
                   </div>
 
@@ -548,6 +560,7 @@ function LandingHomePage() {
                             setSignupForm((current) => ({ ...current, parentTwoEmail: value }))
                           }
                           required
+                          error={hasDuplicateParentEmails ? duplicateParentEmailMessage : undefined}
                         />
                         <InputField
                           label="Telefon"
@@ -2202,12 +2215,14 @@ function InputField({
   onChange,
   required = false,
   type = "text",
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
   type?: string;
+  error?: string;
 }) {
   return (
     <label className="block">
@@ -2215,12 +2230,16 @@ function InputField({
         {label}
       </span>
       <input
-        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-surface"
+        className={`w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-surface ${
+          error ? "field-invalid" : ""
+        }`}
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
+        aria-invalid={error ? true : undefined}
       />
+      {error ? <span className="field-error-message block">{error}</span> : null}
     </label>
   );
 }

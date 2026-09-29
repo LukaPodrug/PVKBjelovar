@@ -7,7 +7,11 @@ import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
 import { uploadSignupImages } from "../middlewares/upload";
 import { suggestCategoryIdForDateOfBirth } from "../services/category.service";
-import { approveSignupRequest, declineSignupRequest } from "../services/signup.service";
+import {
+  approveSignupRequest,
+  declineSignupRequest,
+  reopenSignupRequest,
+} from "../services/signup.service";
 import {
   normalizeEmail,
   buildPaginatedResponse,
@@ -45,68 +49,65 @@ const signupInclude = {
 
 export const signupsRouter = Router();
 
+/**
+ * Parses the parent and child fields shared by the public signup form and the admin edit of a
+ * pending or declined signup. Images and GDPR consent are handled by the callers.
+ */
+function parseSignupDetails(body: Record<string, unknown>) {
+  const hasSecondParent = Boolean(
+    body.parentTwoFirstName || body.parentTwoLastName || body.parentTwoEmail || body.parentTwoPhone,
+  );
+  const parentOneEmail = normalizeEmail(body.parentOneEmail, "parentOneEmail");
+  const parentTwoEmail = hasSecondParent ? normalizeEmail(body.parentTwoEmail, "parentTwoEmail") : null;
+
+  if (parentTwoEmail && parentTwoEmail === parentOneEmail) {
+    throw new AppError("Roditelji moraju imati različite e-adrese.", 400);
+  }
+
+  return {
+    parentOneFirstName: requireString(body.parentOneFirstName, "parentOneFirstName"),
+    parentOneLastName: requireString(body.parentOneLastName, "parentOneLastName"),
+    parentOneEmail,
+    parentOnePhone: requireString(body.parentOnePhone, "parentOnePhone"),
+    parentTwoFirstName: hasSecondParent ? requireString(body.parentTwoFirstName, "parentTwoFirstName") : null,
+    parentTwoLastName: hasSecondParent ? requireString(body.parentTwoLastName, "parentTwoLastName") : null,
+    parentTwoEmail,
+    parentTwoPhone: hasSecondParent ? requireString(body.parentTwoPhone, "parentTwoPhone") : null,
+    childFirstName: requireString(body.childFirstName, "childFirstName"),
+    childLastName: requireString(body.childLastName, "childLastName"),
+    childDateOfBirth: parseDateInput(body.childDateOfBirth, "childDateOfBirth"),
+    childOib: requireString(body.childOib, "childOib"),
+    childAddress: requireString(body.childAddress, "childAddress"),
+  };
+}
+
 signupsRouter.post(
   "/",
   uploadSignupImages,
   asyncHandler(async (request, response) => {
     const files = getUploadedFileMap(request.files);
 
-    const childDateOfBirth = parseDateInput(request.body.childDateOfBirth, "childDateOfBirth");
-    const parentOneFirstName = requireString(request.body.parentOneFirstName, "parentOneFirstName");
-    const parentOneLastName = requireString(request.body.parentOneLastName, "parentOneLastName");
-    const childFirstName = requireString(request.body.childFirstName, "childFirstName");
-    const childLastName = requireString(request.body.childLastName, "childLastName");
-    const hasSecondParent = Boolean(
-      request.body.parentTwoFirstName ||
-        request.body.parentTwoLastName ||
-        request.body.parentTwoEmail ||
-        request.body.parentTwoPhone,
-    );
-
-    const parentTwoFirstName = hasSecondParent
-      ? requireString(request.body.parentTwoFirstName, "parentTwoFirstName")
-      : null;
-    const parentTwoLastName = hasSecondParent
-      ? requireString(request.body.parentTwoLastName, "parentTwoLastName")
-      : null;
-
-    if (hasSecondParent) {
-      requireString(request.body.parentTwoEmail, "parentTwoEmail");
-      requireString(request.body.parentTwoPhone, "parentTwoPhone");
-    }
-
-    const suggestedCategoryId = await suggestCategoryIdForDateOfBirth(childDateOfBirth);
+    const details = parseSignupDetails(request.body);
+    const suggestedCategoryId = await suggestCategoryIdForDateOfBirth(details.childDateOfBirth);
 
     const signupRequest = await prisma.signupRequest.create({
       data: {
-        parentOneFirstName,
-        parentOneLastName,
-        parentOneEmail: normalizeEmail(request.body.parentOneEmail, "parentOneEmail"),
-        parentOnePhone: requireString(request.body.parentOnePhone, "parentOnePhone"),
+        ...details,
         parentOneProfileImageUrl: await resolveUploadedImageUrl(
           files.parentOneProfileImage?.[0],
-          buildPersonImageTitle(parentOneFirstName, parentOneLastName),
+          buildPersonImageTitle(details.parentOneFirstName, details.parentOneLastName),
           request.body.parentOneProfileImageUrl,
         ),
-        parentTwoFirstName,
-        parentTwoLastName,
-        parentTwoEmail: hasSecondParent ? normalizeEmail(request.body.parentTwoEmail, "parentTwoEmail") : null,
-        parentTwoPhone: hasSecondParent ? requireString(request.body.parentTwoPhone, "parentTwoPhone") : null,
-        parentTwoProfileImageUrl: hasSecondParent
+        parentTwoProfileImageUrl: details.parentTwoFirstName
           ? await resolveUploadedImageUrl(
               files.parentTwoProfileImage?.[0],
-              buildPersonImageTitle(parentTwoFirstName!, parentTwoLastName!),
+              buildPersonImageTitle(details.parentTwoFirstName, details.parentTwoLastName!),
               request.body.parentTwoProfileImageUrl,
             )
           : null,
-        childFirstName,
-        childLastName,
-        childDateOfBirth,
-        childOib: requireString(request.body.childOib, "childOib"),
-        childAddress: requireString(request.body.childAddress, "childAddress"),
         childProfileImageUrl: await resolveUploadedImageUrl(
           files.childProfileImage?.[0],
-          buildPersonImageTitle(childFirstName, childLastName),
+          buildPersonImageTitle(details.childFirstName, details.childLastName),
           request.body.childProfileImageUrl,
         ),
         gdprConsent: parseBooleanInput(request.body.gdprConsent, "gdprConsent"),
@@ -201,6 +202,48 @@ signupsRouter.patch(
       declineReason:
         typeof request.body.declineReason === "string" ? request.body.declineReason : undefined,
     });
+
+    response.json(result);
+  }),
+);
+
+signupsRouter.patch(
+  "/:id",
+  asyncHandler(async (request, response) => {
+    const signupRequestId = requireString(request.params.id, "id");
+    const signup = await prisma.signupRequest.findUnique({
+      where: { id: signupRequestId },
+    });
+
+    if (!signup) {
+      throw new AppError("Zahtjev za prijavu nije pronađen.", 404);
+    }
+
+    if (signup.status === SignupStatus.APPROVED) {
+      throw new AppError("Odobrenu prijavu nije moguće uređivati.", 400);
+    }
+
+    const details = parseSignupDetails(request.body);
+    const updatedSignup = await prisma.signupRequest.update({
+      where: { id: signup.id },
+      data: {
+        ...details,
+        // A removed second parent takes their photo with them.
+        parentTwoProfileImageUrl: details.parentTwoFirstName ? signup.parentTwoProfileImageUrl : null,
+        suggestedCategoryId: await suggestCategoryIdForDateOfBirth(details.childDateOfBirth),
+      },
+      include: signupInclude,
+    });
+
+    response.json(updatedSignup);
+  }),
+);
+
+signupsRouter.patch(
+  "/:id/reopen",
+  asyncHandler(async (request, response) => {
+    const signupRequestId = requireString(request.params.id, "id");
+    const result = await reopenSignupRequest(signupRequestId);
 
     response.json(result);
   }),

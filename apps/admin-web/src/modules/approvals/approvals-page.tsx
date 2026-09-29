@@ -3,10 +3,11 @@ import type { AxiosError } from "axios";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { api } from "../core/api";
-import { formatDate, formatDateTime } from "../core/date";
+import { formatDateTime, toDateInputValue } from "../core/date";
 import type { CategoryOption, PaginatedResponse, SignupRequest } from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
 import { FeedbackToast } from "../ui/feedback-toast";
+import { DatePicker } from "../ui/date-picker";
 import { PaginationControls } from "../ui/pagination-controls";
 
 interface ApprovalResult {
@@ -21,22 +22,45 @@ interface FeedbackState {
   message: string;
 }
 
+type SignupStatusFilter = "PENDING" | "DECLINED";
+
+interface SignupEditForm {
+  parentOneFirstName: string;
+  parentOneLastName: string;
+  parentOneEmail: string;
+  parentOnePhone: string;
+  hasSecondParent: boolean;
+  parentTwoFirstName: string;
+  parentTwoLastName: string;
+  parentTwoEmail: string;
+  parentTwoPhone: string;
+  childFirstName: string;
+  childLastName: string;
+  childDateOfBirth: string;
+  childOib: string;
+  childAddress: string;
+}
+
 const approvalsPageSize = 25;
 const optionPageSize = 100;
+const duplicateParentEmailMessage = "Roditelji moraju imati različite e-adrese.";
+const fieldInputClassName = "w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg";
 
 export function ApprovalsPage() {
   const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<SignupStatusFilter>("PENDING");
   const [selectedSignupId, setSelectedSignupId] = useState<string | null>(null);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Record<string, string>>({});
   const [declineReasons, setDeclineReasons] = useState<Record<string, string>>({});
+  const [editForm, setEditForm] = useState<SignupEditForm | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [signupsPage, setSignupsPage] = useState(1);
 
   const signupsQuery = useQuery({
-    queryKey: ["signups", "pending", signupsPage],
+    queryKey: ["signups", statusFilter, signupsPage],
     queryFn: async () => {
       const response = await api.get<PaginatedResponse<SignupRequest>>("/signups", {
-        params: { status: "PENDING", page: signupsPage, pageSize: approvalsPageSize },
+        params: { status: statusFilter, page: signupsPage, pageSize: approvalsPageSize },
       });
       return response.data;
     },
@@ -55,6 +79,18 @@ export function ApprovalsPage() {
       }));
     },
   });
+
+  const closeDrawer = () => {
+    setSelectedSignupId(null);
+    setEditForm(null);
+  };
+
+  const showError = (error: AxiosError<{ message?: string }>, fallback: string) => {
+    setFeedback({
+      tone: "error",
+      message: error.response?.data?.message ?? fallback,
+    });
+  };
 
   const approveMutation = useMutation({
     mutationFn: async (signup: SignupRequest) => {
@@ -75,15 +111,11 @@ export function ApprovalsPage() {
         tone: "success",
         message: buildApprovalSuccessMessage(result),
       });
-      setSelectedSignupId(null);
-      void queryClient.invalidateQueries({ queryKey: ["signups", "pending"] });
+      closeDrawer();
+      void queryClient.invalidateQueries({ queryKey: ["signups"] });
     },
-    onError: (error: AxiosError<{ message?: string }>) => {
-      setFeedback({
-        tone: "error",
-        message: error.response?.data?.message ?? "Odobravanje nije uspjelo. Pokušajte ponovno.",
-      });
-    },
+    onError: (error: AxiosError<{ message?: string }>) =>
+      showError(error, "Odobravanje nije uspjelo. Pokušajte ponovno."),
   });
 
   const declineMutation = useMutation({
@@ -97,17 +129,49 @@ export function ApprovalsPage() {
     onSuccess: () => {
       setFeedback({
         tone: "success",
-        message: "Prijava je uspješno odbijena.",
+        message: "Prijava je odbijena i premještena među odbijene prijave.",
       });
-      setSelectedSignupId(null);
-      void queryClient.invalidateQueries({ queryKey: ["signups", "pending"] });
+      closeDrawer();
+      void queryClient.invalidateQueries({ queryKey: ["signups"] });
     },
-    onError: (error: AxiosError<{ message?: string }>) => {
+    onError: (error: AxiosError<{ message?: string }>) =>
+      showError(error, "Odbijanje prijave nije uspjelo. Pokušajte ponovno."),
+  });
+
+  const reopenMutation = useMutation({
+    mutationFn: async (signup: SignupRequest) => {
+      const response = await api.patch(`/signups/${signup.id}/reopen`);
+
+      return response.data;
+    },
+    onSuccess: () => {
       setFeedback({
-        tone: "error",
-        message: error.response?.data?.message ?? "Odbijanje prijave nije uspjelo. Pokušajte ponovno.",
+        tone: "success",
+        message: "Prijava je vraćena među prijave na čekanju.",
       });
+      closeDrawer();
+      void queryClient.invalidateQueries({ queryKey: ["signups"] });
     },
+    onError: (error: AxiosError<{ message?: string }>) =>
+      showError(error, "Vraćanje prijave na čekanje nije uspjelo. Pokušajte ponovno."),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ signupId, form }: { signupId: string; form: SignupEditForm }) => {
+      const response = await api.patch<SignupRequest>(`/signups/${signupId}`, buildEditPayload(form));
+
+      return response.data;
+    },
+    onSuccess: () => {
+      setFeedback({
+        tone: "success",
+        message: "Podaci prijave su spremljeni.",
+      });
+      setEditForm(null);
+      void queryClient.invalidateQueries({ queryKey: ["signups"] });
+    },
+    onError: (error: AxiosError<{ message?: string }>) =>
+      showError(error, "Spremanje podataka prijave nije uspjelo. Pokušajte ponovno."),
   });
 
   const signupsPageData = signupsQuery.data;
@@ -120,16 +184,51 @@ export function ApprovalsPage() {
       selectedSignup.suggestedCategoryId ??
       ""
     : "";
+  const isDeclinedView = statusFilter === "DECLINED";
+  const isMutating =
+    approveMutation.isPending ||
+    declineMutation.isPending ||
+    reopenMutation.isPending ||
+    updateMutation.isPending;
+  const selectedHasDuplicateEmails = selectedSignup ? hasDuplicateParentEmails(selectedSignup) : false;
 
   useEffect(() => {
     if (signupsPageData && signupsPage > signupsPageData.totalPages) {
-      setSignupsPage(signupsPageData.totalPages);
+      setSignupsPage(Math.max(signupsPageData.totalPages, 1));
     }
   }, [signupsPage, signupsPageData]);
+
+  const updateEditField = <Key extends keyof SignupEditForm>(key: Key, value: SignupEditForm[Key]) =>
+    setEditForm((current) => (current ? { ...current, [key]: value } : current));
 
   return (
     <section className="space-y-6">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
+
+      <div className="flex flex-wrap gap-3">
+        {(
+          [
+            { value: "PENDING", label: "Na čekanju" },
+            { value: "DECLINED", label: "Odbijene" },
+          ] as const
+        ).map((option) => (
+          <button
+            key={option.value}
+            className={`ui-pill ui-pill-button ${
+              statusFilter === option.value ? "ui-pill--accent" : "ui-pill--panel"
+            }`}
+            type="button"
+            aria-pressed={statusFilter === option.value}
+            onClick={() => {
+              setStatusFilter(option.value);
+              setSignupsPage(1);
+              closeDrawer();
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
 
       {signupsQuery.isLoading || categoriesQuery.isLoading ? (
         <div className="space-y-4">
@@ -144,9 +243,13 @@ export function ApprovalsPage() {
           <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
             Red je prazan
           </p>
-          <h3 className="mt-3 text-3xl font-bold uppercase">Nema prijava na čekanju</h3>
+          <h3 className="mt-3 text-3xl font-bold uppercase">
+            {isDeclinedView ? "Nema odbijenih prijava" : "Nema prijava na čekanju"}
+          </h3>
           <p className="mt-3 text-sm leading-7 text-muted">
-            Nove prijave pojavit će se ovdje čim roditelji pošalju javni obrazac za upis.
+            {isDeclinedView
+              ? "Odbijene prijave ostaju ovdje kako biste ih mogli ispraviti i ponovno obraditi."
+              : "Nove prijave pojavit će se ovdje čim roditelji pošalju javni obrazac za upis."}
           </p>
         </div>
       ) : (
@@ -158,8 +261,17 @@ export function ApprovalsPage() {
                   <th className="px-4 py-4">Zaprimljeno</th>
                   <th className="px-4 py-4">Dijete</th>
                   <th className="px-4 py-4">Roditelji</th>
-                  <th className="px-4 py-4">Predložena kategorija</th>
-                  <th className="px-4 py-4">GDPR</th>
+                  {isDeclinedView ? (
+                    <>
+                      <th className="px-4 py-4">Odbijeno</th>
+                      <th className="px-4 py-4">Razlog odbijanja</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-4 py-4">Predložena kategorija</th>
+                      <th className="px-4 py-4">GDPR</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -174,6 +286,7 @@ export function ApprovalsPage() {
                       }`}
                       onClick={() => {
                         setFeedback(null);
+                        setEditForm(null);
                         setSelectedSignupId(signup.id);
                       }}
                     >
@@ -197,16 +310,34 @@ export function ApprovalsPage() {
                             {signup.parentTwoFirstName} {signup.parentTwoLastName}
                           </p>
                         ) : null}
+                        {hasDuplicateParentEmails(signup) ? (
+                          <p className="mt-2">
+                            <StatusChip label="Ista e-adresa" tone="warning" />
+                          </p>
+                        ) : null}
                       </td>
-                      <td className="px-4 py-4 align-middle text-center text-sm">
-                        {signup.suggestedCategory?.name ?? "Bez automatskog prijedloga"}
-                      </td>
-                      <td className="px-4 py-4 align-middle text-center">
-                        <StatusChip
-                          label={signup.gdprConsent ? "Suglasnost potvrđena" : "Suglasnost nedostaje"}
-                          tone={signup.gdprConsent ? "success" : "warning"}
-                        />
-                      </td>
+                      {isDeclinedView ? (
+                        <>
+                          <td className="px-4 py-4 align-middle text-center text-sm font-medium">
+                            {signup.reviewedAt ? formatDateTime(signup.reviewedAt) : "—"}
+                          </td>
+                          <td className="max-w-[320px] px-4 py-4 align-middle text-center text-sm">
+                            {signup.declineReason ?? "Bez napomene"}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-4 py-4 align-middle text-center text-sm">
+                            {signup.suggestedCategory?.name ?? "Bez automatskog prijedloga"}
+                          </td>
+                          <td className="px-4 py-4 align-middle text-center">
+                            <StatusChip
+                              label={signup.gdprConsent ? "Suglasnost potvrđena" : "Suglasnost nedostaje"}
+                              tone={signup.gdprConsent ? "success" : "warning"}
+                            />
+                          </td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}
@@ -227,8 +358,14 @@ export function ApprovalsPage() {
 
       <EntityDrawer
         open={selectedSignup !== null}
-        onClose={() => setSelectedSignupId(null)}
-        eyebrow={selectedSignup ? "Pregled prijave" : "Prijava"}
+        onClose={closeDrawer}
+        eyebrow={
+          selectedSignup
+            ? selectedSignup.status === "DECLINED"
+              ? "Odbijena prijava"
+              : "Pregled prijave"
+            : "Prijava"
+        }
         title={
           selectedSignup
             ? `${selectedSignup.childFirstName} ${selectedSignup.childLastName}`
@@ -237,47 +374,229 @@ export function ApprovalsPage() {
       >
         {selectedSignup ? (
           <div className="approval-drawer">
-            <div className="approval-drawer-grid">
+            {selectedHasDuplicateEmails && !editForm ? (
+              <div className="border-2 border-line bg-warning px-4 py-4 text-sm font-medium leading-6 text-surface">
+                Oba roditelja imaju istu e-adresu ({selectedSignup.parentOneEmail}). Uredite podatke
+                prijave i upišite drugu e-adresu ili uklonite drugog roditelja prije odobravanja.
+              </div>
+            ) : null}
+
+            {editForm ? (
               <DetailSection
-                title="Dijete"
+                title="Uređivanje podataka"
                 content={
-                  <ProfileCard
-                    title={`${selectedSignup.childFirstName} ${selectedSignup.childLastName}`}
-                    imageUrl={selectedSignup.childProfileImageUrl}
-                    lines={[
-                      `Datum rođenja: ${formatNumericDate(selectedSignup.childDateOfBirth)}`,
-                      `OIB: ${selectedSignup.childOib}`,
-                      `Adresa: ${selectedSignup.childAddress ?? "Nije unesena"}`,
-                    ]}
-                  />
+                  <form
+                    className="space-y-6"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      setFeedback(null);
+
+                      if (
+                        editForm.hasSecondParent &&
+                        editForm.parentOneEmail.trim().toLowerCase() ===
+                          editForm.parentTwoEmail.trim().toLowerCase()
+                      ) {
+                        setFeedback({ tone: "error", message: duplicateParentEmailMessage });
+                        return;
+                      }
+
+                      updateMutation.mutate({ signupId: selectedSignup.id, form: editForm });
+                    }}
+                  >
+                    <EditGroup title="Roditelj 1">
+                      <TextField
+                        label="Ime"
+                        value={editForm.parentOneFirstName}
+                        onChange={(value) => updateEditField("parentOneFirstName", value)}
+                        required
+                      />
+                      <TextField
+                        label="Prezime"
+                        value={editForm.parentOneLastName}
+                        onChange={(value) => updateEditField("parentOneLastName", value)}
+                        required
+                      />
+                      <TextField
+                        label="E-pošta"
+                        type="email"
+                        value={editForm.parentOneEmail}
+                        onChange={(value) => updateEditField("parentOneEmail", value)}
+                        required
+                      />
+                      <TextField
+                        label="Telefon"
+                        value={editForm.parentOnePhone}
+                        onChange={(value) => updateEditField("parentOnePhone", value)}
+                        required
+                      />
+                    </EditGroup>
+
+                    {editForm.hasSecondParent ? (
+                      <EditGroup title="Roditelj 2">
+                        <TextField
+                          label="Ime"
+                          value={editForm.parentTwoFirstName}
+                          onChange={(value) => updateEditField("parentTwoFirstName", value)}
+                          required
+                        />
+                        <TextField
+                          label="Prezime"
+                          value={editForm.parentTwoLastName}
+                          onChange={(value) => updateEditField("parentTwoLastName", value)}
+                          required
+                        />
+                        <TextField
+                          label="E-pošta"
+                          type="email"
+                          value={editForm.parentTwoEmail}
+                          onChange={(value) => updateEditField("parentTwoEmail", value)}
+                          required
+                          error={
+                            editForm.parentTwoEmail.trim() &&
+                            editForm.parentTwoEmail.trim().toLowerCase() ===
+                              editForm.parentOneEmail.trim().toLowerCase()
+                              ? duplicateParentEmailMessage
+                              : undefined
+                          }
+                        />
+                        <TextField
+                          label="Telefon"
+                          value={editForm.parentTwoPhone}
+                          onChange={(value) => updateEditField("parentTwoPhone", value)}
+                          required
+                        />
+                      </EditGroup>
+                    ) : null}
+
+                    <button
+                      className="ui-pill ui-pill-button ui-pill--panel"
+                      type="button"
+                      onClick={() => updateEditField("hasSecondParent", !editForm.hasSecondParent)}
+                    >
+                      {editForm.hasSecondParent ? "Ukloni roditelja 2" : "Dodaj roditelja 2"}
+                    </button>
+
+                    <EditGroup title="Dijete">
+                      <TextField
+                        label="Ime"
+                        value={editForm.childFirstName}
+                        onChange={(value) => updateEditField("childFirstName", value)}
+                        required
+                      />
+                      <TextField
+                        label="Prezime"
+                        value={editForm.childLastName}
+                        onChange={(value) => updateEditField("childLastName", value)}
+                        required
+                      />
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Datum rođenja
+                        </span>
+                        <DatePicker
+                          className={fieldInputClassName}
+                          value={editForm.childDateOfBirth}
+                          onChange={(value) => updateEditField("childDateOfBirth", value)}
+                          required
+                        />
+                      </label>
+                      <TextField
+                        label="OIB"
+                        value={editForm.childOib}
+                        onChange={(value) => updateEditField("childOib", value)}
+                        required
+                      />
+                      <div className="lg:col-span-2">
+                        <TextField
+                          label="Adresa stanovanja"
+                          value={editForm.childAddress}
+                          onChange={(value) => updateEditField("childAddress", value)}
+                          required
+                        />
+                      </div>
+                    </EditGroup>
+
+                    <div className="approval-action-row">
+                      <button
+                        className="ui-pill ui-pill-button ui-pill--panel"
+                        type="button"
+                        disabled={updateMutation.isPending}
+                        onClick={() => setEditForm(null)}
+                      >
+                        Odustani
+                      </button>
+                      <button
+                        className="ui-pill ui-pill-button ui-pill--accent"
+                        type="submit"
+                        disabled={updateMutation.isPending}
+                      >
+                        {updateMutation.isPending ? "Spremanje..." : "Spremi podatke"}
+                      </button>
+                    </div>
+                  </form>
                 }
               />
+            ) : (
+              <div>
+                <button
+                  className="ui-pill ui-pill-button ui-pill--accent"
+                  type="button"
+                  disabled={isMutating}
+                  onClick={() => {
+                    setFeedback(null);
+                    setEditForm(buildEditForm(selectedSignup));
+                  }}
+                >
+                  Uredi podatke prijave
+                </button>
+              </div>
+            )}
 
-              <DetailSection
-                title="Roditelji"
-                content={
-                  <div className="approval-card-grid">
-                    <ProfileCard
-                      title={`${selectedSignup.parentOneFirstName} ${selectedSignup.parentOneLastName}`}
-                      imageUrl={selectedSignup.parentOneProfileImageUrl}
-                      lines={[
-                        `E-pošta: ${selectedSignup.parentOneEmail}`,
-                        `Telefon: ${selectedSignup.parentOnePhone}`,
-                      ]}
-                    />
-                    {selectedSignup.parentTwoFirstName ? (
+            <div className="approval-drawer-grid">
+              {editForm ? null : (
+                <>
+                  <DetailSection
+                    title="Dijete"
+                    content={
                       <ProfileCard
-                        title={`${selectedSignup.parentTwoFirstName} ${selectedSignup.parentTwoLastName ?? ""}`.trim()}
-                        imageUrl={selectedSignup.parentTwoProfileImageUrl}
+                        title={`${selectedSignup.childFirstName} ${selectedSignup.childLastName}`}
+                        imageUrl={selectedSignup.childProfileImageUrl}
                         lines={[
-                          `E-pošta: ${selectedSignup.parentTwoEmail ?? "Bez e-pošte"}`,
-                          `Telefon: ${selectedSignup.parentTwoPhone ?? "Bez telefona"}`,
+                          `Datum rođenja: ${formatNumericDate(selectedSignup.childDateOfBirth)}`,
+                          `OIB: ${selectedSignup.childOib}`,
+                          `Adresa: ${selectedSignup.childAddress ?? "Nije unesena"}`,
                         ]}
                       />
-                    ) : null}
-                  </div>
-                }
-              />
+                    }
+                  />
+
+                  <DetailSection
+                    title="Roditelji"
+                    content={
+                      <div className="approval-card-grid">
+                        <ProfileCard
+                          title={`${selectedSignup.parentOneFirstName} ${selectedSignup.parentOneLastName}`}
+                          imageUrl={selectedSignup.parentOneProfileImageUrl}
+                          lines={[
+                            `E-pošta: ${selectedSignup.parentOneEmail}`,
+                            `Telefon: ${selectedSignup.parentOnePhone}`,
+                          ]}
+                        />
+                        {selectedSignup.parentTwoFirstName ? (
+                          <ProfileCard
+                            title={`${selectedSignup.parentTwoFirstName} ${selectedSignup.parentTwoLastName ?? ""}`.trim()}
+                            imageUrl={selectedSignup.parentTwoProfileImageUrl}
+                            lines={[
+                              `E-pošta: ${selectedSignup.parentTwoEmail ?? "Bez e-pošte"}`,
+                              `Telefon: ${selectedSignup.parentTwoPhone ?? "Bez telefona"}`,
+                            ]}
+                          />
+                        ) : null}
+                      </div>
+                    }
+                  />
+                </>
+              )}
 
               <DetailSection
                 title="Sukladnost"
@@ -298,6 +617,20 @@ export function ApprovalsPage() {
                       <span>Automatski prijedlog</span>
                       <strong>{selectedSignup.suggestedCategory?.name ?? "Nema prijedloga"}</strong>
                     </div>
+                    {selectedSignup.status === "DECLINED" ? (
+                      <>
+                        <div className="approval-info-row">
+                          <span>Odbijeno</span>
+                          <strong>
+                            {selectedSignup.reviewedAt ? formatDateTime(selectedSignup.reviewedAt) : "—"}
+                          </strong>
+                        </div>
+                        <div className="approval-info-row">
+                          <span>Razlog odbijanja</span>
+                          <strong>{selectedSignup.declineReason ?? "Bez napomene"}</strong>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                 }
               />
@@ -329,39 +662,53 @@ export function ApprovalsPage() {
                       </select>
                     </label>
 
-                    <label className="block">
-                      <span className="mb-3 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                        Razlog odbijanja
-                      </span>
-                      <textarea
-                        className="min-h-28 w-full border-2 border-line bg-bg px-4 py-3 outline-none"
-                        value={declineReasons[selectedSignup.id] ?? ""}
-                        onChange={(event) =>
-                          setDeclineReasons((current) => ({
-                            ...current,
-                            [selectedSignup.id]: event.target.value,
-                          }))
-                        }
-                        placeholder="Opcionalna napomena za internu evidenciju"
-                      />
-                    </label>
+                    {selectedSignup.status === "PENDING" ? (
+                      <label className="block">
+                        <span className="mb-3 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Razlog odbijanja
+                        </span>
+                        <textarea
+                          className="min-h-28 w-full border-2 border-line bg-bg px-4 py-3 outline-none"
+                          value={declineReasons[selectedSignup.id] ?? ""}
+                          onChange={(event) =>
+                            setDeclineReasons((current) => ({
+                              ...current,
+                              [selectedSignup.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Opcionalna napomena za internu evidenciju"
+                        />
+                      </label>
+                    ) : null}
 
                     <div className="approval-action-row">
-                      <button
-                        className="ui-pill ui-pill-button ui-pill--signal"
-                        type="button"
-                        disabled={approveMutation.isPending || declineMutation.isPending}
-                        onClick={() => declineMutation.mutate(selectedSignup)}
-                      >
-                        {declineMutation.isPending ? "Odbijanje..." : "Odbij prijavu"}
-                      </button>
+                      {selectedSignup.status === "PENDING" ? (
+                        <button
+                          className="ui-pill ui-pill-button ui-pill--signal"
+                          type="button"
+                          disabled={isMutating || editForm !== null}
+                          onClick={() => declineMutation.mutate(selectedSignup)}
+                        >
+                          {declineMutation.isPending ? "Odbijanje..." : "Odbij prijavu"}
+                        </button>
+                      ) : (
+                        <button
+                          className="ui-pill ui-pill-button ui-pill--panel"
+                          type="button"
+                          disabled={isMutating || editForm !== null}
+                          onClick={() => reopenMutation.mutate(selectedSignup)}
+                        >
+                          {reopenMutation.isPending ? "Vraćanje..." : "Vrati na čekanje"}
+                        </button>
+                      )}
                       <button
                         className="ui-pill ui-pill-button ui-pill--success"
                         type="button"
                         disabled={
                           !selectedCategoryId ||
-                          approveMutation.isPending ||
-                          declineMutation.isPending
+                          selectedHasDuplicateEmails ||
+                          isMutating ||
+                          editForm !== null
                         }
                         onClick={() => approveMutation.mutate(selectedSignup)}
                       >
@@ -376,6 +723,48 @@ export function ApprovalsPage() {
         ) : null}
       </EntityDrawer>
     </section>
+  );
+}
+
+function EditGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <fieldset className="space-y-4">
+      <legend className="mb-4 text-[11px] font-bold uppercase tracking-[0.3em] text-muted">{title}</legend>
+      <div className="grid gap-4 lg:grid-cols-2">{children}</div>
+    </fieldset>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  required = false,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+        {label}
+      </span>
+      <input
+        className={`${fieldInputClassName} ${error ? "field-invalid" : ""}`}
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+        aria-invalid={error ? true : undefined}
+      />
+      {error ? <span className="field-error-message block">{error}</span> : null}
+    </label>
   );
 }
 
@@ -462,4 +851,39 @@ function buildApprovalSuccessMessage(result: ApprovalResult) {
   }
 
   return "Prijava je uspješno odobrena.";
+}
+
+function hasDuplicateParentEmails(signup: SignupRequest) {
+  return Boolean(
+    signup.parentTwoEmail &&
+      signup.parentTwoEmail.trim().toLowerCase() === signup.parentOneEmail.trim().toLowerCase(),
+  );
+}
+
+function buildEditForm(signup: SignupRequest): SignupEditForm {
+  return {
+    parentOneFirstName: signup.parentOneFirstName,
+    parentOneLastName: signup.parentOneLastName,
+    parentOneEmail: signup.parentOneEmail,
+    parentOnePhone: signup.parentOnePhone,
+    hasSecondParent: Boolean(signup.parentTwoFirstName),
+    parentTwoFirstName: signup.parentTwoFirstName ?? "",
+    parentTwoLastName: signup.parentTwoLastName ?? "",
+    parentTwoEmail: signup.parentTwoEmail ?? "",
+    parentTwoPhone: signup.parentTwoPhone ?? "",
+    childFirstName: signup.childFirstName,
+    childLastName: signup.childLastName,
+    childDateOfBirth: toDateInputValue(signup.childDateOfBirth),
+    childOib: signup.childOib,
+    childAddress: signup.childAddress ?? "",
+  };
+}
+
+function buildEditPayload(form: SignupEditForm) {
+  const { hasSecondParent, ...fields } = form;
+
+  // The API treats a signup without any second-parent field as a single-parent signup.
+  return hasSecondParent
+    ? fields
+    : { ...fields, parentTwoFirstName: "", parentTwoLastName: "", parentTwoEmail: "", parentTwoPhone: "" };
 }
