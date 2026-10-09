@@ -1,4 +1,4 @@
-import { AccountStatus, NotificationType, Prisma, UserRole } from "@prisma/client";
+import { AccountStatus, CategoryKind, NotificationType, Prisma, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
@@ -237,6 +237,56 @@ playersRouter.post(
         : "Lozinka je resetirana, ali slanje e-pošte nije konfigurirano.",
       emailSent: credentialDelivery.emailSent,
     });
+  }),
+);
+
+/**
+ * Moves a child out of a program into a waterpolo category in one step, e.g. when a kid from pool
+ * games decides to stay in the club. Other categories the child holds are left alone.
+ */
+playersRouter.post(
+  "/:id/move-from-program",
+  authorizeRoles(UserRole.ADMIN),
+  asyncHandler(async (request, response) => {
+    const playerId = requireString(request.params.id, "id");
+    const fromCategoryId = requireString(request.body.fromCategoryId, "fromCategoryId");
+    const toCategoryId = requireString(request.body.toCategoryId, "toCategoryId");
+    const [membership, targetCategory] = await Promise.all([
+      prisma.playerCategory.findUnique({
+        where: { playerId_categoryId: { playerId, categoryId: fromCategoryId } },
+        select: { category: { select: { kind: true } } },
+      }),
+      prisma.category.findUnique({
+        where: { id: toCategoryId },
+        select: { kind: true },
+      }),
+    ]);
+
+    if (!membership || membership.category.kind !== CategoryKind.PROGRAM) {
+      throw new AppError("Dijete nije upisano u odabrani program.", 404);
+    }
+
+    if (!targetCategory || targetCategory.kind !== CategoryKind.REGULAR) {
+      throw new AppError("Odabrana vaterpolo kategorija nije pronađena.", 404);
+    }
+
+    const player = await prisma.$transaction(async (transaction) => {
+      await transaction.playerCategory.delete({
+        where: { playerId_categoryId: { playerId, categoryId: fromCategoryId } },
+      });
+      await transaction.playerCategory.upsert({
+        where: { playerId_categoryId: { playerId, categoryId: toCategoryId } },
+        create: { playerId, categoryId: toCategoryId },
+        update: {},
+      });
+
+      return transaction.player.findUniqueOrThrow({
+        where: { id: playerId },
+        include: playerInclude,
+      });
+    });
+
+    response.json(player);
   }),
 );
 

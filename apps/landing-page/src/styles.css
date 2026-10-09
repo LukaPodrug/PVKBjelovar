@@ -1117,6 +1117,7 @@ textarea {
   display: flex;
   min-width: 0;
   flex-direction: column;
+  justify-content: center;
   gap: 0.75rem;
   overflow-wrap: anywhere;
 }

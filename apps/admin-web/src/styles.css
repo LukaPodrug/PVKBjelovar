@@ -1960,6 +1960,24 @@ textarea {
   padding: 1rem;
 }
 
+/* The players widget drops its side padding for the edge-to-edge grid; the state banner needs it back. */
+.admin-shell .category-players-widget .category-widget-state {
+  margin: 1rem;
+}
+
+.admin-shell .category-inline-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.admin-shell .category-inline-action > :first-child {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
 .admin-shell .category-widget-footer {
   margin: 0;
 }

@@ -79,6 +79,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingHomePage />} />
+      <Route path="/prijava" element={<SignupLinkPage />} />
+      <Route path="/prijava/:programSlug" element={<SignupLinkPage />} />
       <Route path="/novosti/:slug" element={<ArticlePage />} />
       <Route path="/pravila-privatnosti" element={<PrivacyPolicyPage />} />
       <Route path="/brisanje-racuna" element={<AccountDeletionPage />} />
@@ -87,7 +89,23 @@ export function App() {
   );
 }
 
-function LandingHomePage() {
+/**
+ * Shareable signup links: /prijava opens the waterpolo signup and /prijava/<program> opens that
+ * program's tab, e.g. for a QR code on a school flyer. The program is matched by its name slug or id.
+ */
+function SignupLinkPage() {
+  const { programSlug } = useParams();
+
+  return <LandingHomePage initialProgramSlug={programSlug ?? null} initialScrollTargetId="signup-form" />;
+}
+
+function LandingHomePage({
+  initialProgramSlug = null,
+  initialScrollTargetId,
+}: {
+  initialProgramSlug?: string | null;
+  initialScrollTargetId?: string;
+} = {}) {
   const [showSecondParent, setShowSecondParent] = useState(false);
   const [signupForm, setSignupForm] = useState<SignupFormState>(emptySignupForm);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -201,6 +219,14 @@ function LandingHomePage() {
   const categories = allCategories.filter((category) => category.kind !== "PROGRAM");
   const programs = allCategories.filter((category) => category.kind === "PROGRAM");
   const activeSignupProgram = programs.find((program) => program.id === signupProgramId) ?? null;
+  const linkedProgramId =
+    initialProgramSlug === null
+      ? null
+      : programs.find(
+          (program) =>
+            program.id === initialProgramSlug ||
+            createProgramSlug(program.name) === initialProgramSlug.toLowerCase(),
+        )?.id ?? null;
   const coaches = coachesQuery.data ?? [];
   const boardMembers = boardMembersQuery.data ?? [];
   const sponsors = sponsorsQuery.data ?? [];
@@ -238,7 +264,14 @@ function LandingHomePage() {
     setVisibleNewsCount(initialVisibleNewsCount);
   }, [newsItems.length]);
 
+  useEffect(() => {
+    if (linkedProgramId) {
+      setSignupProgramId(linkedProgramId);
+    }
+  }, [linkedProgramId]);
+
   useScrollToInitialHash(
+    initialScrollTargetId,
     !clubSettingsQuery.isLoading &&
       !newsQuery.isLoading &&
       !categoriesQuery.isLoading &&
@@ -925,8 +958,10 @@ function LandingHeader({
 // browser's own anchor jump misses. Jump to the target right away and keep it pinned while
 // the sections above it load and resize, until shortly after the content is ready or the
 // visitor starts scrolling themselves.
-function useScrollToInitialHash(isContentReady: boolean) {
-  const [targetId] = useState(() => decodeURIComponent(window.location.hash.slice(1)));
+function useScrollToInitialHash(fallbackTargetId: string | undefined, isContentReady: boolean) {
+  const [targetId] = useState(
+    () => decodeURIComponent(window.location.hash.slice(1)) || fallbackTargetId || "",
+  );
   const [isFollowing, setIsFollowing] = useState(() => targetId !== "");
 
   useEffect(() => {
@@ -1595,10 +1630,6 @@ function ProgramCard({
 
       <div className="landing-program-card-body">
         <h3 className="text-2xl leading-tight">{program.name}</h3>
-        <div className="landing-category-showcase-age">
-          <span>Dobna granica</span>
-          <strong>{formatCategoryAgeRule(program)}</strong>
-        </div>
       </div>
 
       <div className="landing-program-card-actions">
@@ -1619,6 +1650,17 @@ function ProgramCard({
       </div>
     </article>
   );
+}
+
+/** Lowercase, dash-separated program name without diacritics, as used in /prijava/<slug> links. */
+function createProgramSlug(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/đ/g, "d")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function SignupTab({

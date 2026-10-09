@@ -163,6 +163,7 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
   const [categoriesPage, setCategoriesPage] = useState(1);
   const [categoryPlayersPage, setCategoryPlayersPage] = useState(1);
   const [exportingCategoryId, setExportingCategoryId] = useState<string | null>(null);
+  const [moveTargetCategoryId, setMoveTargetCategoryId] = useState("");
 
   const categoriesQuery = useQuery({
     queryKey: ["categories", "management", kind, categoriesPage],
@@ -225,6 +226,7 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
   const categoriesPageData = categoriesQuery.data;
   const categories = categoriesPageData?.items ?? [];
   const categoryOptions = categoryOptionsQuery.data ?? [];
+  const regularCategoryOptions = categoryOptions.filter((category) => category.kind === "REGULAR");
   const coaches = coachesQuery.data ?? [];
   const parents = parentsQuery.data ?? [];
   const categoriesTotal = categoriesPageData?.total ?? 0;
@@ -280,6 +282,10 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
 
     setManagedPlayerForm(createManagedPlayerForm(managedPlayer));
   }, [managedPlayer]);
+
+  useEffect(() => {
+    setMoveTargetCategoryId("");
+  }, [managedPlayerId]);
 
   useEffect(() => {
     if (!managedPlayerForm.profileFile) {
@@ -482,6 +488,44 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
       setFeedback({
         tone: "error",
         message: getMutationErrorMessage(error, "Ažuriranje igrača nije uspjelo."),
+      });
+    },
+  });
+
+  const moveFromProgramMutation = useMutation({
+    mutationFn: async () => {
+      if (!managedPlayer || !selectedCategory) {
+        throw new Error("Dijete nije pronađeno.");
+      }
+
+      if (!moveTargetCategoryId) {
+        throw new Error("Odaberite vaterpolo kategoriju.");
+      }
+
+      const response = await api.post<PlayerRecord>(`/players/${managedPlayer.id}/move-from-program`, {
+        fromCategoryId: selectedCategory.id,
+        toCategoryId: moveTargetCategoryId,
+      });
+
+      return response.data;
+    },
+    onSuccess: async (movedPlayer) => {
+      const targetName =
+        regularCategoryOptions.find((category) => category.id === moveTargetCategoryId)?.name ??
+        "odabranu kategoriju";
+
+      setFeedback({
+        tone: "success",
+        message: `${movedPlayer.user.firstName} ${movedPlayer.user.lastName} premješten/a je iz programa u kategoriju ${targetName}.`,
+      });
+      setManagedPlayerId(null);
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: ["players"] });
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message: getMutationErrorMessage(error, "Premještanje djeteta nije uspjelo."),
       });
     },
   });
@@ -692,6 +736,7 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                     </span>
                   </div>
                 ) : null}
+
 
                 <fieldset className="category-widget">
                   <legend className="category-widget-title">Osnovni podaci</legend>
@@ -1021,6 +1066,42 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                     updateManagedPlayerMutation.mutate();
                   }}
                 >
+                  {isProgramPage && selectedCategory ? (
+                    <fieldset className="player-widget player-widget--wide">
+                      <legend className="player-widget-title">Premjesti u vaterpolo</legend>
+                      <p className="mt-3 text-sm text-muted">
+                        Dijete izlazi iz programa {selectedCategory.name} i upisuje se u odabranu
+                        vaterpolo kategoriju. Pristupni podaci i roditelji ostaju isti.
+                      </p>
+                      <div className="category-inline-action">
+                        <select
+                          className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          value={moveTargetCategoryId}
+                          onChange={(event) => setMoveTargetCategoryId(event.target.value)}
+                          aria-label="Vaterpolo kategorija"
+                        >
+                          <option value="">Odaberite kategoriju</option>
+                          {regularCategoryOptions.map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {category.name} ({formatCategoryAgeRule(category)})
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="ui-pill ui-pill-button ui-pill--accent"
+                          type="button"
+                          disabled={!moveTargetCategoryId || moveFromProgramMutation.isPending}
+                          onClick={() => {
+                            setFeedback(null);
+                            moveFromProgramMutation.mutate();
+                          }}
+                        >
+                          {moveFromProgramMutation.isPending ? "Premještanje..." : "Premjesti"}
+                        </button>
+                      </div>
+                    </fieldset>
+                  ) : null}
+
                   <fieldset className="player-widget">
                     <legend className="player-widget-title">Osnovni podaci</legend>
                     <div className="grid gap-5 lg:grid-cols-2">
