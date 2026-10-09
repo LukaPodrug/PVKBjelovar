@@ -1,4 +1,4 @@
-import { UserRole } from "@prisma/client";
+import { CategoryKind, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
@@ -13,6 +13,7 @@ import {
 import {
   parseLeaderboardWindow,
   parseOptionalBooleanInput,
+  parseOptionalCategoryKindInput,
   parseOptionalDateInput,
   parsePaginationInput,
   parseStringArrayInput,
@@ -178,6 +179,7 @@ categoriesRouter.get(
     response.json({
       id: category.id,
       name: category.name,
+      kind: category.kind,
       logoUrl: category.logoUrl,
       startDateOfBirth: category.startDateOfBirth,
       endDateOfBirth: category.endDateOfBirth,
@@ -195,14 +197,17 @@ categoriesRouter.get(
   "/",
   asyncHandler(async (request, response) => {
     const pagination = parsePaginationInput(request.query);
+    const kind = parseOptionalCategoryKindInput(request.query.kind);
+    const where = kind ? { kind } : undefined;
     const [categories, total] = await Promise.all([
       prisma.category.findMany({
+        where,
         include: categoryInclude,
         orderBy: categoryOrderBy,
         skip: pagination.skip,
         take: pagination.take,
       }),
-      prisma.category.count(),
+      prisma.category.count({ where }),
     ]);
 
     response.json(
@@ -273,9 +278,11 @@ categoriesRouter.post(
   authorizeRoles(UserRole.ADMIN),
   asyncHandler(async (_request, response) => {
     const result = await prisma.$transaction(async (transaction) => {
-      // Every category is loaded, unbounded ones included: a senior squad carries no dates but is
-      // the destination for players ageing out of the oldest youth category.
+      // Every waterpolo category is loaded, unbounded ones included: a senior squad carries no dates
+      // but is the destination for players ageing out of the oldest youth category. Programs sit
+      // outside the squad ladder, so their dates and members are left exactly as they are.
       const categories = await transaction.category.findMany({
+        where: { kind: CategoryKind.REGULAR },
         orderBy: categoryOrderBy,
         select: {
           id: true,
@@ -287,6 +294,8 @@ categoriesRouter.post(
       if (categories.length === 0) {
         throw new AppError("Najprije kreirajte barem jednu kategoriju.", 400);
       }
+
+      const regularCategoryIds = categories.map((category) => category.id);
 
       const updatedCategories = await Promise.all(
         categories.map((category) =>
@@ -321,6 +330,9 @@ categoriesRouter.post(
           id: true,
           dateOfBirth: true,
           categories: {
+            where: {
+              categoryId: { in: regularCategoryIds },
+            },
             select: {
               categoryId: true,
             },
@@ -328,6 +340,7 @@ categoriesRouter.post(
         },
       });
 
+      // Only waterpolo memberships are considered below, so program memberships always survive.
       // A player in no category stays in none, and a senior is never promoted into a veteran squad
       // automatically: veteran membership is a minimum-age squad you opt into, not somewhere you
       // arrive by getting older.
@@ -382,6 +395,9 @@ categoriesRouter.post(
           where: {
             playerId: {
               in: youthReplacements.map((assignment) => assignment.playerId),
+            },
+            categoryId: {
+              in: regularCategoryIds,
             },
           },
         });
@@ -560,6 +576,7 @@ categoriesRouter.post(
     const category = await prisma.category.create({
       data: {
         name: requireString(request.body.name, "name"),
+        kind: parseOptionalCategoryKindInput(request.body.kind) ?? CategoryKind.REGULAR,
         logoUrl,
         startDateOfBirth,
         endDateOfBirth,
@@ -651,6 +668,7 @@ categoriesRouter.delete(
 function serializeCategory(category: {
   id: string;
   name: string;
+  kind: CategoryKind;
   logoUrl: string | null;
   startDateOfBirth: Date | null;
   endDateOfBirth: Date | null;
@@ -662,6 +680,7 @@ function serializeCategory(category: {
   return {
     id: category.id,
     name: category.name,
+    kind: category.kind,
     logoUrl: category.logoUrl,
     startDateOfBirth: category.startDateOfBirth,
     endDateOfBirth: category.endDateOfBirth,

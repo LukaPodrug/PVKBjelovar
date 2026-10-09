@@ -1,4 +1,4 @@
-import { AccountStatus, DayOfWeek, PracticeType } from "@prisma/client";
+import { AccountStatus, CategoryKind, DayOfWeek, PracticeType } from "@prisma/client";
 import { AppError } from "../errors/app-error";
 
 function ensureString(value: unknown): string | null {
@@ -165,6 +165,20 @@ export function parsePracticeTypeInput(value: unknown): PracticeType {
   }
 
   return parsed as PracticeType;
+}
+
+export function parseOptionalCategoryKindInput(value: unknown): CategoryKind | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const parsed = requireString(value, "kind").toUpperCase();
+
+  if (!Object.values(CategoryKind).includes(parsed as CategoryKind)) {
+    throw new AppError("kind mora biti REGULAR ili PROGRAM.", 400);
+  }
+
+  return parsed as CategoryKind;
 }
 
 export function normalizeEmail(value: unknown, fieldName: string): string {

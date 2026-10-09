@@ -26,6 +26,14 @@ enum SignupStatus {
   DECLINED
 }
 
+/// REGULAR categories are the club's waterpolo squads. PROGRAM categories are standalone outreach
+/// programs (e.g. pool games for nearby schools): same players, coaches and schedules, but kept out
+/// of season rollover and date-of-birth suggestions, and offered as their own signup on the landing.
+enum CategoryKind {
+  REGULAR
+  PROGRAM
+}
+
 enum DayOfWeek {
   MONDAY
   TUESDAY
@@ -184,6 +192,7 @@ model Player {
 model Category {
   id                      String          @id @default(cuid())
   name                    String          @unique
+  kind                    CategoryKind    @default(REGULAR)
   logoUrl                 String?
   startDateOfBirth        DateTime?
   endDateOfBirth          DateTime?
@@ -197,6 +206,7 @@ model Category {
   updatedAt               DateTime        @updatedAt
 
   @@index([endDateOfBirth])
+  @@index([kind])
   @@map("categories")
 }
 

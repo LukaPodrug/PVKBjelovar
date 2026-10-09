@@ -1,4 +1,4 @@
-import { SignupStatus, UserRole } from "@prisma/client";
+import { CategoryKind, SignupStatus, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
@@ -14,6 +14,7 @@ import {
 } from "../services/signup.service";
 import {
   normalizeEmail,
+  optionalString,
   buildPaginatedResponse,
   parseBooleanInput,
   parseDateInput,
@@ -81,6 +82,29 @@ function parseSignupDetails(body: Record<string, unknown>) {
   };
 }
 
+/**
+ * A signup sent from a program's tab names that program, and it becomes the suggestion as-is.
+ * Everything else is a waterpolo signup and gets the age-based suggestion.
+ */
+async function resolveProgramCategoryId(value: unknown) {
+  const programCategoryId = optionalString(value);
+
+  if (!programCategoryId) {
+    return null;
+  }
+
+  const program = await prisma.category.findFirst({
+    where: { id: programCategoryId, kind: CategoryKind.PROGRAM },
+    select: { id: true },
+  });
+
+  if (!program) {
+    throw new AppError("Odabrani program nije pronađen.", 404);
+  }
+
+  return program.id;
+}
+
 signupsRouter.post(
   "/",
   uploadSignupImages,
@@ -88,7 +112,9 @@ signupsRouter.post(
     const files = getUploadedFileMap(request.files);
 
     const details = parseSignupDetails(request.body);
-    const suggestedCategoryId = await suggestCategoryIdForDateOfBirth(details.childDateOfBirth);
+    const suggestedCategoryId =
+      (await resolveProgramCategoryId(request.body.programCategoryId)) ??
+      (await suggestCategoryIdForDateOfBirth(details.childDateOfBirth));
 
     const signupRequest = await prisma.signupRequest.create({
       data: {
@@ -213,6 +239,7 @@ signupsRouter.patch(
     const signupRequestId = requireString(request.params.id, "id");
     const signup = await prisma.signupRequest.findUnique({
       where: { id: signupRequestId },
+      include: { suggestedCategory: { select: { kind: true } } },
     });
 
     if (!signup) {
@@ -230,7 +257,11 @@ signupsRouter.patch(
         ...details,
         // A removed second parent takes their photo with them.
         parentTwoProfileImageUrl: details.parentTwoFirstName ? signup.parentTwoProfileImageUrl : null,
-        suggestedCategoryId: await suggestCategoryIdForDateOfBirth(details.childDateOfBirth),
+        // A program signup keeps its program; only waterpolo suggestions follow the date of birth.
+        suggestedCategoryId:
+          signup.suggestedCategory?.kind === CategoryKind.PROGRAM
+            ? signup.suggestedCategoryId
+            : await suggestCategoryIdForDateOfBirth(details.childDateOfBirth),
       },
       include: signupInclude,
     });

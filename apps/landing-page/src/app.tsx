@@ -91,6 +91,8 @@ function LandingHomePage() {
   const [showSecondParent, setShowSecondParent] = useState(false);
   const [signupForm, setSignupForm] = useState<SignupFormState>(emptySignupForm);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  // Null is the waterpolo signup; a program id is that program's own signup tab.
+  const [signupProgramId, setSignupProgramId] = useState<string | null>(null);
   const [visibleNewsCount, setVisibleNewsCount] = useState(initialVisibleNewsCount);
   const [signupFeedback, setSignupFeedback] = useState<{
     tone: "success" | "error";
@@ -141,6 +143,10 @@ function LandingHomePage() {
       formData.append("childAddress", signupForm.childAddress);
       formData.append("gdprConsent", String(signupForm.gdprConsent));
 
+      if (activeSignupProgram) {
+        formData.append("programCategoryId", activeSignupProgram.id);
+      }
+
       if (showSecondParent) {
         formData.append("parentTwoFirstName", signupForm.parentTwoFirstName);
         formData.append("parentTwoLastName", signupForm.parentTwoLastName);
@@ -163,13 +169,15 @@ function LandingHomePage() {
       return submitSignup(formData);
     },
     onSuccess: (result) => {
-      const suggestedCategory = result.signupRequest.suggestedCategory?.name;
+      const suggestedCategory = result.signupRequest.suggestedCategory;
 
       setSignupFeedback({
         tone: "success",
-        message: suggestedCategory
-          ? `${result.message} Predložena kategorija: ${suggestedCategory}.`
-          : result.message,
+        message: !suggestedCategory
+          ? result.message
+          : suggestedCategory.kind === "PROGRAM"
+            ? `${result.message} Program: ${suggestedCategory.name}.`
+            : `${result.message} Predložena kategorija: ${suggestedCategory.name}.`,
       });
       setShowSecondParent(false);
       setSignupForm(emptySignupForm);
@@ -189,7 +197,10 @@ function LandingHomePage() {
   const clubSettings = clubSettingsQuery.data;
   const newsFeed = newsQuery.data;
   const newsItems = newsFeed?.items ?? [];
-  const categories = categoriesQuery.data ?? [];
+  const allCategories = categoriesQuery.data ?? [];
+  const categories = allCategories.filter((category) => category.kind !== "PROGRAM");
+  const programs = allCategories.filter((category) => category.kind === "PROGRAM");
+  const activeSignupProgram = programs.find((program) => program.id === signupProgramId) ?? null;
   const coaches = coachesQuery.data ?? [];
   const boardMembers = boardMembersQuery.data ?? [];
   const sponsors = sponsorsQuery.data ?? [];
@@ -204,7 +215,7 @@ function LandingHomePage() {
     landingClubSettingsDefaults.clubSubtitle,
   );
   const selectedCategoryPreview =
-    categories.find((category) => category.id === selectedCategoryId) ?? null;
+    allCategories.find((category) => category.id === selectedCategoryId) ?? null;
   const contactEmail = resolveSettingValue(
     clubSettings?.contactEmail,
     landingClubSettingsDefaults.contactEmail,
@@ -382,6 +393,18 @@ function LandingHomePage() {
           </div>
         </section>
 
+        {programs.length > 0 ? (
+          <ProgramsSection
+            programs={programs}
+            onOpen={setSelectedCategoryId}
+            onSignup={(programId) => {
+              setSignupProgramId(programId);
+              // The form card, not the section: on narrow screens the intro panel stacks above it.
+              document.getElementById("signup-form")?.scrollIntoView({ behavior: "smooth" });
+            }}
+          />
+        ) : null}
+
         <CoachesSection
           coaches={coaches}
           isError={coachesQuery.isError}
@@ -438,12 +461,40 @@ function LandingHomePage() {
                 </div>
               </div>
 
-              <section className="landing-surface border-2 border-line bg-surface">
+              <section className="landing-surface border-2 border-line bg-surface" id="signup-form">
                 <div className="border-b-2 border-line bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_100%)] px-5 py-5">
                   <p className="landing-kicker text-muted">
-                    Obiteljska prijava
+                    {activeSignupProgram ? "Prijava za program" : "Obiteljska prijava"}
                   </p>
-                  <h3 className="mt-2 text-3xl">Pošaljite novu prijavu</h3>
+                  <h3 className="mt-2 text-3xl">
+                    {activeSignupProgram ? activeSignupProgram.name : "Pošaljite novu prijavu"}
+                  </h3>
+
+                  {programs.length > 0 ? (
+                    <div className="landing-signup-tabs mt-4" role="tablist" aria-label="Vrsta prijave">
+                      <SignupTab
+                        isActive={!activeSignupProgram}
+                        label="Vaterpolo"
+                        onSelect={() => setSignupProgramId(null)}
+                      />
+                      {programs.map((program) => (
+                        <SignupTab
+                          key={program.id}
+                          isActive={activeSignupProgram?.id === program.id}
+                          label={program.name}
+                          onSelect={() => setSignupProgramId(program.id)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {programs.length > 0 ? (
+                    <p className="landing-copy mt-3 text-sm">
+                      {activeSignupProgram
+                        ? `Prijava za program ${activeSignupProgram.name}. Program je odvojen od vaterpolskih kategorija, a dijete se kasnije može upisati i u vaterpolo.`
+                        : "Prijava u vaterpolske kategorije. Kategoriju predlažemo prema datumu rođenja, a potvrđuje je osoblje kluba."}
+                    </p>
+                  ) : null}
                 </div>
 
                 <form
@@ -744,6 +795,12 @@ function LandingHeader({
     queryKey: ["public-sponsors"],
     queryFn: fetchPublicSponsors,
   });
+  const categoriesQuery = useQuery({
+    queryKey: ["public-categories"],
+    queryFn: fetchPublicCategories,
+  });
+  const showProgramsLink =
+    categoriesQuery.data?.some((category) => category.kind === "PROGRAM") ?? false;
   const showCoachesLink = (coachesQuery.data?.length ?? 0) > 0;
   const showBoardMembersLink = (boardMembersQuery.data?.length ?? 0) > 0;
   const showSponsorsLink = (sponsorsQuery.data?.length ?? 0) > 0;
@@ -798,6 +855,11 @@ function LandingHeader({
             <a className="landing-header-link" href="/#categories">
               Kategorije
             </a>
+            {showProgramsLink ? (
+              <a className="landing-header-link" href="/#programs">
+                Programi
+              </a>
+            ) : null}
             {showCoachesLink ? (
               <a className="landing-header-link" href="/#coaches">
                 Treneri
@@ -830,6 +892,11 @@ function LandingHeader({
           <a className="landing-mobile-nav-link" href="/#categories" onClick={() => setIsMobileNavOpen(false)}>
             Kategorije
           </a>
+          {showProgramsLink ? (
+            <a className="landing-mobile-nav-link" href="/#programs" onClick={() => setIsMobileNavOpen(false)}>
+              Programi
+            </a>
+          ) : null}
           {showCoachesLink ? (
             <a className="landing-mobile-nav-link" href="/#coaches" onClick={() => setIsMobileNavOpen(false)}>
               Treneri
@@ -1466,6 +1533,112 @@ function CategoryShowcaseCard({
           <strong>{formatCategoryAgeRule(category)}</strong>
         </div>
       </div>
+    </button>
+  );
+}
+
+function ProgramsSection({
+  programs,
+  onOpen,
+  onSignup,
+}: {
+  programs: PublicCategory[];
+  onOpen: (programId: string) => void;
+  onSignup: (programId: string) => void;
+}) {
+  return (
+    <section className="border-b-2 border-line bg-surface" id="programs">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <div className="max-w-3xl">
+          <p className="landing-kicker text-muted">Posebni programi</p>
+          <h2 className="mt-3 text-4xl leading-tight">Prvi koraci u vodi, kroz igru.</h2>
+          <p className="landing-copy mt-4 text-sm">
+            Uz vaterpolske kategorije klub vodi i programe za djecu iz obližnjih škola i vrtića. Kroz
+            igre u bazenu djeca upoznaju vodu, trenere i klub, a kad požele, mogu nastaviti u
+            vaterpolu.
+          </p>
+        </div>
+
+        <div className="landing-program-grid mt-6">
+          {programs.map((program) => (
+            <ProgramCard
+              key={program.id}
+              program={program}
+              onOpen={() => onOpen(program.id)}
+              onSignup={() => onSignup(program.id)}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProgramCard({
+  program,
+  onOpen,
+  onSignup,
+}: {
+  program: PublicCategory;
+  onOpen: () => void;
+  onSignup: () => void;
+}) {
+  return (
+    <article className="landing-program-card landing-panel border-2 border-line bg-bg">
+      <div className="landing-program-card-media">
+        {program.logoUrl ? (
+          <img src={program.logoUrl} alt={program.name} />
+        ) : (
+          <span aria-hidden="true">{createCategoryMonogram(program.name)}</span>
+        )}
+      </div>
+
+      <div className="landing-program-card-body">
+        <h3 className="text-2xl leading-tight">{program.name}</h3>
+        <div className="landing-category-showcase-age">
+          <span>Dobna granica</span>
+          <strong>{formatCategoryAgeRule(program)}</strong>
+        </div>
+      </div>
+
+      <div className="landing-program-card-actions">
+        <button
+          className="landing-pill landing-pill-button landing-pill--accent"
+          type="button"
+          onClick={onSignup}
+        >
+          Prijavi dijete
+        </button>
+        <button
+          className="landing-pill landing-pill-button landing-pill--outline"
+          type="button"
+          onClick={onOpen}
+        >
+          Detalji
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function SignupTab({
+  isActive,
+  label,
+  onSelect,
+}: {
+  isActive: boolean;
+  label: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      className={`landing-signup-tab ${isActive ? "is-active" : ""}`}
+      type="button"
+      role="tab"
+      aria-selected={isActive}
+      onClick={onSelect}
+    >
+      {label}
     </button>
   );
 }

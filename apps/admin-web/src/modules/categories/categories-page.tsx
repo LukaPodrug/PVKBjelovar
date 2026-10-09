@@ -5,6 +5,7 @@ import { useAuth } from "../auth/auth-context";
 import { api } from "../core/api";
 import { formatDate, toDateInputValue } from "../core/date";
 import type {
+  CategoryKind,
   CategoryPlayerAssignment,
   CategoryRecord,
   CoachRecord,
@@ -84,17 +85,71 @@ const emptyManagedPlayerForm: ManagedPlayerFormState = {
   removeProfileImage: false,
 };
 
+/**
+ * The waterpolo categories page and the programs page share this screen; only the wording, the list
+ * filter and the season rollover (waterpolo only) differ.
+ */
+const pageCopy = {
+  REGULAR: {
+    listKicker: "Popis kategorija",
+    listTitle: "Trenutne skupine",
+    columnLabel: "Kategorija",
+    createLabel: "Nova kategorija",
+    editLabel: "Uredi kategoriju",
+    createTitle: "Postavljanje nove kategorije",
+    nameLabel: "Naziv kategorije",
+    namePlaceholder: "U12",
+    submitCreateLabel: "Kreiraj kategoriju",
+    deleteLabel: "Obriši kategoriju",
+    playersTitle: "Igrači u kategoriji",
+    emptyPlayers: "U ovoj kategoriji trenutno nema upisanih igrača.",
+    emptyList: "Još nema kategorija.",
+    loadError: "Kategorije trenutno nije moguće učitati.",
+    created: (name: string) => `Kategorija ${name} uspješno je kreirana.`,
+    updated: (name: string) => `Kategorija ${name} uspješno je ažurirana.`,
+    deleted: (name: string) => `Kategorija ${name} uspješno je obrisana.`,
+    fallbackName: "Kategorija",
+  },
+  PROGRAM: {
+    listKicker: "Posebni programi",
+    listTitle: "Trenutni programi",
+    columnLabel: "Program",
+    createLabel: "Novi program",
+    editLabel: "Uredi program",
+    createTitle: "Postavljanje novog programa",
+    nameLabel: "Naziv programa",
+    namePlaceholder: "Igre u vodi",
+    submitCreateLabel: "Kreiraj program",
+    deleteLabel: "Obriši program",
+    playersTitle: "Djeca u programu",
+    emptyPlayers: "U ovom programu trenutno nema upisane djece.",
+    emptyList:
+      "Još nema programa. Svaki program dobiva vlastitu karticu prijave i mjesto u odjeljku programa na web stranici.",
+    loadError: "Programe trenutno nije moguće učitati.",
+    created: (name: string) => `Program ${name} uspješno je kreiran.`,
+    updated: (name: string) => `Program ${name} uspješno je ažuriran.`,
+    deleted: (name: string) => `Program ${name} uspješno je obrisan.`,
+    fallbackName: "Program",
+  },
+} as const;
+
 const optionPageSize = 100;
 const managementPageSize = 25;
 const categoryPlayersPageSize = 10;
 
-export function CategoriesPage() {
+export function CategoriesPage({ kind }: { kind: CategoryKind }) {
+  const copy = pageCopy[kind];
+  const isProgramPage = kind === "PROGRAM";
+  // Programs are mostly open to any age, so a new one starts without an age bound.
+  const emptyForm: CategoryFormState = isProgramPage
+    ? { ...emptyCategoryForm, ageRule: "SENIOR" }
+    : emptyCategoryForm;
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
   const queryClient = useQueryClient();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
-  const [form, setForm] = useState<CategoryFormState>(emptyCategoryForm);
+  const [form, setForm] = useState<CategoryFormState>(emptyForm);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [managedPlayerProfilePreviewUrl, setManagedPlayerProfilePreviewUrl] = useState<
@@ -110,10 +165,10 @@ export function CategoriesPage() {
   const [exportingCategoryId, setExportingCategoryId] = useState<string | null>(null);
 
   const categoriesQuery = useQuery({
-    queryKey: ["categories", "management", categoriesPage],
+    queryKey: ["categories", "management", kind, categoriesPage],
     queryFn: async () => {
       const response = await api.get<PaginatedResponse<CategoryRecord>>("/categories", {
-        params: { page: categoriesPage, pageSize: managementPageSize },
+        params: { kind, page: categoriesPage, pageSize: managementPageSize },
       });
       return response.data;
     },
@@ -246,7 +301,7 @@ export function CategoriesPage() {
     setSelectedCategoryId(null);
     setManagedPlayerId(null);
     setCategoryPlayersPage(1);
-    setForm(emptyCategoryForm);
+    setForm(emptyForm);
     setIsDrawerOpen(true);
   };
 
@@ -264,7 +319,10 @@ export function CategoriesPage() {
     mutationFn: async () => {
       ensureCategoryFormIsValid(form);
 
-      const response = await api.post<CategoryRecord>("/categories", buildCategoryFormData(form), {
+      const formData = buildCategoryFormData(form);
+      formData.append("kind", kind);
+
+      const response = await api.post<CategoryRecord>("/categories", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -275,7 +333,7 @@ export function CategoriesPage() {
     onSuccess: (createdCategory) => {
       setFeedback({
         tone: "success",
-        message: `Kategorija ${createdCategory.name} uspješno je kreirana.`,
+        message: copy.created(createdCategory.name),
       });
       setSelectedCategoryId(createdCategory.id);
       setFormMode("edit");
@@ -315,7 +373,7 @@ export function CategoriesPage() {
     onSuccess: (updatedCategory) => {
       setFeedback({
         tone: "success",
-        message: `Kategorija ${updatedCategory.name} uspješno je ažurirana.`,
+        message: copy.updated(updatedCategory.name),
       });
       setSelectedCategoryId(updatedCategory.id);
       setForm(createFormFromCategory(updatedCategory));
@@ -340,15 +398,15 @@ export function CategoriesPage() {
       await api.delete(`/categories/${selectedCategory.id}`);
     },
     onSuccess: () => {
-      const deletedCategoryName = selectedCategory?.name ?? "Kategorija";
+      const deletedCategoryName = selectedCategory?.name ?? copy.fallbackName;
 
       setFeedback({
         tone: "success",
-        message: `Kategorija ${deletedCategoryName} uspješno je obrisana.`,
+        message: copy.deleted(deletedCategoryName),
       });
       setSelectedCategoryId(null);
       setFormMode("create");
-      setForm(emptyCategoryForm);
+      setForm(emptyForm);
       setIsDrawerOpen(false);
 
       void queryClient.invalidateQueries({ queryKey: ["categories"] });
@@ -374,7 +432,7 @@ export function CategoriesPage() {
       });
       setSelectedCategoryId(null);
       setFormMode("create");
-      setForm(emptyCategoryForm);
+      setForm(emptyForm);
       setIsDrawerOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["categories"] });
       await queryClient.invalidateQueries({ queryKey: ["players"] });
@@ -479,7 +537,7 @@ export function CategoriesPage() {
         coachesQuery.isError ||
         (isAdmin && parentsQuery.isError) ? (
         <div className="border-2 border-line bg-signal px-5 py-4 text-sm font-medium text-surface">
-          Kategorije trenutno nije moguće učitati.
+          {copy.loadError}
         </div>
       ) : (
         <>
@@ -487,12 +545,12 @@ export function CategoriesPage() {
             <div className="flex flex-col gap-4 border-b-2 border-line bg-panel px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                  Popis kategorija
+                  {copy.listKicker}
                 </p>
-                <h3 className="mt-2 text-xl font-bold uppercase">Trenutne skupine</h3>
+                <h3 className="mt-2 text-xl font-bold uppercase">{copy.listTitle}</h3>
               </div>
               <div className="flex flex-wrap gap-2">
-                {isAdmin ? (
+                {isAdmin && !isProgramPage ? (
                   <button
                     className="ui-pill ui-pill-button ui-pill--panel"
                     type="button"
@@ -500,7 +558,7 @@ export function CategoriesPage() {
                     onClick={() => {
                       if (
                         !window.confirm(
-                          "Pokrenuti novu sezonu? Svim kategorijama će se pomaknuti godište za jednu godinu, a svi igrači će biti ponovno raspoređeni prema datumu rođenja.",
+                          "Pokrenuti novu sezonu? Svim kategorijama će se pomaknuti godište za jednu godinu, a svi igrači će biti ponovno raspoređeni prema datumu rođenja. Programi i djeca upisana u njih ostaju nepromijenjeni.",
                         )
                       ) {
                         return;
@@ -519,7 +577,7 @@ export function CategoriesPage() {
                   type="button"
                   onClick={openCreateDrawer}
                 >
-                  Nova kategorija
+                  {copy.createLabel}
                 </button>
               </div>
             </div>
@@ -528,7 +586,7 @@ export function CategoriesPage() {
               <table className="min-w-full border-collapse">
                 <thead className="bg-bg">
                   <tr className="border-b-2 border-line text-center text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                    <th className="px-4 py-4">Kategorija</th>
+                    <th className="px-4 py-4">{copy.columnLabel}</th>
                     <th className="px-4 py-4">Godište</th>
                     <th className="px-4 py-4">Treneri</th>
                     <th className="px-4 py-4">Igrači</th>
@@ -536,6 +594,13 @@ export function CategoriesPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {categories.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-8 text-center text-sm text-muted" colSpan={5}>
+                        {copy.emptyList}
+                      </td>
+                    </tr>
+                  ) : null}
                   {categories.map((category) => {
                     const isSelected =
                       isDrawerOpen && selectedCategoryId === category.id && formMode === "edit";
@@ -591,11 +656,11 @@ export function CategoriesPage() {
           <EntityDrawer
             open={isDrawerOpen}
             onClose={() => setIsDrawerOpen(false)}
-            eyebrow={formMode === "create" ? "Nova kategorija" : "Uredi kategoriju"}
+            eyebrow={formMode === "create" ? copy.createLabel : copy.editLabel}
             title={
               formMode === "create"
-                ? "Postavljanje nove kategorije"
-                : selectedCategory?.name ?? "Uređivanje kategorije"
+                ? copy.createTitle
+                : selectedCategory?.name ?? copy.editLabel
             }
           >
             <section className="category-drawer">
@@ -633,7 +698,7 @@ export function CategoriesPage() {
                   <div className="grid gap-5 lg:grid-cols-2">
                   <label className="block">
                     <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                      Naziv kategorije
+                      {copy.nameLabel}
                     </span>
                     <input
                       className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
@@ -645,7 +710,7 @@ export function CategoriesPage() {
                           name: event.target.value,
                         }))
                       }
-                      placeholder="U12"
+                      placeholder={copy.namePlaceholder}
                       required
                     />
                   </label>
@@ -677,7 +742,9 @@ export function CategoriesPage() {
                       }
                     >
                       <option value="YOUTH">Kategorija s početnim godištem</option>
-                      <option value="SENIOR">Seniori bez dobnog ograničenja</option>
+                      <option value="SENIOR">
+                        {isProgramPage ? "Bez dobnog ograničenja" : "Seniori bez dobnog ograničenja"}
+                      </option>
                       <option value="VETERAN">Kategorija s krajnjim godištem</option>
                     </select>
                   </label>
@@ -828,7 +895,7 @@ export function CategoriesPage() {
 
                 {selectedCategory && formMode === "edit" ? (
                   <fieldset className="category-widget category-widget--wide category-players-widget">
-                    <legend className="category-widget-title">Igrači u kategoriji</legend>
+                    <legend className="category-widget-title">{copy.playersTitle}</legend>
 
                     {categoryPlayersQuery.isLoading ? (
                       <div className="category-widget-state">
@@ -840,7 +907,7 @@ export function CategoriesPage() {
                       </div>
                     ) : selectedCategoryPlayerTotal === 0 ? (
                       <div className="category-widget-state">
-                        U ovoj kategoriji trenutno nema upisanih igrača.
+                        {copy.emptyPlayers}
                       </div>
                     ) : (
                       <>
@@ -894,7 +961,7 @@ export function CategoriesPage() {
                     {formMode === "create"
                       ? createMutation.isPending
                         ? "Kreiranje..."
-                        : "Kreiraj kategoriju"
+                        : copy.submitCreateLabel
                       : updateMutation.isPending
                         ? "Spremanje..."
                         : "Spremi promjene"}
@@ -910,7 +977,7 @@ export function CategoriesPage() {
                         return;
                       }
 
-                      setForm(emptyCategoryForm);
+                      setForm(emptyForm);
                     }}
                   >
                     Resetiraj obrazac
@@ -927,7 +994,7 @@ export function CategoriesPage() {
                     }
                     onClick={() => deleteMutation.mutate()}
                   >
-                    {deleteMutation.isPending ? "Brisanje..." : "Obriši kategoriju"}
+                    {deleteMutation.isPending ? "Brisanje..." : copy.deleteLabel}
                   </button>
                 </div>
               </form>
@@ -1188,7 +1255,8 @@ export function CategoriesPage() {
                           title="Dodjela kategorija"
                           items={categoryOptions.map((category) => ({
                             id: category.id,
-                            label: category.name,
+                            label:
+                              category.kind === "PROGRAM" ? `${category.name} · program` : category.name,
                           }))}
                           selectedIds={managedPlayerForm.categoryIds}
                           onToggle={(id) => {

@@ -11,6 +11,7 @@ import { DatePicker } from "../ui/date-picker";
 import { PaginationControls } from "../ui/pagination-controls";
 
 interface ApprovalResult {
+  addedToExistingPlayer?: boolean;
   emailsSent?: {
     primaryParent: boolean;
     secondaryParent: boolean;
@@ -75,6 +76,7 @@ export function ApprovalsPage() {
       return response.data.items.map((category) => ({
         id: category.id,
         name: category.name,
+        kind: category.kind,
         logoUrl: category.logoUrl,
       }));
     },
@@ -329,6 +331,11 @@ export function ApprovalsPage() {
                         <>
                           <td className="px-4 py-4 align-middle text-center text-sm">
                             {signup.suggestedCategory?.name ?? "Bez automatskog prijedloga"}
+                            {signup.suggestedCategory?.kind === "PROGRAM" ? (
+                              <p className="mt-2">
+                                <StatusChip label="Prijava za program" tone="success" />
+                              </p>
+                            ) : null}
                           </td>
                           <td className="px-4 py-4 align-middle text-center">
                             <StatusChip
@@ -614,7 +621,11 @@ export function ApprovalsPage() {
                       <strong>{formatDateTime(selectedSignup.createdAt)}</strong>
                     </div>
                     <div className="approval-info-row">
-                      <span>Automatski prijedlog</span>
+                      <span>
+                        {selectedSignup.suggestedCategory?.kind === "PROGRAM"
+                          ? "Prijava za program"
+                          : "Automatski prijedlog"}
+                      </span>
                       <strong>{selectedSignup.suggestedCategory?.name ?? "Nema prijedloga"}</strong>
                     </div>
                     {selectedSignup.status === "DECLINED" ? (
@@ -654,11 +665,26 @@ export function ApprovalsPage() {
                         }
                       >
                         <option value="">Odaberite kategoriju</option>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
+                        <optgroup label="Vaterpolo kategorije">
+                          {categories
+                            .filter((category) => category.kind !== "PROGRAM")
+                            .map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                        {categories.some((category) => category.kind === "PROGRAM") ? (
+                          <optgroup label="Programi">
+                            {categories
+                              .filter((category) => category.kind === "PROGRAM")
+                              .map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                          </optgroup>
+                        ) : null}
                       </select>
                     </label>
 
@@ -842,6 +868,12 @@ function formatNumericDate(dateIso: string) {
 }
 
 function buildApprovalSuccessMessage(result: ApprovalResult) {
+  if (result.addedToExistingPlayer) {
+    return result.emailsSent?.primaryParent
+      ? "Prijava je odobrena. Dijete već postoji u sustavu pa mu je dodana odabrana kategorija, a roditelji su obaviješteni e-poštom."
+      : "Prijava je odobrena. Dijete već postoji u sustavu pa mu je dodana odabrana kategorija.";
+  }
+
   if (result.emailsSent?.primaryParent) {
     if (result.emailsSent.secondaryParent) {
       return "Prijava je odobrena. Pristupni podaci za roditelje i račun igrača poslani su na e-poštu oba roditelja.";

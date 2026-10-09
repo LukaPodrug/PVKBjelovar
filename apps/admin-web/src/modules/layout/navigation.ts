@@ -27,6 +27,12 @@ export const navigationItems: NavigationItem[] = [
     allowedRoles: ["ADMIN"],
   },
   {
+    label: "Programi",
+    href: "/programs",
+    caption: "Igre i škole",
+    allowedRoles: ["ADMIN"],
+  },
+  {
     label: "Treneri",
     href: "/coaches",
     caption: "Stručni stožer",

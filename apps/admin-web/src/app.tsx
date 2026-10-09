@@ -33,7 +33,11 @@ export function App() {
           />
           <Route
             path="/categories"
-            element={<CategoriesPage />}
+            element={<CategoriesPage key="REGULAR" kind="REGULAR" />}
+          />
+          <Route
+            path="/programs"
+            element={<CategoriesPage key="PROGRAM" kind="PROGRAM" />}
           />
           <Route
             path="/coaches"

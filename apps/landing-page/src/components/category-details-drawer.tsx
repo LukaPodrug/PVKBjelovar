@@ -29,6 +29,7 @@ export function CategoryDetailsDrawer({
 
   const category = detailQuery.data?.id === categoryId ? detailQuery.data : null;
   const players = category?.players ?? [];
+  const isProgram = (category?.kind ?? categoryPreview?.kind) === "PROGRAM";
   const title = category?.name ?? categoryPreview?.name ?? "Detalji kategorije";
   const logoUrl = category?.logoUrl ?? categoryPreview?.logoUrl ?? null;
   const startDateOfBirth =
@@ -71,7 +72,7 @@ export function CategoryDetailsDrawer({
       >
         <div className="landing-drawer-header">
           <div className="min-w-0">
-            <p className="landing-kicker text-muted">Kategorija</p>
+            <p className="landing-kicker text-muted">{isProgram ? "Program" : "Kategorija"}</p>
             <h2
               id="landing-category-drawer-title"
               className="mt-3 break-words text-3xl sm:text-4xl"
@@ -79,7 +80,9 @@ export function CategoryDetailsDrawer({
               {title}
             </h2>
             <p className="landing-copy mt-3 text-sm">
-              Pregled trenera i igrača unutar odabrane skupine.
+              {isProgram
+                ? "Pregled trenera i djece upisane u odabrani program."
+                : "Pregled trenera i igrača unutar odabrane skupine."}
             </p>
           </div>
 

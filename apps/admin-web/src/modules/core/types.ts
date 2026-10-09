@@ -53,9 +53,13 @@ export interface ClubSettings {
   bankName: string | null;
 }
 
+/** REGULAR is a waterpolo squad; PROGRAM is a standalone outreach program such as pool games. */
+export type CategoryKind = "REGULAR" | "PROGRAM";
+
 export interface CategoryOption {
   id: string;
   name: string;
+  kind?: CategoryKind;
   logoUrl: string | null;
   startDateOfBirth?: string | null;
   endDateOfBirth?: string | null;
@@ -146,6 +150,7 @@ export interface CategoryPlayerAssignment {
 }
 
 export interface CategoryRecord extends CategoryOption {
+  kind: CategoryKind;
   startDateOfBirth: string | null;
   endDateOfBirth: string | null;
   playerCount: number;

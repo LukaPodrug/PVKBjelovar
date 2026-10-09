@@ -13,9 +13,13 @@ export interface PublicClubSettings {
   bankName: string | null;
 }
 
+/** REGULAR is a waterpolo squad; PROGRAM is a standalone program such as pool games for schools. */
+export type PublicCategoryKind = "REGULAR" | "PROGRAM";
+
 export interface PublicCategory {
   id: string;
   name: string;
+  kind: PublicCategoryKind;
   logoUrl: string | null;
   startDateOfBirth: string | null;
   endDateOfBirth: string | null;
@@ -124,6 +128,7 @@ export interface SignupResult {
     suggestedCategory?: {
       id: string;
       name: string;
+      kind?: PublicCategoryKind;
       logoUrl: string | null;
     } | null;
   };

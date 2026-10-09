@@ -1,8 +1,10 @@
-import { DayOfWeek } from "@prisma/client";
+import { CategoryKind, DayOfWeek } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
+/** Suggests a waterpolo category by age. Programs are never suggested: families pick them explicitly. */
 export async function suggestCategoryIdForDateOfBirth(dateOfBirth: Date): Promise<string | null> {
   const categories = await prisma.category.findMany({
+    where: { kind: CategoryKind.REGULAR },
     orderBy: [{ startDateOfBirth: "desc" }, { endDateOfBirth: "asc" }],
     select: {
       id: true,

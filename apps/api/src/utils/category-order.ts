@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 
 /**
- * Categories are listed youth first (youngest squad first), then the senior squad, then veterans
+ * Waterpolo categories come before programs (the enum's declaration order). Within each kind,
+ * categories are listed youth first (youngest squad first), then the senior squad, then veterans
  * (again youngest first).
  *
  * A category carries either a lower bound (startDateOfBirth, "godište od" — youth), an upper bound
@@ -11,6 +12,7 @@ import { Prisma } from "@prisma/client";
  * bands follow with the latest cut-off — the youngest band — first.
  */
 export const categoryOrderBy: Prisma.CategoryOrderByWithRelationInput[] = [
+  { kind: "asc" },
   { startDateOfBirth: { sort: "desc", nulls: "last" } },
   { endDateOfBirth: { sort: "desc", nulls: "first" } },
   { name: "asc" },

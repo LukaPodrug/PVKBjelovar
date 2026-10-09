@@ -31,6 +31,14 @@ export interface ChildAddedEmailInput {
   childPassword: string;
 }
 
+export interface CategoryAddedEmailInput {
+  to: string;
+  firstName: string;
+  clubName: string;
+  childFullName: string;
+  categoryName: string;
+}
+
 class EmailService {
   private readonly resend = env.resendApiKey ? new Resend(env.resendApiKey) : null;
   private readonly transporter: Transporter | null =
@@ -143,6 +151,33 @@ class EmailService {
       "<p>Vaši pristupni podaci ostaju nepromijenjeni.</p>",
       `<p><strong>Račun igrača ${input.childFullName}</strong><br /><strong>Prijava:</strong> ${input.childLogin}<br /><strong>Privremena lozinka:</strong> ${input.childPassword}</p>`,
       "<p>Igrač neka promijeni lozinku pri prvom pristupu.</p>",
+    ].join("");
+
+    return this.sendEmail({
+      to: input.to,
+      subject,
+      text,
+      html,
+    });
+  }
+
+  /**
+   * Sent when a child who already has a player account is enrolled in another category, e.g. a
+   * program kid joining a waterpolo squad. Every login stays the same.
+   */
+  async sendCategoryAddedEmail(input: CategoryAddedEmailInput): Promise<boolean> {
+    const subject = `${input.clubName} - nova kategorija za ${input.childFullName}`;
+    const text = [
+      `Pozdrav ${input.firstName},`,
+      "",
+      `${input.childFullName} je upisan/a u kategoriju ${input.categoryName} u klubu ${input.clubName}.`,
+      "Postojeći pristupni podaci za vaš račun i račun igrača ostaju nepromijenjeni.",
+    ].join("\n");
+
+    const html = [
+      `<p>Pozdrav ${input.firstName},</p>`,
+      `<p><strong>${input.childFullName}</strong> je upisan/a u kategoriju <strong>${input.categoryName}</strong> u klubu <strong>${input.clubName}</strong>.</p>`,
+      "<p>Postojeći pristupni podaci za vaš račun i račun igrača ostaju nepromijenjeni.</p>",
     ].join("");
 
     return this.sendEmail({
