@@ -15,7 +15,7 @@ type ProfileImageResult =
   | { status: "missing" }
   | { status: "failed" };
 
-const workbookMimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+export const workbookMimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const imageSize = 64;
 
 export async function downloadCategoryPlayersWorkbook(
@@ -79,14 +79,7 @@ export async function createCategoryPlayersWorkbook(
     from: { row: 1, column: 1 },
     to: { row: 1, column: worksheet.columns.length },
   };
-  worksheet.getRow(1).height = 26;
-  worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  worksheet.getRow(1).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF1D4F91" },
-  };
-  worksheet.getRow(1).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+  styleHeaderRow(worksheet);
   worksheet.getColumn("oib").numFmt = "@";
 
   const profileImages = await mapWithConcurrency(assignments, 6, ({ player }) =>
@@ -272,7 +265,20 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-function downloadWorkbook(file: Blob, fileName: string) {
+/** Club-blue bold header row shared by every admin export. */
+export function styleHeaderRow(worksheet: import("exceljs").Worksheet) {
+  const header = worksheet.getRow(1);
+  header.height = 26;
+  header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF1D4F91" },
+  };
+  header.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+}
+
+export function downloadWorkbook(file: Blob, fileName: string) {
   const objectUrl = URL.createObjectURL(file);
   const link = document.createElement("a");
   link.href = objectUrl;
@@ -283,11 +289,11 @@ function downloadWorkbook(file: Blob, fileName: string) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 
-function createWorksheetName(value: string) {
+export function createWorksheetName(value: string) {
   return value.replace(/[\\/?*[\]:]/g, " ").trim().slice(0, 31) || "Igrači";
 }
 
-function createFileNamePart(value: string) {
+export function createFileNamePart(value: string) {
   return (
     value
       .normalize("NFD")

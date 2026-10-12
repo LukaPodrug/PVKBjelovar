@@ -2005,6 +2005,10 @@ textarea {
   }
 }
 
+.admin-shell .category-registration-picker {
+  margin: 1rem 1rem 0;
+}
+
 .admin-shell .category-registration-days {
   display: grid;
   gap: 1rem;
@@ -2016,17 +2020,6 @@ textarea {
   border-radius: 18px;
   background: var(--surface);
   overflow: hidden;
-}
-
-.admin-shell .category-registration-day-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-  font-size: 0.9rem;
 }
 
 .admin-shell .category-registration-slot {

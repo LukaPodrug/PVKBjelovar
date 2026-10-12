@@ -23,6 +23,7 @@ import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
 import { TimePicker } from "../ui/time-picker";
 import { downloadCategoryPlayersWorkbook } from "./category-players-xlsx";
+import { downloadProgramRegistrationsWorkbook } from "./program-registrations-xlsx";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -42,6 +43,11 @@ interface CategoryFormState {
   signupCloseDaysBefore: string;
   signupCloseTime: string;
   programSlots: ProgramSlotRecord[];
+}
+
+interface ProgramRegistrationDates {
+  dates: Array<{ date: string; count: number }>;
+  defaultDate: string | null;
 }
 
 interface StartNewSeasonResult {
@@ -180,6 +186,8 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
   const [categoryPlayersPage, setCategoryPlayersPage] = useState(1);
   const [exportingCategoryId, setExportingCategoryId] = useState<string | null>(null);
   const [moveTargetCategoryId, setMoveTargetCategoryId] = useState("");
+  // Practice day picked in a non-member program's drawer; null follows the server's default (latest).
+  const [pickedRegistrationDate, setPickedRegistrationDate] = useState<string | null>(null);
 
   const categoriesQuery = useQuery({
     queryKey: ["categories", "management", kind, categoriesPage],
@@ -239,17 +247,28 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
     },
   });
 
-  const programRegistrationsQuery = useQuery({
-    queryKey: ["program-registrations", selectedCategoryId],
-    enabled: Boolean(
-      selectedCategoryId && formMode === "edit" && isDrawerOpen && form.audience === "PUBLIC",
-    ),
+  const isPublicProgramDrawerOpen = Boolean(
+    selectedCategoryId && formMode === "edit" && isDrawerOpen && form.audience === "PUBLIC",
+  );
+
+  const programRegistrationDatesQuery = useQuery({
+    queryKey: ["program-registrations", selectedCategoryId, "dates"],
+    enabled: isPublicProgramDrawerOpen,
     queryFn: async () => {
-      const response = await api.get<ProgramRegistrationRecord[]>("/program-registrations", {
+      const response = await api.get<ProgramRegistrationDates>("/program-registrations/dates", {
         params: { categoryId: selectedCategoryId },
       });
       return response.data;
     },
+  });
+
+  const registrationDate =
+    pickedRegistrationDate ?? programRegistrationDatesQuery.data?.defaultDate ?? null;
+
+  const programRegistrationsQuery = useQuery({
+    queryKey: ["program-registrations", selectedCategoryId, "list", registrationDate],
+    enabled: isPublicProgramDrawerOpen && registrationDate !== null,
+    queryFn: () => fetchProgramRegistrations(selectedCategoryId!, registrationDate!),
   });
 
   const deleteRegistrationMutation = useMutation({
@@ -338,6 +357,10 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
   useEffect(() => {
     setMoveTargetCategoryId("");
   }, [managedPlayerId]);
+
+  useEffect(() => {
+    setPickedRegistrationDate(null);
+  }, [selectedCategoryId, isDrawerOpen]);
 
   useEffect(() => {
     if (!managedPlayerForm.profileFile) {
@@ -601,6 +624,41 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
     setManagedPlayerId(playerId);
   };
 
+  /** Exports one practice day; from the list row that is the latest day with signups. */
+  const exportProgramRegistrations = async (category: CategoryRecord, sessionDate?: string) => {
+    setFeedback(null);
+    setExportingCategoryId(category.id);
+
+    try {
+      const date =
+        sessionDate ??
+        (
+          await api.get<ProgramRegistrationDates>("/program-registrations/dates", {
+            params: { categoryId: category.id },
+          })
+        ).data.defaultDate;
+      const registrations = date ? await fetchProgramRegistrations(category.id, date) : [];
+
+      if (!date || registrations.length === 0) {
+        setFeedback({ tone: "error", message: "Za ovaj trening nema prijava za izvoz." });
+        return;
+      }
+
+      await downloadProgramRegistrationsWorkbook(category.name, date, registrations);
+      setFeedback({
+        tone: "success",
+        message: `Izvezeno prijava za ${formatSessionDay(date)}: ${registrations.length}.`,
+      });
+    } catch (error) {
+      setFeedback({
+        tone: "error",
+        message: getMutationErrorMessage(error, "Izvoz prijava nije uspio."),
+      });
+    } finally {
+      setExportingCategoryId(null);
+    }
+  };
+
   const exportCategoryPlayers = async (category: CategoryRecord) => {
     setFeedback(null);
     setExportingCategoryId(category.id);
@@ -737,10 +795,15 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                             className="ui-pill ui-pill-button ui-pill--outline inline-flex items-center gap-2"
                             type="button"
                             aria-label={`Izvezi igrače kategorije ${category.name} u Excel`}
-                            disabled={category.playerCount === 0 || exportingCategoryId !== null}
+                            disabled={
+                              (category.audience !== "PUBLIC" && category.playerCount === 0) ||
+                              exportingCategoryId !== null
+                            }
                             onClick={(event) => {
                               event.stopPropagation();
-                              void exportCategoryPlayers(category);
+                              void (category.audience === "PUBLIC"
+                                ? exportProgramRegistrations(category)
+                                : exportCategoryPlayers(category));
                             }}
                           >
                             <DownloadIcon />
@@ -1205,10 +1268,43 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                 {selectedCategory && formMode === "edit" && isPublicProgramForm ? (
                   <fieldset className="category-widget category-widget--wide category-players-widget">
                     <legend className="category-widget-title">Prijave po datumima</legend>
+                    {programRegistrationDatesQuery.data?.dates.length ? (
+                      <div className="category-inline-action category-registration-picker">
+                        <select
+                          className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          value={registrationDate ?? ""}
+                          onChange={(event) => setPickedRegistrationDate(event.target.value)}
+                          aria-label="Datum treninga"
+                        >
+                          {programRegistrationDatesQuery.data.dates.map((entry) => (
+                            <option key={entry.date} value={entry.date}>
+                              {formatSessionDay(entry.date)} · {formatRegistrationCount(entry.count)}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="ui-pill ui-pill-button ui-pill--outline inline-flex items-center gap-2"
+                          type="button"
+                          disabled={
+                            !registrationDate ||
+                            !programRegistrationsQuery.data?.length ||
+                            exportingCategoryId !== null
+                          }
+                          onClick={() =>
+                            selectedCategory && registrationDate
+                              ? void exportProgramRegistrations(selectedCategory, registrationDate)
+                              : undefined
+                          }
+                        >
+                          <DownloadIcon />
+                          {exportingCategoryId === selectedCategory.id ? "Izvoz..." : "Excel"}
+                        </button>
+                      </div>
+                    ) : null}
                     <ProgramRegistrationsList
                       registrations={programRegistrationsQuery.data ?? []}
-                      isLoading={programRegistrationsQuery.isLoading}
-                      isError={programRegistrationsQuery.isError}
+                      isLoading={programRegistrationDatesQuery.isLoading || programRegistrationsQuery.isLoading}
+                      isError={programRegistrationDatesQuery.isError || programRegistrationsQuery.isError}
                       deletingId={
                         deleteRegistrationMutation.isPending
                           ? deleteRegistrationMutation.variables?.id ?? null
@@ -1848,7 +1944,7 @@ function formatDateTimeHr(isoDateTime: string) {
   return `u ${read("weekday")}, ${read("day")}.${read("month")}. u ${read("hour")}:${read("minute")}`;
 }
 
-/** Signups of a program for non-members, grouped by practice day (newest first) and slot. */
+/** Signups of one practice day of a program for non-members, grouped by slot. */
 function ProgramRegistrationsList({
   registrations,
   isLoading,
@@ -1871,87 +1967,77 @@ function ProgramRegistrationsList({
   }
 
   if (registrations.length === 0) {
-    return <div className="category-widget-state">Za ovaj program još nema prijava.</div>;
+    return <div className="category-widget-state">Za ovaj trening još nema prijava.</div>;
   }
 
-  const days = [...new Set(registrations.map((registration) => registration.sessionDate))];
+  const slots = [
+    ...new Set(registrations.map((registration) => `${registration.startTime}–${registration.endTime}`)),
+  ];
 
   return (
     <div className="category-registration-days">
-      {days.map((day) => {
-        const dayRegistrations = registrations.filter((registration) => registration.sessionDate === day);
-        const slots = [...new Set(dayRegistrations.map((registration) => `${registration.startTime}–${registration.endTime}`))];
+      <section className="category-registration-day">
+        {slots.map((slot) => {
+          const slotRegistrations = registrations.filter(
+            (registration) => `${registration.startTime}–${registration.endTime}` === slot,
+          );
 
-        return (
-          <section className="category-registration-day" key={day}>
-            <header className="category-registration-day-header">
-              <strong>{formatSessionDay(day)}</strong>
-              <span>{formatRegistrationCount(dayRegistrations.length)}</span>
-            </header>
-
-            {slots.map((slot) => {
-              const slotRegistrations = dayRegistrations.filter(
-                (registration) => `${registration.startTime}–${registration.endTime}` === slot,
-              );
-
-              return (
-                <div className="category-registration-slot" key={slot}>
-                  <p className="category-registration-slot-title">
-                    {slot} · {slotRegistrations.length}
-                  </p>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse text-sm">
-                      <thead>
-                        <tr className="text-left text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
-                          <th className="px-3 py-2">Dijete</th>
-                          <th className="px-3 py-2">Roditelj</th>
-                          <th className="px-3 py-2">Kontakt</th>
-                          <th className="px-3 py-2">Poziv na broj</th>
-                          <th className="px-3 py-2" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {slotRegistrations.map((registration) => (
-                          <tr className="border-t border-line align-top" key={registration.id}>
-                            <td className="px-3 py-2">
-                              <span className="block font-bold">
-                                {registration.childFirstName} {registration.childLastName}
-                              </span>
-                              <span className="text-muted">{formatNumericDate(registration.childDateOfBirth)}</span>
-                            </td>
-                            <td className="px-3 py-2">
-                              {registration.parentFirstName} {registration.parentLastName}
-                            </td>
-                            <td className="px-3 py-2">
-                              <a className="block" href={`tel:${registration.parentPhone}`}>
-                                {registration.parentPhone}
-                              </a>
-                              <a className="block break-all text-muted" href={`mailto:${registration.parentEmail}`}>
-                                {registration.parentEmail}
-                              </a>
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-2">{registration.paymentReference}</td>
-                            <td className="px-3 py-2 text-right">
-                              <button
-                                className="ui-pill ui-pill-button ui-pill--outline"
-                                type="button"
-                                disabled={deletingId !== null}
-                                onClick={() => onDelete(registration)}
-                              >
-                                {deletingId === registration.id ? "Brisanje..." : "Obriši"}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-        );
-      })}
+          return (
+            <div className="category-registration-slot" key={slot}>
+              <p className="category-registration-slot-title">
+                {slot} · {slotRegistrations.length}
+              </p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                      <th className="px-3 py-2">Dijete</th>
+                      <th className="px-3 py-2">Roditelj</th>
+                      <th className="px-3 py-2">Kontakt</th>
+                      <th className="px-3 py-2">Poziv na broj</th>
+                      <th className="px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {slotRegistrations.map((registration) => (
+                      <tr className="border-t border-line align-top" key={registration.id}>
+                        <td className="px-3 py-2">
+                          <span className="block font-bold">
+                            {registration.childFirstName} {registration.childLastName}
+                          </span>
+                          <span className="text-muted">{formatNumericDate(registration.childDateOfBirth)}</span>
+                        </td>
+                        <td className="px-3 py-2">
+                          {registration.parentFirstName} {registration.parentLastName}
+                        </td>
+                        <td className="px-3 py-2">
+                          <a className="block" href={`tel:${registration.parentPhone}`}>
+                            {registration.parentPhone}
+                          </a>
+                          <a className="block break-all text-muted" href={`mailto:${registration.parentEmail}`}>
+                            {registration.parentEmail}
+                          </a>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2">{registration.paymentReference}</td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            className="ui-pill ui-pill-button ui-pill--outline"
+                            type="button"
+                            disabled={deletingId !== null}
+                            onClick={() => onDelete(registration)}
+                          >
+                            {deletingId === registration.id ? "Brisanje..." : "Obriši"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+      </section>
     </div>
   );
 }
@@ -2031,6 +2117,13 @@ function getMutationErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+async function fetchProgramRegistrations(categoryId: string, sessionDate: string) {
+  const response = await api.get<ProgramRegistrationRecord[]>("/program-registrations", {
+    params: { categoryId, sessionDate },
+  });
+  return response.data;
 }
 
 async function fetchAllCategoryPlayers(categoryId: string) {

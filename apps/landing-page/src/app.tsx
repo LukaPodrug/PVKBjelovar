@@ -1665,13 +1665,16 @@ function ProgramCard({
         >
           Prijavi dijete
         </button>
-        <button
-          className="landing-pill landing-pill-button landing-pill--outline"
-          type="button"
-          onClick={onOpen}
-        >
-          Detalji
-        </button>
+        {/* Non-member programs have different kids every practice, so there is no roster to show. */}
+        {program.audience !== "PUBLIC" ? (
+          <button
+            className="landing-pill landing-pill-button landing-pill--outline"
+            type="button"
+            onClick={onOpen}
+          >
+            Detalji
+          </button>
+        ) : null}
       </div>
     </article>
   );

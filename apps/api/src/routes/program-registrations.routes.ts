@@ -103,13 +103,58 @@ programRegistrationsRouter.post(
 
 programRegistrationsRouter.use(authenticateRequest, authorizeRoles(UserRole.ADMIN));
 
+/**
+ * Practice days of a program with their signup counts, newest first, so admin can look at one day
+ * at a time. The upcoming practice is listed even before anyone signs up. The default is the latest
+ * day with signups: after Friday's deadline that is still tomorrow's practice, not next week's.
+ */
+programRegistrationsRouter.get(
+  "/dates",
+  asyncHandler(async (request, response) => {
+    const categoryId = requireString(request.query.categoryId, "categoryId");
+    const [program, groups] = await Promise.all([
+      prisma.category.findUnique({
+        where: { id: categoryId },
+        include: { programSlots: true },
+      }),
+      prisma.programRegistration.groupBy({
+        by: ["sessionDate"],
+        where: { categoryId },
+        _count: { _all: true },
+        orderBy: { sessionDate: "desc" },
+      }),
+    ]);
+
+    if (!program) {
+      throw new AppError("Program nije pronađen.", 404);
+    }
+
+    const dates = groups.map((group) => ({
+      date: group.sessionDate.toISOString().slice(0, 10),
+      count: group._count._all,
+    }));
+    const upcomingDate = findNextProgramSession(program)?.date ?? null;
+
+    if (upcomingDate && !dates.some((entry) => entry.date === upcomingDate)) {
+      dates.push({ date: upcomingDate, count: 0 });
+      dates.sort((left, right) => right.date.localeCompare(left.date));
+    }
+
+    response.json({
+      dates,
+      defaultDate: dates.find((entry) => entry.count > 0)?.date ?? upcomingDate,
+    });
+  }),
+);
+
 programRegistrationsRouter.get(
   "/",
   asyncHandler(async (request, response) => {
     const categoryId = requireString(request.query.categoryId, "categoryId");
+    const sessionDate = parseDateInput(request.query.sessionDate, "sessionDate");
     const registrations = await prisma.programRegistration.findMany({
-      where: { categoryId },
-      orderBy: [{ sessionDate: "desc" }, { startTime: "asc" }, { createdAt: "asc" }],
+      where: { categoryId, sessionDate },
+      orderBy: [{ startTime: "asc" }, { createdAt: "asc" }],
       take: maxListedRegistrations,
     });
 
