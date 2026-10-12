@@ -23,6 +23,8 @@ interface BrandingFormState {
   bankRecipient: string;
   bankIban: string;
   bankName: string;
+  bankRecipientAddress: string;
+  bankRecipientCity: string;
   logoFile: File | null;
   removeLogo: boolean;
 }
@@ -44,6 +46,8 @@ const emptyBrandingForm: BrandingFormState = {
   bankRecipient: "",
   bankIban: "",
   bankName: "",
+  bankRecipientAddress: "",
+  bankRecipientCity: "",
   logoFile: null,
   removeLogo: false,
 };
@@ -108,6 +112,8 @@ export function SettingsPage() {
       bankRecipient: currentSettings.bankRecipient ?? "",
       bankIban: currentSettings.bankIban ?? "",
       bankName: currentSettings.bankName ?? "",
+      bankRecipientAddress: currentSettings.bankRecipientAddress ?? "",
+      bankRecipientCity: currentSettings.bankRecipientCity ?? "",
       logoFile: null,
       removeLogo: false,
     });
@@ -173,6 +179,8 @@ export function SettingsPage() {
         bankRecipient: settings.bankRecipient ?? "",
         bankIban: settings.bankIban ?? "",
         bankName: settings.bankName ?? "",
+        bankRecipientAddress: settings.bankRecipientAddress ?? "",
+        bankRecipientCity: settings.bankRecipientCity ?? "",
         logoFile: null,
         removeLogo: false,
       });
@@ -549,6 +557,40 @@ export function SettingsPage() {
                           placeholder={adminClubSettingsDefaults.bankName}
                         />
                       </label>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Adresa primatelja
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={brandingForm.bankRecipientAddress}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              bankRecipientAddress: event.target.value,
+                            }))
+                          }
+                          placeholder="Ulica i kućni broj"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Mjesto primatelja
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          value={brandingForm.bankRecipientCity}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              bankRecipientCity: event.target.value,
+                            }))
+                          }
+                          placeholder="Poštanski broj i mjesto"
+                        />
+                      </label>
                     </div>
                   </fieldset>
                 </div>
@@ -571,6 +613,8 @@ export function SettingsPage() {
                           bankRecipient: currentSettings.bankRecipient ?? "",
                           bankIban: currentSettings.bankIban ?? "",
                           bankName: currentSettings.bankName ?? "",
+                          bankRecipientAddress: currentSettings.bankRecipientAddress ?? "",
+                          bankRecipientCity: currentSettings.bankRecipientCity ?? "",
                           logoFile: null,
                           removeLogo: false,
                         });
@@ -798,6 +842,8 @@ function buildBrandingFormData(form: BrandingFormState) {
   formData.append("bankRecipient", form.bankRecipient);
   formData.append("bankIban", form.bankIban);
   formData.append("bankName", form.bankName);
+  formData.append("bankRecipientAddress", form.bankRecipientAddress);
+  formData.append("bankRecipientCity", form.bankRecipientCity);
 
   if (form.logoFile) {
     formData.append("logo", form.logoFile);

@@ -1133,6 +1133,122 @@ textarea {
   min-height: 40px;
 }
 
+.landing-page .landing-program-card-meta {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.landing-page .landing-program-card-meta strong {
+  color: var(--accent);
+  font-family: var(--font-display);
+}
+
+.landing-page .landing-program-card-meta span {
+  color: var(--muted);
+}
+
+.landing-page .landing-slot-options {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+}
+
+.landing-page .landing-slot-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 48px;
+  padding: 0 1rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.landing-page .landing-slot-option input {
+  accent-color: var(--accent);
+}
+
+.landing-page .landing-slot-option.is-selected {
+  border-color: var(--accent);
+  background: var(--pool);
+}
+
+.landing-page .landing-payment {
+  display: grid;
+  gap: 1rem;
+}
+
+.landing-page .landing-payment-switch {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.landing-page .landing-payment-code {
+  display: grid;
+  place-items: center;
+  min-height: 140px;
+  padding: 1rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+}
+
+.landing-page .landing-payment-code img {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.landing-page .landing-payment-code.is-qr img {
+  max-width: 240px;
+}
+
+.landing-page .landing-payment-details {
+  display: grid;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.landing-page .landing-payment-detail {
+  display: grid;
+  gap: 0.15rem 1rem;
+  padding: 0.7rem 1rem;
+}
+
+.landing-page .landing-payment-detail + .landing-payment-detail {
+  border-top: 1px solid var(--line);
+}
+
+@media (min-width: 640px) {
+  .landing-page .landing-payment-detail {
+    grid-template-columns: 9rem minmax(0, 1fr);
+  }
+}
+
+.landing-page .landing-payment-detail dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.landing-page .landing-payment-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  user-select: all;
+}
+
 .landing-page .landing-signup-tabs {
   display: flex;
   flex-wrap: wrap;

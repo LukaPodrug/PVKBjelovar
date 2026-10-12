@@ -34,6 +34,13 @@ enum CategoryKind {
   PROGRAM
 }
 
+/// Who a program is for. MEMBERS programs enrol kids as club players with accounts. PUBLIC programs
+/// (e.g. open days) take one-off signups per practice, paid on the spot by bank transfer, with no accounts.
+enum ProgramAudience {
+  MEMBERS
+  PUBLIC
+}
+
 enum DayOfWeek {
   MONDAY
   TUESDAY
@@ -79,6 +86,9 @@ model ClubSettings {
   bankRecipient String?
   bankIban     String?
   bankName     String?
+  /// Recipient address printed on payment barcodes (HUB3 needs street and city).
+  bankRecipientAddress String?
+  bankRecipientCity    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -193,6 +203,15 @@ model Category {
   id                      String          @id @default(cuid())
   name                    String          @unique
   kind                    CategoryKind    @default(REGULAR)
+  audience                ProgramAudience @default(MEMBERS)
+  /// PUBLIC programs only: price of one practice in euro cents.
+  pricePerPracticeCents   Int?
+  /// PUBLIC programs only: signups for a practice day close this many days before it, at
+  /// signupCloseTime (Europe/Zagreb, "HH:MM"). Without them, signups close when the first slot starts.
+  signupCloseDaysBefore   Int?
+  signupCloseTime         String?
+  programSlots            ProgramSlot[]
+  programRegistrations    ProgramRegistration[]
   logoUrl                 String?
   startDateOfBirth        DateTime?
   endDateOfBirth          DateTime?
@@ -453,4 +472,44 @@ model SignupRequest {
   @@index([childOib])
   @@index([childDateOfBirth])
   @@map("signup_requests")
+}
+
+/// A weekly practice slot of a PUBLIC program, in Europe/Zagreb wall-clock time ("HH:MM").
+model ProgramSlot {
+  id         String    @id @default(cuid())
+  categoryId String
+  dayOfWeek  DayOfWeek
+  startTime  String
+  endTime    String
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@index([categoryId])
+  @@map("program_slots")
+}
+
+/// A one-off signup for a single practice of a PUBLIC program. The slot times and price are copied
+/// in so later edits to the program don't rewrite history. `referenceNumber` feeds the payment
+/// reference ("poziv na broj") the parent pays with.
+model ProgramRegistration {
+  id               String   @id @default(cuid())
+  referenceNumber  Int      @unique @default(autoincrement())
+  categoryId       String
+  sessionDate      DateTime @db.Date
+  startTime        String
+  endTime          String
+  childFirstName   String
+  childLastName    String
+  childDateOfBirth DateTime
+  parentFirstName  String
+  parentLastName   String
+  parentEmail      String
+  parentPhone      String
+  gdprConsent      Boolean
+  priceCents       Int
+  category         Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  @@index([categoryId, sessionDate])
+  @@map("program_registrations")
 }

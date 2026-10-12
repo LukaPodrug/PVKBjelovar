@@ -852,7 +852,9 @@ export function PlayersPage() {
                   <div className="player-assignment-stack">
                     <MultiSelectPanel
                       title="Dodjela kategorija"
-                      items={categories.map((category) => ({
+                      items={categories
+                        .filter((category) => category.audience !== "PUBLIC")
+                        .map((category) => ({
                         id: category.id,
                         label: category.name,
                       }))}

@@ -5,6 +5,7 @@ import { CategoryDetailsDrawer } from "./components/category-details-drawer";
 import { createCategoryMonogram } from "./lib/category-monogram";
 import { DatePicker } from "./components/date-picker";
 import { FeedbackToast } from "./components/feedback-toast";
+import { PaymentPanel } from "./components/payment-panel";
 import { applyBrowserBranding } from "./lib/browser-branding";
 import { landingClubSettingsDefaults, resolveSettingValue } from "./lib/club-settings-defaults";
 import { fetchNewsFeed, type NewsItem } from "./lib/contentful";
@@ -18,6 +19,8 @@ import {
   fetchPublicCategories,
   fetchPublicCoaches,
   fetchPublicSponsors,
+  type ProgramRegistrationResult,
+  submitProgramRegistration,
   submitSignup,
 } from "./lib/public-api";
 
@@ -219,6 +222,8 @@ function LandingHomePage({
   const categories = allCategories.filter((category) => category.kind !== "PROGRAM");
   const programs = allCategories.filter((category) => category.kind === "PROGRAM");
   const activeSignupProgram = programs.find((program) => program.id === signupProgramId) ?? null;
+  // Programs for non-members use a short per-practice signup that ends in payment, not accounts.
+  const isPublicProgramTab = activeSignupProgram?.audience === "PUBLIC";
   const linkedProgramId =
     initialProgramSlug === null
       ? null
@@ -447,52 +452,56 @@ function LandingHomePage({
         <section className="bg-bg" id="signup">
           <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
             <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-              <div className="landing-panel border-2 border-line bg-surface p-6">
-                <p className="landing-kicker text-muted">
-                  Prijava djeteta
-                </p>
-                <h2 className="mt-4 text-4xl leading-tight">
-                  Pokrenite prijavu prije prvog dolaska na trening.
-                </h2>
-                <div className="landing-copy mt-5 space-y-4 text-sm">
-                  <p>
-                    Ovdje možete poslati podatke o roditeljima, djetetu, profilnim slikama i GDPR suglasnosti.
+              {isPublicProgramTab && activeSignupProgram ? (
+                <PublicProgramIntro program={activeSignupProgram} />
+              ) : (
+                <div className="landing-panel border-2 border-line bg-surface p-6">
+                  <p className="landing-kicker text-muted">
+                    Prijava djeteta
                   </p>
-                  <p>
-                    Osoblje će pregledati prijavu, potvrditi odgovarajuću kategoriju i nastaviti obradu iz administracijskog sučelja.
-                  </p>
+                  <h2 className="mt-4 text-4xl leading-tight">
+                    Pokrenite prijavu prije prvog dolaska na trening.
+                  </h2>
+                  <div className="landing-copy mt-5 space-y-4 text-sm">
+                    <p>
+                      Ovdje možete poslati podatke o roditeljima, djetetu, profilnim slikama i GDPR suglasnosti.
+                    </p>
+                    <p>
+                      Osoblje će pregledati prijavu, potvrditi odgovarajuću kategoriju i nastaviti obradu iz administracijskog sučelja.
+                    </p>
+                  </div>
+
+                  <div className="mt-6 grid gap-3">
+                    <div className="landing-panel border-2 border-line bg-panel px-4 py-4">
+                      <p className="landing-kicker text-muted">
+                        Pripremite
+                      </p>
+                      <p className="mt-3 text-sm leading-7 text-ink">
+                        Kontakt podatke roditelja, datum rođenja djeteta, OIB i po želji profilne fotografije za bržu obradu.
+                      </p>
+                    </div>
+
+                    <div className="landing-panel border-2 border-line bg-white px-4 py-4">
+                      <p className="landing-kicker text-muted">
+                        Tijek obrade
+                      </p>
+                      <p className="mt-3 text-sm leading-7 text-ink">
+                        Odobrene prijave dobivaju pristupne podatke, a odbijene prijave ostaju zabilježene za daljnje praćenje.
+                      </p>
+                    </div>
+
+                    <div className="landing-panel border-2 border-line bg-panel px-4 py-4">
+                      <p className="landing-kicker text-muted">
+                        Pristup aplikaciji
+                      </p>
+                      <p className="mt-3 text-sm leading-7 text-ink">
+                        Nakon što administrator potvrdi prijavu, roditelji će e-poštom dobiti pristupne podatke za mobilnu aplikaciju.
+                      </p>
+                      <AppDownloadButtons className="mt-4" />
+                    </div>
+                  </div>
                 </div>
-
-                <div className="mt-6 grid gap-3">
-                  <div className="landing-panel border-2 border-line bg-panel px-4 py-4">
-                    <p className="landing-kicker text-muted">
-                      Pripremite
-                    </p>
-                    <p className="mt-3 text-sm leading-7 text-ink">
-                      Kontakt podatke roditelja, datum rođenja djeteta, OIB i po želji profilne fotografije za bržu obradu.
-                    </p>
-                  </div>
-
-                  <div className="landing-panel border-2 border-line bg-white px-4 py-4">
-                    <p className="landing-kicker text-muted">
-                      Tijek obrade
-                    </p>
-                    <p className="mt-3 text-sm leading-7 text-ink">
-                      Odobrene prijave dobivaju pristupne podatke, a odbijene prijave ostaju zabilježene za daljnje praćenje.
-                    </p>
-                  </div>
-
-                  <div className="landing-panel border-2 border-line bg-panel px-4 py-4">
-                    <p className="landing-kicker text-muted">
-                      Pristup aplikaciji
-                    </p>
-                    <p className="mt-3 text-sm leading-7 text-ink">
-                      Nakon što administrator potvrdi prijavu, roditelji će e-poštom dobiti pristupne podatke za mobilnu aplikaciju.
-                    </p>
-                    <AppDownloadButtons className="mt-4" />
-                  </div>
-                </div>
-              </div>
+              )}
 
               <section className="landing-surface border-2 border-line bg-surface" id="signup-form">
                 <div className="border-b-2 border-line bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_100%)] px-5 py-5">
@@ -523,246 +532,252 @@ function LandingHomePage({
 
                   {programs.length > 0 ? (
                     <p className="landing-copy mt-3 text-sm">
-                      {activeSignupProgram
-                        ? `Prijava za program ${activeSignupProgram.name}. Program je odvojen od vaterpolskih kategorija, a dijete se kasnije može upisati i u vaterpolo.`
-                        : "Prijava u vaterpolske kategorije. Kategoriju predlažemo prema datumu rođenja, a potvrđuje je osoblje kluba."}
+                      {isPublicProgramTab && activeSignupProgram
+                        ? `Prijava za jedan trening, bez učlanjenja u klub. Trening se plaća ${formatEuro(activeSignupProgram.pricePerPracticeCents)} uplatom na račun kluba.`
+                        : activeSignupProgram
+                          ? `Prijava za program ${activeSignupProgram.name}. Program je odvojen od vaterpolskih kategorija, a dijete se kasnije može upisati i u vaterpolo.`
+                          : "Prijava u vaterpolske kategorije. Kategoriju predlažemo prema datumu rođenja, a potvrđuje je osoblje kluba."}
                     </p>
                   ) : null}
                 </div>
 
-                <form
-                  className="space-y-6 p-5"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    setSignupFeedback(null);
+                {isPublicProgramTab && activeSignupProgram ? (
+                  <PublicProgramSignup key={activeSignupProgram.id} program={activeSignupProgram} />
+                ) : (
+                  <form
+                    className="space-y-6 p-5"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      setSignupFeedback(null);
 
-                    if (hasDuplicateParentEmails) {
-                      setSignupFeedback({ tone: "error", message: duplicateParentEmailMessage });
-                      return;
-                    }
-
-                    signupMutation.mutate();
-                  }}
-                >
-                  <Fieldset title="Roditelj 1">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <InputField
-                        label="Ime"
-                        value={signupForm.parentOneFirstName}
-                        onChange={(value) =>
-                          setSignupForm((current) => ({ ...current, parentOneFirstName: value }))
-                        }
-                        required
-                      />
-                      <InputField
-                        label="Prezime"
-                        value={signupForm.parentOneLastName}
-                        onChange={(value) =>
-                          setSignupForm((current) => ({ ...current, parentOneLastName: value }))
-                        }
-                        required
-                      />
-                      <InputField
-                        label="E-pošta"
-                        type="email"
-                        value={signupForm.parentOneEmail}
-                        onChange={(value) =>
-                          setSignupForm((current) => ({ ...current, parentOneEmail: value }))
-                        }
-                        required
-                      />
-                      <InputField
-                        label="Telefon"
-                        value={signupForm.parentOnePhone}
-                        onChange={(value) =>
-                          setSignupForm((current) => ({ ...current, parentOnePhone: value }))
-                        }
-                        required
-                      />
-                    </div>
-                    <FileField
-                      label="Profilna fotografija"
-                      file={signupForm.parentOneProfileImage}
-                      onChange={(file) =>
-                        setSignupForm((current) => ({ ...current, parentOneProfileImage: file }))
+                      if (hasDuplicateParentEmails) {
+                        setSignupFeedback({ tone: "error", message: duplicateParentEmailMessage });
+                        return;
                       }
-                    />
-                  </Fieldset>
 
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    <button
-                      className={`landing-parent-chip ${showSecondParent ? "is-active" : ""}`}
-                      type="button"
-                      onClick={() => {
-                        setShowSecondParent((current) => !current);
-                        setSignupForm((current) =>
-                          showSecondParent
-                            ? {
-                                ...current,
-                                parentTwoFirstName: "",
-                                parentTwoLastName: "",
-                                parentTwoEmail: "",
-                                parentTwoPhone: "",
-                                parentTwoProfileImage: null,
-                              }
-                            : current,
-                        );
-                      }}
-                    >
-                      <span aria-hidden="true">{showSecondParent ? "−" : "+"}</span>
-                      {showSecondParent ? "Ukloni roditelja 2" : "Dodaj roditelja 2"}
-                    </button>
-                    <div className="landing-signup-note border-2 border-line bg-panel px-4 py-4 text-sm leading-7 text-ink">
-                      Drugi roditelj nije obavezan, ali ako ga uključite potrebno je ispuniti sva njegova kontaktna polja. Svaki roditelj mora imati svoju e-adresu jer ona služi za prijavu u aplikaciju.
-                    </div>
-                  </div>
-
-                  {showSecondParent ? (
-                    <Fieldset title="Roditelj 2">
+                      signupMutation.mutate();
+                    }}
+                  >
+                    <Fieldset title="Roditelj 1">
                       <div className="grid gap-4 md:grid-cols-2">
                         <InputField
                           label="Ime"
-                          value={signupForm.parentTwoFirstName}
+                          value={signupForm.parentOneFirstName}
                           onChange={(value) =>
-                            setSignupForm((current) => ({ ...current, parentTwoFirstName: value }))
+                            setSignupForm((current) => ({ ...current, parentOneFirstName: value }))
                           }
                           required
                         />
                         <InputField
                           label="Prezime"
-                          value={signupForm.parentTwoLastName}
+                          value={signupForm.parentOneLastName}
                           onChange={(value) =>
-                            setSignupForm((current) => ({ ...current, parentTwoLastName: value }))
+                            setSignupForm((current) => ({ ...current, parentOneLastName: value }))
                           }
                           required
                         />
                         <InputField
                           label="E-pošta"
                           type="email"
-                          value={signupForm.parentTwoEmail}
+                          value={signupForm.parentOneEmail}
                           onChange={(value) =>
-                            setSignupForm((current) => ({ ...current, parentTwoEmail: value }))
+                            setSignupForm((current) => ({ ...current, parentOneEmail: value }))
                           }
                           required
-                          error={hasDuplicateParentEmails ? duplicateParentEmailMessage : undefined}
                         />
                         <InputField
                           label="Telefon"
-                          value={signupForm.parentTwoPhone}
+                          value={signupForm.parentOnePhone}
                           onChange={(value) =>
-                            setSignupForm((current) => ({ ...current, parentTwoPhone: value }))
+                            setSignupForm((current) => ({ ...current, parentOnePhone: value }))
                           }
                           required
                         />
                       </div>
                       <FileField
                         label="Profilna fotografija"
-                        file={signupForm.parentTwoProfileImage}
+                        file={signupForm.parentOneProfileImage}
                         onChange={(file) =>
-                          setSignupForm((current) => ({ ...current, parentTwoProfileImage: file }))
+                          setSignupForm((current) => ({ ...current, parentOneProfileImage: file }))
                         }
                       />
                     </Fieldset>
-                  ) : null}
 
-                  <Fieldset title="Dijete">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <InputField
-                        label="Ime"
-                        value={signupForm.childFirstName}
-                        onChange={(value) =>
-                          setSignupForm((current) => ({ ...current, childFirstName: value }))
-                        }
-                        required
-                      />
-                      <InputField
-                        label="Prezime"
-                        value={signupForm.childLastName}
-                        onChange={(value) =>
-                          setSignupForm((current) => ({ ...current, childLastName: value }))
-                        }
-                        required
-                      />
-                      <label className="block">
-                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                          Datum rođenja
-                        </span>
-                        <DatePicker
-                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                          value={signupForm.childDateOfBirth}
-                          onChange={(value) =>
-                            setSignupForm((current) => ({ ...current, childDateOfBirth: value }))
-                          }
-                          required
-                        />
-                      </label>
-                      <InputField
-                        label="OIB"
-                        value={signupForm.childOib}
-                        onChange={(value) =>
-                          setSignupForm((current) => ({ ...current, childOib: value }))
-                        }
-                        required
-                      />
-                      <div className="md:col-span-2">
-                        <InputField
-                          label="Adresa stanovanja"
-                          value={signupForm.childAddress}
-                          onChange={(value) =>
-                            setSignupForm((current) => ({ ...current, childAddress: value }))
-                          }
-                          required
-                        />
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <button
+                        className={`landing-parent-chip ${showSecondParent ? "is-active" : ""}`}
+                        type="button"
+                        onClick={() => {
+                          setShowSecondParent((current) => !current);
+                          setSignupForm((current) =>
+                            showSecondParent
+                              ? {
+                                  ...current,
+                                  parentTwoFirstName: "",
+                                  parentTwoLastName: "",
+                                  parentTwoEmail: "",
+                                  parentTwoPhone: "",
+                                  parentTwoProfileImage: null,
+                                }
+                              : current,
+                          );
+                        }}
+                      >
+                        <span aria-hidden="true">{showSecondParent ? "−" : "+"}</span>
+                        {showSecondParent ? "Ukloni roditelja 2" : "Dodaj roditelja 2"}
+                      </button>
+                      <div className="landing-signup-note border-2 border-line bg-panel px-4 py-4 text-sm leading-7 text-ink">
+                        Drugi roditelj nije obavezan, ali ako ga uključite potrebno je ispuniti sva njegova kontaktna polja. Svaki roditelj mora imati svoju e-adresu jer ona služi za prijavu u aplikaciju.
                       </div>
                     </div>
-                    <FileField
-                      label="Profilna fotografija"
-                      file={signupForm.childProfileImage}
-                      onChange={(file) =>
-                        setSignupForm((current) => ({ ...current, childProfileImage: file }))
-                      }
-                    />
-                  </Fieldset>
 
-                  <label className="landing-gdpr-consent flex items-start gap-3 border-2 border-line bg-white px-4 py-4">
-                    <input
-                      className="landing-gdpr-checkbox mt-1 h-4 w-4 accent-accent"
-                      type="checkbox"
-                      checked={signupForm.gdprConsent}
-                      onChange={(event) =>
-                        setSignupForm((current) => ({
-                          ...current,
-                          gdprConsent: event.target.checked,
-                        }))
-                      }
-                      required
-                    />
-                    <span className="text-sm leading-7">
-                      Potvrđujem GDPR suglasnost za obradu ove obiteljske prijave i priloženih fotografija radi pregleda upisa.
-                    </span>
-                  </label>
+                    {showSecondParent ? (
+                      <Fieldset title="Roditelj 2">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <InputField
+                            label="Ime"
+                            value={signupForm.parentTwoFirstName}
+                            onChange={(value) =>
+                              setSignupForm((current) => ({ ...current, parentTwoFirstName: value }))
+                            }
+                            required
+                          />
+                          <InputField
+                            label="Prezime"
+                            value={signupForm.parentTwoLastName}
+                            onChange={(value) =>
+                              setSignupForm((current) => ({ ...current, parentTwoLastName: value }))
+                            }
+                            required
+                          />
+                          <InputField
+                            label="E-pošta"
+                            type="email"
+                            value={signupForm.parentTwoEmail}
+                            onChange={(value) =>
+                              setSignupForm((current) => ({ ...current, parentTwoEmail: value }))
+                            }
+                            required
+                            error={hasDuplicateParentEmails ? duplicateParentEmailMessage : undefined}
+                          />
+                          <InputField
+                            label="Telefon"
+                            value={signupForm.parentTwoPhone}
+                            onChange={(value) =>
+                              setSignupForm((current) => ({ ...current, parentTwoPhone: value }))
+                            }
+                            required
+                          />
+                        </div>
+                        <FileField
+                          label="Profilna fotografija"
+                          file={signupForm.parentTwoProfileImage}
+                          onChange={(file) =>
+                            setSignupForm((current) => ({ ...current, parentTwoProfileImage: file }))
+                          }
+                        />
+                      </Fieldset>
+                    ) : null}
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <button
-                      className="landing-pill landing-pill-button landing-pill--accent"
-                      type="submit"
-                      disabled={signupMutation.isPending}
-                    >
-                      {signupMutation.isPending ? "Slanje..." : "Pošalji prijavu"}
-                    </button>
-                    <button
-                      className="landing-pill landing-pill-button landing-pill--panel"
-                      type="button"
-                      onClick={() => {
-                        setSignupFeedback(null);
-                        setShowSecondParent(false);
-                        setSignupForm(emptySignupForm);
-                      }}
-                    >
-                      Resetiraj obrazac
-                    </button>
-                  </div>
-                </form>
+                    <Fieldset title="Dijete">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <InputField
+                          label="Ime"
+                          value={signupForm.childFirstName}
+                          onChange={(value) =>
+                            setSignupForm((current) => ({ ...current, childFirstName: value }))
+                          }
+                          required
+                        />
+                        <InputField
+                          label="Prezime"
+                          value={signupForm.childLastName}
+                          onChange={(value) =>
+                            setSignupForm((current) => ({ ...current, childLastName: value }))
+                          }
+                          required
+                        />
+                        <label className="block">
+                          <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                            Datum rođenja
+                          </span>
+                          <DatePicker
+                            className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                            value={signupForm.childDateOfBirth}
+                            onChange={(value) =>
+                              setSignupForm((current) => ({ ...current, childDateOfBirth: value }))
+                            }
+                            required
+                          />
+                        </label>
+                        <InputField
+                          label="OIB"
+                          value={signupForm.childOib}
+                          onChange={(value) =>
+                            setSignupForm((current) => ({ ...current, childOib: value }))
+                          }
+                          required
+                        />
+                        <div className="md:col-span-2">
+                          <InputField
+                            label="Adresa stanovanja"
+                            value={signupForm.childAddress}
+                            onChange={(value) =>
+                              setSignupForm((current) => ({ ...current, childAddress: value }))
+                            }
+                            required
+                          />
+                        </div>
+                      </div>
+                      <FileField
+                        label="Profilna fotografija"
+                        file={signupForm.childProfileImage}
+                        onChange={(file) =>
+                          setSignupForm((current) => ({ ...current, childProfileImage: file }))
+                        }
+                      />
+                    </Fieldset>
+
+                    <label className="landing-gdpr-consent flex items-start gap-3 border-2 border-line bg-white px-4 py-4">
+                      <input
+                        className="landing-gdpr-checkbox mt-1 h-4 w-4 accent-accent"
+                        type="checkbox"
+                        checked={signupForm.gdprConsent}
+                        onChange={(event) =>
+                          setSignupForm((current) => ({
+                            ...current,
+                            gdprConsent: event.target.checked,
+                          }))
+                        }
+                        required
+                      />
+                      <span className="text-sm leading-7">
+                        Potvrđujem GDPR suglasnost za obradu ove obiteljske prijave i priloženih fotografija radi pregleda upisa.
+                      </span>
+                    </label>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <button
+                        className="landing-pill landing-pill-button landing-pill--accent"
+                        type="submit"
+                        disabled={signupMutation.isPending}
+                      >
+                        {signupMutation.isPending ? "Slanje..." : "Pošalji prijavu"}
+                      </button>
+                      <button
+                        className="landing-pill landing-pill-button landing-pill--panel"
+                        type="button"
+                        onClick={() => {
+                          setSignupFeedback(null);
+                          setShowSecondParent(false);
+                          setSignupForm(emptySignupForm);
+                        }}
+                      >
+                        Resetiraj obrazac
+                      </button>
+                    </div>
+                  </form>
+                )}
               </section>
             </div>
           </div>
@@ -1630,6 +1645,16 @@ function ProgramCard({
 
       <div className="landing-program-card-body">
         <h3 className="text-2xl leading-tight">{program.name}</h3>
+        {program.audience === "PUBLIC" ? (
+          <p className="landing-program-card-meta">
+            <strong>{formatEuro(program.pricePerPracticeCents)} po treningu</strong>
+            <span>
+              {program.nextSession
+                ? `Sljedeći trening: ${formatSessionDay(program.nextSession.date)}`
+                : "Prijave trenutno nisu otvorene"}
+            </span>
+          </p>
+        ) : null}
       </div>
 
       <div className="landing-program-card-actions">
@@ -1661,6 +1686,265 @@ function createProgramSlug(name: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function PublicProgramIntro({ program }: { program: PublicCategory }) {
+  return (
+    <div className="landing-panel border-2 border-line bg-surface p-6">
+      <p className="landing-kicker text-muted">{program.name}</p>
+      <h2 className="mt-4 text-4xl leading-tight">Dođite na trening, bez učlanjenja.</h2>
+      <div className="mt-6 grid gap-3">
+        <div className="landing-panel border-2 border-line bg-panel px-4 py-4">
+          <p className="landing-kicker text-muted">1. Odaberite termin</p>
+          <p className="mt-3 text-sm leading-7 text-ink">
+            Prijave su otvorene za sljedeći trening. Kad se zatvore, otvaraju se prijave za idući.
+          </p>
+        </div>
+        <div className="landing-panel border-2 border-line bg-white px-4 py-4">
+          <p className="landing-kicker text-muted">2. Pošaljite prijavu</p>
+          <p className="mt-3 text-sm leading-7 text-ink">
+            Dovoljni su podaci o djetetu i kontakt roditelja. Račun u aplikaciji nije potreban.
+          </p>
+        </div>
+        <div className="landing-panel border-2 border-line bg-panel px-4 py-4">
+          <p className="landing-kicker text-muted">3. Platite trening</p>
+          <p className="mt-3 text-sm leading-7 text-ink">
+            Nakon prijave prikazat ćemo barkod za plaćanje mobilnim bankarstvom i sve podatke za uplatu.
+            Cijena je {formatEuro(program.pricePerPracticeCents)} po treningu.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface PublicProgramSignupForm {
+  slotId: string;
+  childFirstName: string;
+  childLastName: string;
+  childDateOfBirth: string;
+  parentFirstName: string;
+  parentLastName: string;
+  parentEmail: string;
+  parentPhone: string;
+  gdprConsent: boolean;
+}
+
+const emptyPublicProgramSignupForm: PublicProgramSignupForm = {
+  slotId: "",
+  childFirstName: "",
+  childLastName: "",
+  childDateOfBirth: "",
+  parentFirstName: "",
+  parentLastName: "",
+  parentEmail: "",
+  parentPhone: "",
+  gdprConsent: false,
+};
+
+/** One-off signup for the next practice of a program for non-members, ending on the payment details. */
+function PublicProgramSignup({ program }: { program: PublicCategory }) {
+  const session = program.nextSession;
+  const [form, setForm] = useState<PublicProgramSignupForm>(() => ({
+    ...emptyPublicProgramSignupForm,
+    slotId: session?.slots.length === 1 ? session.slots[0]!.id : "",
+  }));
+  const [result, setResult] = useState<ProgramRegistrationResult | null>(null);
+  const resultRef = useRef<HTMLDivElement | null>(null);
+
+  const registrationMutation = useMutation({
+    mutationFn: () => submitProgramRegistration({ categoryId: program.id, ...form }),
+    onSuccess: (registrationResult) => {
+      setResult(registrationResult);
+      setForm({ ...emptyPublicProgramSignupForm, slotId: form.slotId });
+    },
+  });
+
+  useEffect(() => {
+    if (result) {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [result]);
+
+  if (result) {
+    const { registration, payment } = result;
+
+    return (
+      <div className="space-y-5 p-5" ref={resultRef}>
+        <div className="landing-panel border-2 border-line bg-panel px-4 py-4">
+          <p className="landing-kicker text-muted">Prijava je zaprimljena</p>
+          <p className="mt-3 text-sm leading-7 text-ink">
+            <strong>
+              {registration.childFirstName} {registration.childLastName}
+            </strong>{" "}
+            prijavljen/a je na {registration.programName}:{" "}
+            <strong>
+              {formatSessionDay(registration.sessionDate)}, {registration.startTime}–{registration.endTime}
+            </strong>
+            . Trening platite prije dolaska.
+          </p>
+        </div>
+
+        {payment ? (
+          <PaymentPanel payment={payment} />
+        ) : (
+          <p className="landing-copy text-sm">
+            Podaci za plaćanje još nisu objavljeni. Klub će vas kontaktirati s uputama za uplatu.
+          </p>
+        )}
+
+        <button
+          className="landing-pill landing-pill-button landing-pill--panel w-full"
+          type="button"
+          onClick={() => setResult(null)}
+        >
+          Prijavi još jedno dijete
+        </button>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="p-5">
+        <p className="landing-copy text-sm">
+          Prijave za {program.name} trenutno nisu otvorene. Pratite našu stranicu za nove termine.
+        </p>
+      </div>
+    );
+  }
+
+  const update = (changes: Partial<PublicProgramSignupForm>) =>
+    setForm((current) => ({ ...current, ...changes }));
+
+  return (
+    <form
+      className="space-y-6 p-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        registrationMutation.mutate();
+      }}
+    >
+      <Fieldset title={`Termin · ${formatSessionDay(session.date)}`}>
+        <div className="landing-slot-options">
+          {session.slots.map((slot) => (
+            <label
+              className={`landing-slot-option ${form.slotId === slot.id ? "is-selected" : ""}`}
+              key={slot.id}
+            >
+              <input
+                type="radio"
+                name="program-slot"
+                checked={form.slotId === slot.id}
+                onChange={() => update({ slotId: slot.id })}
+                required
+              />
+              <span>
+                {slot.startTime}–{slot.endTime}
+              </span>
+            </label>
+          ))}
+        </div>
+        <p className="text-sm text-muted">
+          Prijave za ovaj trening zatvaraju se {formatClosingTime(session.closesAt)}. Cijena:{" "}
+          {formatEuro(program.pricePerPracticeCents)}.
+        </p>
+      </Fieldset>
+
+      <Fieldset title="Dijete">
+        <div className="grid gap-4 md:grid-cols-2">
+          <InputField label="Ime" value={form.childFirstName} onChange={(value) => update({ childFirstName: value })} required />
+          <InputField label="Prezime" value={form.childLastName} onChange={(value) => update({ childLastName: value })} required />
+          <label className="block">
+            <span className="landing-kicker mb-2 block text-muted">Datum rođenja</span>
+            <DatePicker
+              className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+              value={form.childDateOfBirth}
+              onChange={(value) => update({ childDateOfBirth: value })}
+              required
+            />
+          </label>
+        </div>
+      </Fieldset>
+
+      <Fieldset title="Roditelj">
+        <div className="grid gap-4 md:grid-cols-2">
+          <InputField label="Ime" value={form.parentFirstName} onChange={(value) => update({ parentFirstName: value })} required />
+          <InputField label="Prezime" value={form.parentLastName} onChange={(value) => update({ parentLastName: value })} required />
+          <InputField label="E-pošta" type="email" value={form.parentEmail} onChange={(value) => update({ parentEmail: value })} required />
+          <InputField label="Telefon" type="tel" value={form.parentPhone} onChange={(value) => update({ parentPhone: value })} required />
+        </div>
+      </Fieldset>
+
+      <label className="landing-gdpr-consent flex items-start gap-3 border-2 border-line bg-white px-4 py-4">
+        <input
+          className="landing-gdpr-checkbox mt-1 h-4 w-4 accent-accent"
+          type="checkbox"
+          checked={form.gdprConsent}
+          onChange={(event) => update({ gdprConsent: event.target.checked })}
+          required
+        />
+        <span className="text-sm leading-7">
+          Potvrđujem GDPR suglasnost za obradu podataka iz ove prijave radi organizacije treninga.
+        </span>
+      </label>
+
+      {registrationMutation.isError ? (
+        <p className="field-error-message text-sm">
+          {registrationMutation.error instanceof Error
+            ? registrationMutation.error.message
+            : "Prijava nije uspjela. Pokušajte ponovno."}
+        </p>
+      ) : null}
+
+      <button
+        className="landing-pill landing-pill-button landing-pill--accent w-full"
+        type="submit"
+        disabled={registrationMutation.isPending}
+      >
+        {registrationMutation.isPending ? "Slanje..." : "Pošalji prijavu i prikaži plaćanje"}
+      </button>
+    </form>
+  );
+}
+
+function formatEuro(cents: number | null) {
+  return cents === null
+    ? "—"
+    : new Intl.NumberFormat("hr-HR", { style: "currency", currency: "EUR" }).format(cents / 100);
+}
+
+/** "subota, 17.10." for a YYYY-MM-DD practice day. */
+function formatSessionDay(isoDate: string) {
+  const parts = readDateParts(new Date(`${isoDate}T12:00:00Z`), "UTC");
+  return `${parts.weekday}, ${parts.day}.${parts.month}.`;
+}
+
+/** "u petak, 16.10. u 22:00" for the moment a practice's signups close, in club time. */
+function formatClosingTime(isoDateTime: string) {
+  const parts = readDateParts(new Date(isoDateTime), "Europe/Zagreb");
+  return `u ${parts.weekday}, ${parts.day}.${parts.month}. u ${parts.hour}:${parts.minute}`;
+}
+
+function readDateParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("hr-HR", {
+    weekday: "long",
+    day: "numeric",
+    month: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone,
+  }).formatToParts(date);
+  const read = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+
+  return {
+    weekday: read("weekday"),
+    day: read("day"),
+    month: read("month"),
+    hour: read("hour"),
+    minute: read("minute"),
+  };
 }
 
 function SignupTab({

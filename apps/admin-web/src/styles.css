@@ -1965,6 +1965,99 @@ textarea {
   margin: 1rem;
 }
 
+.admin-shell .category-audience-options {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+@media (min-width: 768px) {
+  .admin-shell .category-audience-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.admin-shell .category-next-session {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  font-size: 0.9rem;
+}
+
+.admin-shell .category-close-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.admin-shell .category-slot-row {
+  display: grid;
+  gap: 0.75rem;
+  align-items: center;
+  grid-template-columns: minmax(9rem, 1.4fr) minmax(7rem, 1fr) minmax(7rem, 1fr) auto;
+}
+
+@media (max-width: 640px) {
+  .admin-shell .category-slot-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.admin-shell .category-registration-days {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.admin-shell .category-registration-day {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.admin-shell .category-registration-day-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 0.9rem;
+}
+
+.admin-shell .category-registration-slot {
+  padding: 0.75rem 0.25rem;
+}
+
+.admin-shell .category-registration-slot + .category-registration-slot {
+  border-top: 1px dashed var(--line);
+}
+
+/* Fixed columns keep every slot's table aligned with the others on the same day. */
+.admin-shell .category-registration-slot table {
+  min-width: 640px;
+  table-layout: fixed;
+}
+
+.admin-shell .category-registration-slot th:nth-child(1) { width: 24%; }
+.admin-shell .category-registration-slot th:nth-child(2) { width: 20%; }
+.admin-shell .category-registration-slot th:nth-child(3) { width: 28%; }
+.admin-shell .category-registration-slot th:nth-child(4) { width: 16%; }
+.admin-shell .category-registration-slot th:nth-child(5) { width: 12%; }
+
+.admin-shell .category-registration-slot-title {
+  padding: 0 0.75rem 0.25rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
 .admin-shell .category-inline-action {
   display: flex;
   flex-wrap: wrap;

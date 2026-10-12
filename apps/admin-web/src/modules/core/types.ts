@@ -51,15 +51,46 @@ export interface ClubSettings {
   bankRecipient: string | null;
   bankIban: string | null;
   bankName: string | null;
+  bankRecipientAddress: string | null;
+  bankRecipientCity: string | null;
 }
 
 /** REGULAR is a waterpolo squad; PROGRAM is a standalone outreach program such as pool games. */
 export type CategoryKind = "REGULAR" | "PROGRAM";
 
+/** MEMBERS programs enrol kids with accounts; PUBLIC programs take paid one-off practice signups. */
+export type ProgramAudience = "MEMBERS" | "PUBLIC";
+
+export interface ProgramSlotRecord {
+  id?: string;
+  dayOfWeek: DayKey;
+  startTime: string;
+  endTime: string;
+}
+
+export interface ProgramRegistrationRecord {
+  id: string;
+  referenceNumber: number;
+  paymentReference: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+  childFirstName: string;
+  childLastName: string;
+  childDateOfBirth: string;
+  parentFirstName: string;
+  parentLastName: string;
+  parentEmail: string;
+  parentPhone: string;
+  priceCents: number;
+  createdAt: string;
+}
+
 export interface CategoryOption {
   id: string;
   name: string;
   kind?: CategoryKind;
+  audience?: ProgramAudience;
   logoUrl: string | null;
   startDateOfBirth?: string | null;
   endDateOfBirth?: string | null;
@@ -151,6 +182,12 @@ export interface CategoryPlayerAssignment {
 
 export interface CategoryRecord extends CategoryOption {
   kind: CategoryKind;
+  audience: ProgramAudience;
+  pricePerPracticeCents: number | null;
+  signupCloseDaysBefore: number | null;
+  signupCloseTime: string | null;
+  programSlots: ProgramSlotRecord[];
+  nextSession: { date: string; closesAt: string } | null;
   startDateOfBirth: string | null;
   endDateOfBirth: string | null;
   playerCount: number;

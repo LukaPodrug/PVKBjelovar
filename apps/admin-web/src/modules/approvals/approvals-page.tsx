@@ -77,6 +77,7 @@ export function ApprovalsPage() {
         id: category.id,
         name: category.name,
         kind: category.kind,
+        audience: category.audience,
         logoUrl: category.logoUrl,
       }));
     },
@@ -674,10 +675,10 @@ export function ApprovalsPage() {
                               </option>
                             ))}
                         </optgroup>
-                        {categories.some((category) => category.kind === "PROGRAM") ? (
+                        {categories.some(isMemberProgram) ? (
                           <optgroup label="Programi">
                             {categories
-                              .filter((category) => category.kind === "PROGRAM")
+                              .filter(isMemberProgram)
                               .map((category) => (
                                 <option key={category.id} value={category.id}>
                                   {category.name}
@@ -865,6 +866,11 @@ function formatNumericDate(dateIso: string) {
   const year = date.getFullYear();
 
   return `${day}.${month}.${year}.`;
+}
+
+/** Programs for non-members take practice signups only, so they are never offered for approval. */
+function isMemberProgram(category: CategoryOption) {
+  return category.kind === "PROGRAM" && category.audience !== "PUBLIC";
 }
 
 function buildApprovalSuccessMessage(result: ApprovalResult) {

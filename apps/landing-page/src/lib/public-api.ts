@@ -16,10 +16,23 @@ export interface PublicClubSettings {
 /** REGULAR is a waterpolo squad; PROGRAM is a standalone program such as pool games for schools. */
 export type PublicCategoryKind = "REGULAR" | "PROGRAM";
 
+/** MEMBERS programs enrol kids as club players; PUBLIC programs take paid one-off practice signups. */
+export type PublicProgramAudience = "MEMBERS" | "PUBLIC";
+
+export interface PublicProgramSession {
+  /** Practice day, YYYY-MM-DD. */
+  date: string;
+  closesAt: string;
+  slots: Array<{ id: string; startTime: string; endTime: string }>;
+}
+
 export interface PublicCategory {
   id: string;
   name: string;
   kind: PublicCategoryKind;
+  audience: PublicProgramAudience;
+  pricePerPracticeCents: number | null;
+  nextSession: PublicProgramSession | null;
   logoUrl: string | null;
   startDateOfBirth: string | null;
   endDateOfBirth: string | null;
@@ -149,6 +162,57 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+export interface ProgramPayment {
+  amount: string;
+  currency: string;
+  recipient: string;
+  recipientAddress: string | null;
+  recipientCity: string | null;
+  iban: string;
+  bankName: string | null;
+  model: string;
+  reference: string;
+  description: string;
+  hub3Text: string;
+  epcQrText: string;
+}
+
+export interface ProgramRegistrationResult {
+  message: string;
+  registration: {
+    id: string;
+    programName: string;
+    sessionDate: string;
+    startTime: string;
+    endTime: string;
+    childFirstName: string;
+    childLastName: string;
+    priceCents: number;
+  };
+  payment: ProgramPayment | null;
+}
+
+export interface ProgramRegistrationInput {
+  categoryId: string;
+  slotId: string;
+  childFirstName: string;
+  childLastName: string;
+  childDateOfBirth: string;
+  parentFirstName: string;
+  parentLastName: string;
+  parentEmail: string;
+  parentPhone: string;
+  gdprConsent: boolean;
+}
+
+export function submitProgramRegistration(input: ProgramRegistrationInput) {
+  return requestJson<ProgramRegistrationResult>("/program-registrations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
 }
 
 export function fetchClubSettings() {

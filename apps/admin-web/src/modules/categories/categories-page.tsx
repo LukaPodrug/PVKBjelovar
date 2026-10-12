@@ -3,7 +3,7 @@ import type { AxiosError } from "axios";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useAuth } from "../auth/auth-context";
 import { api } from "../core/api";
-import { formatDate, toDateInputValue } from "../core/date";
+import { formatDate, orderedDays, toDateInputValue } from "../core/date";
 import type {
   CategoryKind,
   CategoryPlayerAssignment,
@@ -12,12 +12,16 @@ import type {
   PaginatedResponse,
   ParentRecord,
   PlayerRecord,
+  ProgramAudience,
+  ProgramRegistrationRecord,
+  ProgramSlotRecord,
 } from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
 import { DatePicker } from "../ui/date-picker";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
+import { TimePicker } from "../ui/time-picker";
 import { downloadCategoryPlayersWorkbook } from "./category-players-xlsx";
 
 interface FeedbackState {
@@ -33,6 +37,11 @@ interface CategoryFormState {
   coachIds: string[];
   logoFile: File | null;
   removeLogo: boolean;
+  audience: ProgramAudience;
+  pricePerPractice: string;
+  signupCloseDaysBefore: string;
+  signupCloseTime: string;
+  programSlots: ProgramSlotRecord[];
 }
 
 interface StartNewSeasonResult {
@@ -66,7 +75,14 @@ const emptyCategoryForm: CategoryFormState = {
   coachIds: [],
   logoFile: null,
   removeLogo: false,
+  audience: "MEMBERS",
+  pricePerPractice: "",
+  signupCloseDaysBefore: "",
+  signupCloseTime: "",
+  programSlots: [],
 };
+
+const emptyProgramSlot: ProgramSlotRecord = { dayOfWeek: "SATURDAY", startTime: "09:00", endTime: "10:00" };
 
 const emptyManagedPlayerForm: ManagedPlayerFormState = {
   firstName: "",
@@ -223,10 +239,46 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
     },
   });
 
+  const programRegistrationsQuery = useQuery({
+    queryKey: ["program-registrations", selectedCategoryId],
+    enabled: Boolean(
+      selectedCategoryId && formMode === "edit" && isDrawerOpen && form.audience === "PUBLIC",
+    ),
+    queryFn: async () => {
+      const response = await api.get<ProgramRegistrationRecord[]>("/program-registrations", {
+        params: { categoryId: selectedCategoryId },
+      });
+      return response.data;
+    },
+  });
+
+  const deleteRegistrationMutation = useMutation({
+    mutationFn: async (registration: ProgramRegistrationRecord) => {
+      await api.delete(`/program-registrations/${registration.id}`);
+      return registration;
+    },
+    onSuccess: (registration) => {
+      setFeedback({
+        tone: "success",
+        message: `Prijava za ${registration.childFirstName} ${registration.childLastName} je obrisana.`,
+      });
+      void queryClient.invalidateQueries({ queryKey: ["program-registrations"] });
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message: getMutationErrorMessage(error, "Brisanje prijave nije uspjelo."),
+      });
+    },
+  });
+
   const categoriesPageData = categoriesQuery.data;
   const categories = categoriesPageData?.items ?? [];
   const categoryOptions = categoryOptionsQuery.data ?? [];
   const regularCategoryOptions = categoryOptions.filter((category) => category.kind === "REGULAR");
+  // Programs for non-members never hold players, so they are left out of player assignment.
+  const playerCategoryOptions = categoryOptions.filter((category) => category.audience !== "PUBLIC");
+  const isPublicProgramForm = isProgramPage && form.audience === "PUBLIC";
   const coaches = coachesQuery.data ?? [];
   const parents = parentsQuery.data ?? [];
   const categoriesTotal = categoriesPageData?.total ?? 0;
@@ -301,6 +353,14 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
     };
   }, [managedPlayerForm.profileFile]);
 
+  const updateProgramSlot = (index: number, changes: Partial<ProgramSlotRecord>) =>
+    setForm((current) => ({
+      ...current,
+      programSlots: current.programSlots.map((slot, slotIndex) =>
+        slotIndex === index ? { ...slot, ...changes } : slot,
+      ),
+    }));
+
   const openCreateDrawer = () => {
     setFeedback(null);
     setFormMode("create");
@@ -325,7 +385,7 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
     mutationFn: async () => {
       ensureCategoryFormIsValid(form);
 
-      const formData = buildCategoryFormData(form);
+      const formData = buildCategoryFormData(form, isProgramPage);
       formData.append("kind", kind);
 
       const response = await api.post<CategoryRecord>("/categories", formData, {
@@ -366,7 +426,7 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
 
       const response = await api.patch<CategoryRecord>(
         `/categories/${selectedCategory.id}`,
-        buildCategoryFormData(form),
+        buildCategoryFormData(form, isProgramPage),
         {
           headers: {
             "Content-Type": "multipart/form-data",
@@ -659,6 +719,13 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                       >
                         <td className="px-4 py-4 align-middle text-center">
                           <p className="text-sm font-bold uppercase">{category.name}</p>
+                          {isProgramPage ? (
+                            <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-muted">
+                              {category.audience === "PUBLIC"
+                                ? `Za nečlanove · ${formatEuro(category.pricePerPracticeCents)} po treningu`
+                                : "Za članove kluba"}
+                            </p>
+                          ) : null}
                         </td>
                         <td className="px-4 py-4 align-middle text-center text-sm font-medium">
                           {formatCategoryAgeRule(category)}
@@ -838,6 +905,203 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                   </div>
                 </fieldset>
 
+                {isProgramPage ? (
+                  <fieldset className="category-widget category-widget--wide">
+                    <legend className="category-widget-title">Vrsta programa</legend>
+                    <div className="category-audience-options">
+                      {(
+                        [
+                          {
+                            value: "MEMBERS",
+                            title: "Za članove kluba",
+                            text: "Upis kao u vaterpolo: nakon odobrenja dijete i roditelji dobivaju račune.",
+                          },
+                          {
+                            value: "PUBLIC",
+                            title: "Za nečlanove",
+                            text: "Prijava za pojedini trening i plaćanje po treningu, bez otvaranja računa.",
+                          },
+                        ] as const
+                      ).map((option) => (
+                        <label
+                          key={option.value}
+                          className={`category-check-card ${form.audience === option.value ? "bg-panel" : "bg-white"}`}
+                        >
+                          <input
+                            className="mt-1 h-4 w-4 accent-accent"
+                            type="radio"
+                            name="program-audience"
+                            checked={form.audience === option.value}
+                            onChange={() =>
+                              setForm((current) => ({
+                                ...current,
+                                audience: option.value,
+                                programSlots:
+                                  option.value === "PUBLIC" && current.programSlots.length === 0
+                                    ? [emptyProgramSlot]
+                                    : current.programSlots,
+                              }))
+                            }
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-bold uppercase">{option.title}</span>
+                            <span className="mt-1 block text-sm text-muted">{option.text}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                ) : null}
+
+                {isPublicProgramForm ? (
+                  <fieldset className="category-widget category-widget--wide">
+                    <legend className="category-widget-title">Cijena i termini</legend>
+
+                    {selectedCategory?.nextSession && formMode === "edit" ? (
+                      <p className="category-next-session">
+                        Sljedeći trening: <strong>{formatSessionDay(selectedCategory.nextSession.date)}</strong>
+                        {" · "}prijave se zatvaraju{" "}
+                        <strong>{formatDateTimeHr(selectedCategory.nextSession.closesAt)}</strong>
+                      </p>
+                    ) : null}
+
+                    <div className="mt-4 grid gap-5 lg:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Cijena po treningu (€)
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          inputMode="decimal"
+                          value={form.pricePerPractice}
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, pricePerPractice: event.target.value }))
+                          }
+                          placeholder="7"
+                        />
+                      </label>
+
+                      <div className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Zatvaranje prijava
+                        </span>
+                        <div className="category-close-row">
+                          <select
+                            className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                            value={form.signupCloseDaysBefore}
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                signupCloseDaysBefore: event.target.value,
+                                signupCloseTime: event.target.value
+                                  ? current.signupCloseTime || "22:00"
+                                  : "",
+                              }))
+                            }
+                            aria-label="Koliko dana prije treninga se zatvaraju prijave"
+                          >
+                            <option value="">Kad počne prvi termin</option>
+                            <option value="0">Na dan treninga u</option>
+                            <option value="1">1 dan prije u</option>
+                            {[2, 3, 4, 5, 6].map((days) => (
+                              <option key={days} value={String(days)}>
+                                {days} dana prije u
+                              </option>
+                            ))}
+                          </select>
+                          {form.signupCloseDaysBefore ? (
+                            <TimePicker
+                              className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              value={form.signupCloseTime}
+                              onChange={(value) =>
+                                setForm((current) => ({ ...current, signupCloseTime: value }))
+                              }
+                            />
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5">
+                      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                        Tjedni termini
+                      </span>
+                      <div className="grid gap-3">
+                        {form.programSlots.map((slot, index) => (
+                          <div className="category-slot-row" key={index}>
+                            <select
+                              className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              value={slot.dayOfWeek}
+                              onChange={(event) =>
+                                updateProgramSlot(index, {
+                                  dayOfWeek: event.target.value as ProgramSlotRecord["dayOfWeek"],
+                                })
+                              }
+                              aria-label="Dan treninga"
+                            >
+                              {orderedDays.map((day) => (
+                                <option key={day.key} value={day.key}>
+                                  {day.label}
+                                </option>
+                              ))}
+                            </select>
+                            <TimePicker
+                              className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              value={slot.startTime}
+                              onChange={(value) => updateProgramSlot(index, { startTime: value })}
+                            />
+                            <TimePicker
+                              className="w-full rounded-[18px] border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              value={slot.endTime}
+                              onChange={(value) => updateProgramSlot(index, { endTime: value })}
+                            />
+                            <button
+                              className="ui-pill ui-pill-button ui-pill--outline"
+                              type="button"
+                              disabled={form.programSlots.length === 1}
+                              onClick={() =>
+                                setForm((current) => ({
+                                  ...current,
+                                  programSlots: current.programSlots.filter((_, slotIndex) => slotIndex !== index),
+                                }))
+                              }
+                            >
+                              Ukloni
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        className="ui-pill ui-pill-button ui-pill--panel mt-3"
+                        type="button"
+                        onClick={() =>
+                          setForm((current) => {
+                            const lastSlot = current.programSlots[current.programSlots.length - 1];
+
+                            return {
+                              ...current,
+                              // A new slot follows straight on from the last one, e.g. 10:00-11:00 after 09:00-10:00.
+                              programSlots: [
+                                ...current.programSlots,
+                                lastSlot
+                                  ? {
+                                      dayOfWeek: lastSlot.dayOfWeek,
+                                      startTime: lastSlot.endTime,
+                                      endTime: addOneHour(lastSlot.endTime),
+                                    }
+                                  : emptyProgramSlot,
+                              ],
+                            };
+                          })
+                        }
+                      >
+                        Dodaj termin
+                      </button>
+                    </div>
+                  </fieldset>
+                ) : null}
+
                 <fieldset className="category-widget category-widget--wide">
                   <legend className="category-widget-title">Logo i treneri</legend>
                   <div className="category-logo-coaches-grid">
@@ -938,7 +1202,33 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                   </div>
                 </fieldset>
 
-                {selectedCategory && formMode === "edit" ? (
+                {selectedCategory && formMode === "edit" && isPublicProgramForm ? (
+                  <fieldset className="category-widget category-widget--wide category-players-widget">
+                    <legend className="category-widget-title">Prijave po datumima</legend>
+                    <ProgramRegistrationsList
+                      registrations={programRegistrationsQuery.data ?? []}
+                      isLoading={programRegistrationsQuery.isLoading}
+                      isError={programRegistrationsQuery.isError}
+                      deletingId={
+                        deleteRegistrationMutation.isPending
+                          ? deleteRegistrationMutation.variables?.id ?? null
+                          : null
+                      }
+                      onDelete={(registration) => {
+                        if (
+                          window.confirm(
+                            `Obrisati prijavu za ${registration.childFirstName} ${registration.childLastName}?`,
+                          )
+                        ) {
+                          setFeedback(null);
+                          deleteRegistrationMutation.mutate(registration);
+                        }
+                      }}
+                    />
+                  </fieldset>
+                ) : null}
+
+                {selectedCategory && formMode === "edit" && !isPublicProgramForm ? (
                   <fieldset className="category-widget category-widget--wide category-players-widget">
                     <legend className="category-widget-title">{copy.playersTitle}</legend>
 
@@ -1334,7 +1624,7 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                       <div className="player-assignment-stack">
                         <MultiSelectPanel
                           title="Dodjela kategorija"
-                          items={categoryOptions.map((category) => ({
+                          items={playerCategoryOptions.map((category) => ({
                             id: category.id,
                             label:
                               category.kind === "PROGRAM" ? `${category.name} · program` : category.name,
@@ -1446,6 +1736,19 @@ function createFormFromCategory(category: CategoryRecord): CategoryFormState {
     coachIds: category.coaches.map((assignment) => assignment.coachId),
     logoFile: null,
     removeLogo: false,
+    audience: category.audience,
+    pricePerPractice:
+      category.pricePerPracticeCents === null
+        ? ""
+        : (category.pricePerPracticeCents / 100).toFixed(2).replace(/\.00$/, "").replace(".", ","),
+    signupCloseDaysBefore:
+      category.signupCloseDaysBefore === null ? "" : String(category.signupCloseDaysBefore),
+    signupCloseTime: category.signupCloseTime ?? "",
+    programSlots: category.programSlots.map(({ dayOfWeek, startTime, endTime }) => ({
+      dayOfWeek,
+      startTime,
+      endTime,
+    })),
   };
 }
 
@@ -1459,8 +1762,17 @@ function getYearBoundaryDate(value: string, boundary: "start" | "end") {
   return boundary === "start" ? `${match[1]}-01-01` : `${match[1]}-12-31`;
 }
 
-function buildCategoryFormData(form: CategoryFormState) {
+function buildCategoryFormData(form: CategoryFormState, includeProgramSettings: boolean) {
   const formData = new FormData();
+
+  if (includeProgramSettings) {
+    formData.append("audience", form.audience);
+    formData.append("pricePerPractice", form.pricePerPractice);
+    formData.append("signupCloseDaysBefore", form.signupCloseDaysBefore);
+    formData.append("signupCloseTime", form.signupCloseDaysBefore ? form.signupCloseTime : "");
+    formData.append("programSlots", JSON.stringify(form.programSlots));
+  }
+
   formData.append("name", form.name);
   formData.append("startDateOfBirth", form.ageRule === "YOUTH" ? form.startDateOfBirth : "");
   formData.append("endDateOfBirth", form.ageRule === "VETERAN" ? form.endDateOfBirth : "");
@@ -1487,6 +1799,161 @@ function ensureCategoryFormIsValid(form: CategoryFormState) {
   if (form.ageRule === "VETERAN" && !form.endDateOfBirth) {
     throw new Error("Odaberite završno godište za veteransku kategoriju.");
   }
+}
+
+/** Croatian plural: 1 prijava, 2-4 prijave, 5+ prijava (21 prijava, 22 prijave...). */
+function formatRegistrationCount(count: number) {
+  const lastDigit = count % 10;
+  const lastTwoDigits = count % 100;
+  const word =
+    lastDigit === 1 && lastTwoDigits !== 11
+      ? "prijava"
+      : lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14)
+        ? "prijave"
+        : "prijava";
+  return `${count} ${word}`;
+}
+
+function formatEuro(cents: number | null) {
+  return cents === null
+    ? "—"
+    : new Intl.NumberFormat("hr-HR", { style: "currency", currency: "EUR" }).format(cents / 100);
+}
+
+function addOneHour(time: string) {
+  const [hours = 0, minutes = 0] = time.split(":").map(Number);
+  return `${String(Math.min(hours + 1, 23)).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+/** "Subota, 17.10.2026." for a YYYY-MM-DD practice day. */
+function formatSessionDay(isoDate: string) {
+  const date = new Date(`${isoDate}T12:00:00Z`);
+  const weekday = new Intl.DateTimeFormat("hr-HR", { weekday: "long", timeZone: "UTC" }).format(date);
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${formatNumericDate(`${isoDate}T12:00:00Z`)}`;
+}
+
+/** "u petak, 16.10. u 22:00" in club time. */
+function formatDateTimeHr(isoDateTime: string) {
+  const parts = new Intl.DateTimeFormat("hr-HR", {
+    weekday: "long",
+    day: "numeric",
+    month: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Europe/Zagreb",
+  }).formatToParts(new Date(isoDateTime));
+  const read = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+
+  return `u ${read("weekday")}, ${read("day")}.${read("month")}. u ${read("hour")}:${read("minute")}`;
+}
+
+/** Signups of a program for non-members, grouped by practice day (newest first) and slot. */
+function ProgramRegistrationsList({
+  registrations,
+  isLoading,
+  isError,
+  deletingId,
+  onDelete,
+}: {
+  registrations: ProgramRegistrationRecord[];
+  isLoading: boolean;
+  isError: boolean;
+  deletingId: string | null;
+  onDelete: (registration: ProgramRegistrationRecord) => void;
+}) {
+  if (isLoading) {
+    return <div className="category-widget-state">Učitavanje prijava...</div>;
+  }
+
+  if (isError) {
+    return <div className="category-widget-state text-signal">Prijave trenutno nije moguće učitati.</div>;
+  }
+
+  if (registrations.length === 0) {
+    return <div className="category-widget-state">Za ovaj program još nema prijava.</div>;
+  }
+
+  const days = [...new Set(registrations.map((registration) => registration.sessionDate))];
+
+  return (
+    <div className="category-registration-days">
+      {days.map((day) => {
+        const dayRegistrations = registrations.filter((registration) => registration.sessionDate === day);
+        const slots = [...new Set(dayRegistrations.map((registration) => `${registration.startTime}–${registration.endTime}`))];
+
+        return (
+          <section className="category-registration-day" key={day}>
+            <header className="category-registration-day-header">
+              <strong>{formatSessionDay(day)}</strong>
+              <span>{formatRegistrationCount(dayRegistrations.length)}</span>
+            </header>
+
+            {slots.map((slot) => {
+              const slotRegistrations = dayRegistrations.filter(
+                (registration) => `${registration.startTime}–${registration.endTime}` === slot,
+              );
+
+              return (
+                <div className="category-registration-slot" key={slot}>
+                  <p className="category-registration-slot-title">
+                    {slot} · {slotRegistrations.length}
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-collapse text-sm">
+                      <thead>
+                        <tr className="text-left text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
+                          <th className="px-3 py-2">Dijete</th>
+                          <th className="px-3 py-2">Roditelj</th>
+                          <th className="px-3 py-2">Kontakt</th>
+                          <th className="px-3 py-2">Poziv na broj</th>
+                          <th className="px-3 py-2" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {slotRegistrations.map((registration) => (
+                          <tr className="border-t border-line align-top" key={registration.id}>
+                            <td className="px-3 py-2">
+                              <span className="block font-bold">
+                                {registration.childFirstName} {registration.childLastName}
+                              </span>
+                              <span className="text-muted">{formatNumericDate(registration.childDateOfBirth)}</span>
+                            </td>
+                            <td className="px-3 py-2">
+                              {registration.parentFirstName} {registration.parentLastName}
+                            </td>
+                            <td className="px-3 py-2">
+                              <a className="block" href={`tel:${registration.parentPhone}`}>
+                                {registration.parentPhone}
+                              </a>
+                              <a className="block break-all text-muted" href={`mailto:${registration.parentEmail}`}>
+                                {registration.parentEmail}
+                              </a>
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2">{registration.paymentReference}</td>
+                            <td className="px-3 py-2 text-right">
+                              <button
+                                className="ui-pill ui-pill-button ui-pill--outline"
+                                type="button"
+                                disabled={deletingId !== null}
+                                onClick={() => onDelete(registration)}
+                              >
+                                {deletingId === registration.id ? "Brisanje..." : "Obriši"}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        );
+      })}
+    </div>
+  );
 }
 
 function formatCategoryAgeRule(category: Pick<CategoryRecord, "startDateOfBirth" | "endDateOfBirth">) {

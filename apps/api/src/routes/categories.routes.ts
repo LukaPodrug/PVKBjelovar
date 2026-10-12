@@ -1,4 +1,4 @@
-import { CategoryKind, UserRole } from "@prisma/client";
+import { CategoryKind, DayOfWeek, ProgramAudience, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
@@ -14,6 +14,7 @@ import {
   parseLeaderboardWindow,
   parseOptionalBooleanInput,
   parseOptionalCategoryKindInput,
+  parseDayOfWeekInput,
   parseOptionalDateInput,
   parsePaginationInput,
   parseStringArrayInput,
@@ -22,8 +23,14 @@ import {
 } from "../utils/request-parsers";
 import { categoryOrderBy } from "../utils/category-order";
 import { resolveUploadedImageUrl } from "../utils/upload-helpers";
+import { findNextProgramSession, isValidClockTime } from "../services/public-program.service";
+
+const programSlotOrderBy = [{ dayOfWeek: "asc" as const }, { startTime: "asc" as const }];
 
 const categoryInclude = {
+  programSlots: {
+    orderBy: programSlotOrderBy,
+  },
   coaches: {
     include: {
       coach: {
@@ -76,9 +83,14 @@ categoriesRouter.get(
   asyncHandler(async (_request, response) => {
     const categories = await prisma.category.findMany({
       orderBy: categoryOrderBy,
+      include: {
+        programSlots: {
+          orderBy: programSlotOrderBy,
+        },
+      },
     });
 
-    response.json(categories);
+    response.json(categories.map(serializePublicCategory));
   }),
 );
 
@@ -95,6 +107,9 @@ categoriesRouter.get(
     const category = await prisma.category.findUnique({
       where: { id: categoryId },
       include: {
+        programSlots: {
+          orderBy: programSlotOrderBy,
+        },
         coaches: {
           include: {
             coach: {
@@ -177,12 +192,7 @@ categoriesRouter.get(
       playersOffset + playerItems.length < playerCount ? playersOffset + playerItems.length : null;
 
     response.json({
-      id: category.id,
-      name: category.name,
-      kind: category.kind,
-      logoUrl: category.logoUrl,
-      startDateOfBirth: category.startDateOfBirth,
-      endDateOfBirth: category.endDateOfBirth,
+      ...serializePublicCategory(category),
       coaches,
       playerCount,
       players: playerItems,
@@ -573,10 +583,18 @@ categoriesRouter.post(
       throw new AppError("Kategorija može imati početnu ili završnu granicu datuma rođenja, ne oboje.", 400);
     }
 
+    const kind = parseOptionalCategoryKindInput(request.body.kind) ?? CategoryKind.REGULAR;
+    const programSettings = parseProgramSettings(request.body, kind);
+
     const category = await prisma.category.create({
       data: {
         name: requireString(request.body.name, "name"),
-        kind: parseOptionalCategoryKindInput(request.body.kind) ?? CategoryKind.REGULAR,
+        kind,
+        audience: programSettings.audience,
+        pricePerPracticeCents: programSettings.pricePerPracticeCents,
+        signupCloseDaysBefore: programSettings.signupCloseDaysBefore,
+        signupCloseTime: programSettings.signupCloseTime,
+        programSlots: programSettings.slots.length ? { create: programSettings.slots } : undefined,
         logoUrl,
         startDateOfBirth,
         endDateOfBirth,
@@ -618,10 +636,48 @@ categoriesRouter.patch(
       throw new AppError("Kategorija može imati početnu ili završnu granicu datuma rođenja, ne oboje.", 400);
     }
 
+    const existingCategory = await prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { kind: true, audience: true, _count: { select: { players: true } } },
+    });
+
+    if (!existingCategory) {
+      throw new AppError("Kategorija nije pronađena.", 404);
+    }
+
+    // Program settings are only rewritten when the form sends them (the programs page always does).
+    const programSettings =
+      request.body.audience !== undefined
+        ? parseProgramSettings(request.body, existingCategory.kind)
+        : null;
+
+    if (
+      programSettings?.audience === ProgramAudience.PUBLIC &&
+      existingCategory.audience !== ProgramAudience.PUBLIC &&
+      existingCategory._count.players > 0
+    ) {
+      throw new AppError(
+        "Program s upisanom djecom ne može postati program za nečlanove. Najprije premjestite djecu.",
+        400,
+      );
+    }
+
     const category = await prisma.category.update({
       where: { id: categoryId },
       data: {
         name: request.body.name ? requireString(request.body.name, "name") : undefined,
+        ...(programSettings
+          ? {
+              audience: programSettings.audience,
+              pricePerPracticeCents: programSettings.pricePerPracticeCents,
+              signupCloseDaysBefore: programSettings.signupCloseDaysBefore,
+              signupCloseTime: programSettings.signupCloseTime,
+              programSlots: {
+                deleteMany: {},
+                create: programSettings.slots,
+              },
+            }
+          : {}),
         logoUrl:
           removeLogo
             ? null
@@ -665,6 +721,123 @@ categoriesRouter.delete(
   }),
 );
 
+type ProgramFields = {
+  audience: ProgramAudience;
+  pricePerPracticeCents: number | null;
+  signupCloseDaysBefore: number | null;
+  signupCloseTime: string | null;
+  programSlots: Array<{ id: string; dayOfWeek: DayOfWeek; startTime: string; endTime: string }>;
+};
+
+/**
+ * Validates the programs page fields. Waterpolo categories and member programs carry no practice
+ * schedule; a PUBLIC program needs a price and at least one weekly slot.
+ */
+function parseProgramSettings(body: Record<string, unknown>, kind: CategoryKind) {
+  const audience =
+    kind === CategoryKind.PROGRAM && body.audience === ProgramAudience.PUBLIC
+      ? ProgramAudience.PUBLIC
+      : ProgramAudience.MEMBERS;
+
+  if (audience !== ProgramAudience.PUBLIC) {
+    return {
+      audience,
+      pricePerPracticeCents: null,
+      signupCloseDaysBefore: null,
+      signupCloseTime: null,
+      slots: [],
+    };
+  }
+
+  const priceText = typeof body.pricePerPractice === "string" ? body.pricePerPractice.trim() : "";
+  const price = Number(priceText.replace(",", "."));
+
+  if (!priceText || !Number.isFinite(price) || price <= 0) {
+    throw new AppError("Unesite cijenu treninga veću od 0 €.", 400);
+  }
+
+  const closeDaysText =
+    typeof body.signupCloseDaysBefore === "string" ? body.signupCloseDaysBefore.trim() : "";
+  const closeTime =
+    typeof body.signupCloseTime === "string" && body.signupCloseTime.trim()
+      ? body.signupCloseTime.trim()
+      : null;
+  const closeDays = closeDaysText ? Number(closeDaysText) : null;
+
+  if ((closeDays === null) !== (closeTime === null)) {
+    throw new AppError("Za zatvaranje prijava unesite i broj dana i vrijeme, ili ostavite oboje prazno.", 400);
+  }
+
+  if (closeDays !== null && (!Number.isInteger(closeDays) || closeDays < 0 || closeDays > 6)) {
+    throw new AppError("Broj dana za zatvaranje prijava mora biti između 0 i 6.", 400);
+  }
+
+  if (closeTime !== null && !isValidClockTime(closeTime)) {
+    throw new AppError("Vrijeme zatvaranja prijava mora biti u obliku HH:MM.", 400);
+  }
+
+  let rawSlots: unknown;
+
+  try {
+    rawSlots = typeof body.programSlots === "string" ? JSON.parse(body.programSlots) : body.programSlots;
+  } catch {
+    throw new AppError("Termini treninga nisu ispravni.", 400);
+  }
+
+  const slots = (Array.isArray(rawSlots) ? rawSlots : []).map((slot) => {
+    const entry = (slot ?? {}) as Record<string, unknown>;
+    const startTime = requireString(entry.startTime, "startTime");
+    const endTime = requireString(entry.endTime, "endTime");
+
+    if (!isValidClockTime(startTime) || !isValidClockTime(endTime) || startTime >= endTime) {
+      throw new AppError("Svaki termin mora imati ispravno vrijeme početka i završetka.", 400);
+    }
+
+    return { dayOfWeek: parseDayOfWeekInput(entry.dayOfWeek), startTime, endTime };
+  });
+
+  if (slots.length === 0) {
+    throw new AppError("Dodajte barem jedan termin treninga.", 400);
+  }
+
+  return {
+    audience,
+    pricePerPracticeCents: Math.round(price * 100),
+    signupCloseDaysBefore: closeDays,
+    signupCloseTime: closeTime,
+    slots,
+  };
+}
+
+/** Public listing fields. PUBLIC programs also expose their schedule and the next open practice. */
+function serializePublicCategory(
+  category: {
+    id: string;
+    name: string;
+    kind: CategoryKind;
+    logoUrl: string | null;
+    startDateOfBirth: Date | null;
+    endDateOfBirth: Date | null;
+  } & ProgramFields,
+) {
+  const isPublicProgram = category.audience === ProgramAudience.PUBLIC;
+
+  return {
+    id: category.id,
+    name: category.name,
+    kind: category.kind,
+    audience: category.audience,
+    logoUrl: category.logoUrl,
+    startDateOfBirth: category.startDateOfBirth,
+    endDateOfBirth: category.endDateOfBirth,
+    pricePerPracticeCents: isPublicProgram ? category.pricePerPracticeCents : null,
+    programSlots: isPublicProgram
+      ? category.programSlots.map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }))
+      : [],
+    nextSession: isPublicProgram ? findNextProgramSession(category) : null,
+  };
+}
+
 function serializeCategory(category: {
   id: string;
   name: string;
@@ -676,11 +849,17 @@ function serializeCategory(category: {
   _count: {
     players: number;
   };
-}) {
+} & ProgramFields) {
   return {
     id: category.id,
     name: category.name,
     kind: category.kind,
+    audience: category.audience,
+    pricePerPracticeCents: category.pricePerPracticeCents,
+    signupCloseDaysBefore: category.signupCloseDaysBefore,
+    signupCloseTime: category.signupCloseTime,
+    programSlots: category.programSlots,
+    nextSession: category.audience === ProgramAudience.PUBLIC ? findNextProgramSession(category) : null,
     logoUrl: category.logoUrl,
     startDateOfBirth: category.startDateOfBirth,
     endDateOfBirth: category.endDateOfBirth,

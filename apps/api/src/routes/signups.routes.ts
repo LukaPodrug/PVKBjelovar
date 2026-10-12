@@ -1,4 +1,4 @@
-import { CategoryKind, SignupStatus, UserRole } from "@prisma/client";
+import { CategoryKind, ProgramAudience, SignupStatus, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
@@ -94,7 +94,8 @@ async function resolveProgramCategoryId(value: unknown) {
   }
 
   const program = await prisma.category.findFirst({
-    where: { id: programCategoryId, kind: CategoryKind.PROGRAM },
+    // Programs for non-members take practice signups instead and never create accounts.
+    where: { id: programCategoryId, kind: CategoryKind.PROGRAM, audience: ProgramAudience.MEMBERS },
     select: { id: true },
   });
 

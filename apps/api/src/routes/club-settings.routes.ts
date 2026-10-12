@@ -24,6 +24,8 @@ const defaultClubSettings = {
   bankRecipient: null,
   bankIban: null,
   bankName: null,
+  bankRecipientAddress: null,
+  bankRecipientCity: null,
 };
 
 function hasBodyField(body: Record<string, unknown>, field: string): boolean {
@@ -72,6 +74,8 @@ clubSettingsRouter.post(
         bankRecipient: optionalString(request.body.bankRecipient),
         bankIban: optionalString(request.body.bankIban),
         bankName: optionalString(request.body.bankName),
+        bankRecipientAddress: optionalString(request.body.bankRecipientAddress),
+        bankRecipientCity: optionalString(request.body.bankRecipientCity),
         logoUrl,
       },
       create: {
@@ -86,6 +90,8 @@ clubSettingsRouter.post(
         bankRecipient: optionalString(request.body.bankRecipient),
         bankIban: optionalString(request.body.bankIban),
         bankName: optionalString(request.body.bankName),
+        bankRecipientAddress: optionalString(request.body.bankRecipientAddress),
+        bankRecipientCity: optionalString(request.body.bankRecipientCity),
         logoUrl,
       },
     });
@@ -121,6 +127,8 @@ clubSettingsRouter.patch(
         bankRecipient: readOptionalBodyString(request.body, "bankRecipient"),
         bankIban: readOptionalBodyString(request.body, "bankIban"),
         bankName: readOptionalBodyString(request.body, "bankName"),
+        bankRecipientAddress: readOptionalBodyString(request.body, "bankRecipientAddress"),
+        bankRecipientCity: readOptionalBodyString(request.body, "bankRecipientCity"),
         logoUrl,
       },
       create: {
@@ -135,6 +143,8 @@ clubSettingsRouter.patch(
         bankRecipient: readOptionalBodyString(request.body, "bankRecipient") ?? null,
         bankIban: readOptionalBodyString(request.body, "bankIban") ?? null,
         bankName: readOptionalBodyString(request.body, "bankName") ?? null,
+        bankRecipientAddress: readOptionalBodyString(request.body, "bankRecipientAddress") ?? null,
+        bankRecipientCity: readOptionalBodyString(request.body, "bankRecipientCity") ?? null,
         logoUrl: hasLogoInput ? (logoUrl ?? null) : defaultClubSettings.logoUrl,
       },
     });

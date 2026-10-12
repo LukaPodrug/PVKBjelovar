@@ -1,4 +1,4 @@
-import { AccountStatus, Prisma, SignupStatus, UserRole } from "@prisma/client";
+import { AccountStatus, Prisma, ProgramAudience, SignupStatus, UserRole } from "@prisma/client";
 import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { prisma } from "../lib/prisma";
@@ -50,11 +50,15 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
 
   const assignedCategory = await prisma.category.findUnique({
     where: { id: assignedCategoryId },
-    select: { name: true },
+    select: { name: true, audience: true },
   });
 
   if (!assignedCategory) {
     throw new AppError("Odabrana kategorija nije pronađena.", 404);
+  }
+
+  if (assignedCategory.audience === ProgramAudience.PUBLIC) {
+    throw new AppError("U program za nečlanove ne upisuju se igrači. Odaberite drugu kategoriju.", 400);
   }
 
   const normalizedParentEmails = parentEmails.map((email) => email.toLowerCase());
