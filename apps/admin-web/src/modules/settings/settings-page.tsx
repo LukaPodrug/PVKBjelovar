@@ -6,6 +6,7 @@ import { adminClubSettingsDefaults, resolveSettingValue } from "../core/club-set
 import type { AdminCoachProfile, ClubSettings } from "../core/types";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { PasswordInput } from "../ui/password-input";
+import { centsToEuroInput } from "../ui/membership-price-field";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -25,6 +26,7 @@ interface BrandingFormState {
   bankName: string;
   bankRecipientAddress: string;
   bankRecipientCity: string;
+  membershipPrice: string;
   logoFile: File | null;
   removeLogo: boolean;
 }
@@ -48,6 +50,7 @@ const emptyBrandingForm: BrandingFormState = {
   bankName: "",
   bankRecipientAddress: "",
   bankRecipientCity: "",
+  membershipPrice: "",
   logoFile: null,
   removeLogo: false,
 };
@@ -114,6 +117,7 @@ export function SettingsPage() {
       bankName: currentSettings.bankName ?? "",
       bankRecipientAddress: currentSettings.bankRecipientAddress ?? "",
       bankRecipientCity: currentSettings.bankRecipientCity ?? "",
+      membershipPrice: centsToEuroInput(currentSettings.membershipPriceCents),
       logoFile: null,
       removeLogo: false,
     });
@@ -181,6 +185,7 @@ export function SettingsPage() {
         bankName: settings.bankName ?? "",
         bankRecipientAddress: settings.bankRecipientAddress ?? "",
         bankRecipientCity: settings.bankRecipientCity ?? "",
+        membershipPrice: centsToEuroInput(settings.membershipPriceCents),
         logoFile: null,
         removeLogo: false,
       });
@@ -591,6 +596,29 @@ export function SettingsPage() {
                           placeholder="Poštanski broj i mjesto"
                         />
                       </label>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Mjesečna članarina (€)
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          inputMode="decimal"
+                          value={brandingForm.membershipPrice}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              membershipPrice: event.target.value,
+                            }))
+                          }
+                          placeholder="npr. 60"
+                        />
+                        <span className="mt-2 block text-xs text-muted">
+                          Predloženi iznos u aplikaciji roditelja, osim za djecu s vlastitom članarinom ili
+                          samo u programu s mjesečnom cijenom.
+                        </span>
+                      </label>
                     </div>
                   </fieldset>
                 </div>
@@ -615,6 +643,7 @@ export function SettingsPage() {
                           bankName: currentSettings.bankName ?? "",
                           bankRecipientAddress: currentSettings.bankRecipientAddress ?? "",
                           bankRecipientCity: currentSettings.bankRecipientCity ?? "",
+                          membershipPrice: centsToEuroInput(currentSettings.membershipPriceCents),
                           logoFile: null,
                           removeLogo: false,
                         });
@@ -844,6 +873,7 @@ function buildBrandingFormData(form: BrandingFormState) {
   formData.append("bankName", form.bankName);
   formData.append("bankRecipientAddress", form.bankRecipientAddress);
   formData.append("bankRecipientCity", form.bankRecipientCity);
+  formData.append("membershipPrice", form.membershipPrice);
 
   if (form.logoFile) {
     formData.append("logo", form.logoFile);

@@ -167,6 +167,8 @@ interface ParentChildSummary {
   dateOfBirth: string;
   isPrimaryContact: boolean;
   membershipExpiresAt: string | null;
+  /** Monthly fee the club asks for this child (individual, program or club fee); absent on older APIs. */
+  membershipPriceCents?: number | null;
   categories: ChildCategory[];
   attendance: AttendanceSummary;
 }
@@ -2884,6 +2886,13 @@ function ParentPaymentQrPanel({
   }, [apiBaseUrl, token]);
 
   const selectedChild = children.find((child) => child.playerId === selectedPaymentChildId) ?? null;
+  const suggestedPriceCents = selectedChild?.membershipPriceCents ?? null;
+
+  // Each child starts from the fee the club set for them; parents can still change the amount.
+  useEffect(() => {
+    setAmount(suggestedPriceCents ? formatPaymentAmountInput(suggestedPriceCents) : "");
+  }, [selectedPaymentChildId, suggestedPriceCents]);
+
   const paymentAmount = formatEpcPaymentAmount(amount);
   const recipientName = settings?.bankRecipient?.trim() || settings?.clubName?.trim() || "";
   const iban = normalizeIban(settings?.bankIban ?? "");
@@ -2972,6 +2981,11 @@ function ParentPaymentQrPanel({
                 placeholderTextColor="#8ca0b3"
                 style={styles.input}
               />
+              {suggestedPriceCents ? (
+                <Text style={styles.paymentHint}>
+                  Iznos članarine koji je klub odredio za ovo dijete. Po potrebi ga možete promijeniti.
+                </Text>
+              ) : null}
             </View>
           </>
         )}
@@ -4225,6 +4239,11 @@ function parsePaymentAmount(value: string) {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
+/** 6000 cents as "60,00" for the amount field. */
+function formatPaymentAmountInput(cents: number) {
+  return (cents / 100).toFixed(2).replace(".", ",");
+}
+
 function formatEpcPaymentAmount(value: string) {
   const amount = parsePaymentAmount(value);
   return amount ? `EUR${amount.toFixed(2)}` : null;
@@ -5467,6 +5486,12 @@ const styles = StyleSheet.create({
   },
   paymentSection: {
     marginTop: 18,
+  },
+  paymentHint: {
+    marginTop: 8,
+    color: "#5d7084",
+    fontSize: 13,
+    lineHeight: 18,
   },
   paymentFieldLabel: {
     marginBottom: 10,

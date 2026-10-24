@@ -17,6 +17,7 @@ import type {
 import { EntityDrawer } from "../layout/entity-drawer";
 import { CategoryFilterDropdown } from "../ui/category-filter-chips";
 import { DatePicker } from "../ui/date-picker";
+import { centsToEuroInput, MembershipPriceField } from "../ui/membership-price-field";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
@@ -38,6 +39,7 @@ interface PlayerFormState {
   address: string;
   gdprConsent: boolean;
   membershipExpiresAt: string;
+  membershipPrice: string;
   categoryIds: string[];
   parentIds: string[];
   primaryParentId: string;
@@ -67,6 +69,7 @@ const emptyPlayerForm: PlayerFormState = {
   address: "",
   gdprConsent: false,
   membershipExpiresAt: "",
+  membershipPrice: "",
   categoryIds: [],
   parentIds: [],
   primaryParentId: "",
@@ -767,6 +770,12 @@ export function PlayersPage() {
                       }
                     />
                   </label>
+
+                  <MembershipPriceField
+                    value={form.membershipPrice}
+                    onChange={(value) => setForm((current) => ({ ...current, membershipPrice: value }))}
+                    suggestedPriceCents={formMode === "edit" ? selectedPlayer?.suggestedMembershipPriceCents : undefined}
+                  />
                 </div>
                 </fieldset>
 
@@ -1230,6 +1239,7 @@ function createFormFromPlayer(player: PlayerRecord): PlayerFormState {
     membershipExpiresAt: player.membershipExpiresAt
       ? toDateInputValue(player.membershipExpiresAt)
       : "",
+    membershipPrice: centsToEuroInput(player.membershipPriceCents),
     categoryIds: player.categories.map((assignment) => assignment.categoryId),
     parentIds: player.parents.map((assignment) => assignment.parentId),
     primaryParentId:
@@ -1250,6 +1260,7 @@ function buildPlayerFormData(form: PlayerFormState) {
   formData.append("address", form.address);
   formData.append("gdprConsent", String(form.gdprConsent));
   formData.append("membershipExpiresAt", form.membershipExpiresAt);
+  formData.append("membershipPrice", form.membershipPrice);
   formData.append("categoryIds", JSON.stringify(form.categoryIds));
   formData.append("parentIds", JSON.stringify(form.parentIds));
   formData.append("primaryParentId", form.primaryParentId);

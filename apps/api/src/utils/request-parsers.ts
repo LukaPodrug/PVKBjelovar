@@ -68,6 +68,26 @@ export function parseOptionalPositiveIntegerInput(
   return numericValue;
 }
 
+/**
+ * Euro amount typed by admin ("7", "7,50" or "7.50") as integer cents. Empty means not set (null);
+ * zero is allowed, e.g. a fully waived fee.
+ */
+export function parseOptionalEuroAmountInput(value: unknown, fieldName: string): number | null {
+  const text = typeof value === "string" ? value.trim() : typeof value === "number" ? String(value) : "";
+
+  if (!text) {
+    return null;
+  }
+
+  const amount = Number(text.replace(",", "."));
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new AppError(`Polje ${fieldName} mora biti iznos u eurima, npr. 30 ili 30,50.`, 400);
+  }
+
+  return Math.round(amount * 100);
+}
+
 export function parseBooleanInput(value: unknown, fieldName: string): boolean {
   if (typeof value === "boolean") {
     return value;

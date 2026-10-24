@@ -1,6 +1,10 @@
 import { DevicePlatform, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
+import {
+  getClubMembershipPriceCents,
+  resolveMembershipPriceCents,
+} from "../services/membership-price.service";
 import { asyncHandler } from "../lib/async-handler";
 import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
@@ -143,6 +147,7 @@ meRouter.get(
                 id: true,
                 dateOfBirth: true,
                 membershipExpiresAt: true,
+                membershipPriceCents: true,
                 user: {
                   select: {
                     firstName: true,
@@ -156,6 +161,9 @@ meRouter.get(
                       select: {
                         id: true,
                         name: true,
+                        kind: true,
+                        audience: true,
+                        monthlyPriceCents: true,
                       },
                     },
                   },
@@ -172,9 +180,13 @@ meRouter.get(
     }
 
     const now = new Date();
+    const clubMembershipPriceCents = await getClubMembershipPriceCents();
     const children = await Promise.all(
       parent.players.map(async (link) => {
-        const categories = link.player.categories.map((assignment) => assignment.category);
+        const categories = link.player.categories.map(({ category }) => ({
+          id: category.id,
+          name: category.name,
+        }));
         const attendance = await computeAttendanceSummary(
           link.player.id,
           categories.map((category) => category.id),
@@ -189,6 +201,8 @@ meRouter.get(
           dateOfBirth: link.player.dateOfBirth.toISOString(),
           isPrimaryContact: link.isPrimaryContact,
           membershipExpiresAt: link.player.membershipExpiresAt?.toISOString() ?? null,
+          // Monthly fee prefilled on the parent's payment screen; null when the club set none.
+          membershipPriceCents: resolveMembershipPriceCents(link.player, clubMembershipPriceCents),
           categories,
           attendance,
         };

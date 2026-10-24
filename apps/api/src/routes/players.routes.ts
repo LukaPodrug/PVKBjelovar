@@ -10,6 +10,10 @@ import {
   sendPlayerCredentials,
   sendPlayerCredentialsToParents,
 } from "../services/credentials.service";
+import {
+  getClubMembershipPriceCents,
+  withSuggestedMembershipPrice,
+} from "../services/membership-price.service";
 import { notifyPlayerParents } from "../services/notification.service";
 import { generateTemporaryPassword, hashPassword } from "../services/password.service";
 import { buildDefaultPlayerUsername, parseUsernameInput } from "../services/username.service";
@@ -23,6 +27,7 @@ import {
   parseOptionalAccountStatusInput,
   parseOptionalBooleanInput,
   parseOptionalDateInput,
+  parseOptionalEuroAmountInput,
   parsePaginationInput,
   parseStringArrayInput,
   requireString,
@@ -87,6 +92,7 @@ playersRouter.get(
     }
 
     const where: Prisma.PlayerWhereInput = filters.length > 0 ? { AND: filters } : {};
+    const clubMembershipPriceCents = await getClubMembershipPriceCents();
     const [players, total] = await prisma.$transaction([
       prisma.player.findMany({
         where,
@@ -100,7 +106,13 @@ playersRouter.get(
       prisma.player.count({ where }),
     ]);
 
-    response.json(buildPaginatedResponse(players, total, pagination));
+    response.json(
+      buildPaginatedResponse(
+        players.map((player) => withSuggestedMembershipPrice(player, clubMembershipPriceCents)),
+        total,
+        pagination,
+      ),
+    );
   }),
 );
 
@@ -117,7 +129,7 @@ playersRouter.get(
       throw new AppError("Igrač nije pronađen.", 404);
     }
 
-    response.json(player);
+    response.json(withSuggestedMembershipPrice(player, await getClubMembershipPriceCents()));
   }),
 );
 
@@ -178,6 +190,7 @@ playersRouter.post(
         address: optionalString(request.body.address),
         gdprConsent: parseBooleanInput(request.body.gdprConsent, "gdprConsent"),
         membershipExpiresAt: parseOptionalDateInput(request.body.membershipExpiresAt),
+        membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
         user: {
           create: {
             role: UserRole.PLAYER,
@@ -220,7 +233,7 @@ playersRouter.post(
 
     await sendPlayerCredentials(player.id, temporaryPassword);
 
-    response.status(201).json(player);
+    response.status(201).json(withSuggestedMembershipPrice(player, await getClubMembershipPriceCents()));
   }),
 );
 
@@ -286,7 +299,7 @@ playersRouter.post(
       });
     });
 
-    response.json(player);
+    response.json(withSuggestedMembershipPrice(player, await getClubMembershipPriceCents()));
   }),
 );
 
@@ -388,6 +401,10 @@ playersRouter.patch(
           request.body.membershipExpiresAt !== undefined
             ? parseOptionalDateInput(request.body.membershipExpiresAt)
             : undefined,
+        membershipPriceCents:
+          request.body.membershipPrice !== undefined
+            ? parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice")
+            : undefined,
         user: {
           update: {
             firstName: request.body.firstName ? firstName : undefined,
@@ -435,7 +452,7 @@ playersRouter.patch(
       include: playerInclude,
     });
 
-    response.json(player);
+    response.json(withSuggestedMembershipPrice(player, await getClubMembershipPriceCents()));
 
     const previousExpiry = existingPlayer.membershipExpiresAt;
     const nextExpiry = player.membershipExpiresAt;

@@ -89,6 +89,8 @@ model ClubSettings {
   /// Recipient address printed on payment barcodes (HUB3 needs street and city).
   bankRecipientAddress String?
   bankRecipientCity    String?
+  /// Default monthly membership fee in euro cents, suggested to parents when paying.
+  membershipPriceCents Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -187,6 +189,9 @@ model Player {
   address             String?
   gdprConsent         Boolean
   membershipExpiresAt DateTime?
+  /// Monthly fee set by admin for this player (e.g. a sibling discount). Null means the suggested
+  /// fee from the player's program or the club default applies.
+  membershipPriceCents Int?
   sourceSignupId      String?          @unique
   sourceSignup        SignupRequest?   @relation("SignupToPlayer", fields: [sourceSignupId], references: [id], onDelete: SetNull)
   categories          PlayerCategory[]
@@ -206,6 +211,9 @@ model Category {
   audience                ProgramAudience @default(MEMBERS)
   /// PUBLIC programs only: price of one practice in euro cents.
   pricePerPracticeCents   Int?
+  /// MEMBERS programs only: monthly fee in euro cents, used instead of the club membership fee for
+  /// kids who are only in this program.
+  monthlyPriceCents       Int?
   /// PUBLIC programs only: signups for a practice day close this many days before it, at
   /// signupCloseTime (Europe/Zagreb, "HH:MM"). Without them, signups close when the first slot starts.
   signupCloseDaysBefore   Int?

@@ -53,6 +53,7 @@ export interface ClubSettings {
   bankName: string | null;
   bankRecipientAddress: string | null;
   bankRecipientCity: string | null;
+  membershipPriceCents: number | null;
 }
 
 /** REGULAR is a waterpolo squad; PROGRAM is a standalone outreach program such as pool games. */
@@ -144,6 +145,10 @@ export interface PlayerRecord {
   address: string | null;
   gdprConsent: boolean;
   membershipExpiresAt: string | null;
+  /** Individual monthly fee set by admin; null falls back to the suggestion. */
+  membershipPriceCents: number | null;
+  /** Program or club fee the parent app suggests when no individual fee is set. */
+  suggestedMembershipPriceCents?: number | null;
   createdAt: string;
   sourceSignup?: {
     createdAt: string;
@@ -183,6 +188,7 @@ export interface CategoryPlayerAssignment {
 export interface CategoryRecord extends CategoryOption {
   kind: CategoryKind;
   audience: ProgramAudience;
+  monthlyPriceCents: number | null;
   pricePerPracticeCents: number | null;
   signupCloseDaysBefore: number | null;
   signupCloseTime: string | null;

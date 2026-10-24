@@ -5,7 +5,11 @@ import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeRoles } from "../middlewares/authorize";
 import { uploadClubLogo } from "../middlewares/upload";
-import { optionalString, parseOptionalBooleanInput } from "../utils/request-parsers";
+import {
+  optionalString,
+  parseOptionalBooleanInput,
+  parseOptionalEuroAmountInput,
+} from "../utils/request-parsers";
 import { resolveUploadedImageUrl } from "../utils/upload-helpers";
 
 export const clubSettingsRouter = Router();
@@ -26,6 +30,7 @@ const defaultClubSettings = {
   bankName: null,
   bankRecipientAddress: null,
   bankRecipientCity: null,
+  membershipPriceCents: null,
 };
 
 function hasBodyField(body: Record<string, unknown>, field: string): boolean {
@@ -76,6 +81,7 @@ clubSettingsRouter.post(
         bankName: optionalString(request.body.bankName),
         bankRecipientAddress: optionalString(request.body.bankRecipientAddress),
         bankRecipientCity: optionalString(request.body.bankRecipientCity),
+        membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
         logoUrl,
       },
       create: {
@@ -92,6 +98,7 @@ clubSettingsRouter.post(
         bankName: optionalString(request.body.bankName),
         bankRecipientAddress: optionalString(request.body.bankRecipientAddress),
         bankRecipientCity: optionalString(request.body.bankRecipientCity),
+        membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
         logoUrl,
       },
     });
@@ -129,6 +136,9 @@ clubSettingsRouter.patch(
         bankName: readOptionalBodyString(request.body, "bankName"),
         bankRecipientAddress: readOptionalBodyString(request.body, "bankRecipientAddress"),
         bankRecipientCity: readOptionalBodyString(request.body, "bankRecipientCity"),
+        membershipPriceCents: hasBodyField(request.body, "membershipPrice")
+          ? parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice")
+          : undefined,
         logoUrl,
       },
       create: {
@@ -145,6 +155,7 @@ clubSettingsRouter.patch(
         bankName: readOptionalBodyString(request.body, "bankName") ?? null,
         bankRecipientAddress: readOptionalBodyString(request.body, "bankRecipientAddress") ?? null,
         bankRecipientCity: readOptionalBodyString(request.body, "bankRecipientCity") ?? null,
+        membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
         logoUrl: hasLogoInput ? (logoUrl ?? null) : defaultClubSettings.logoUrl,
       },
     });

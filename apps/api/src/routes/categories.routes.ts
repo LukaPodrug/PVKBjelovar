@@ -14,6 +14,7 @@ import {
   parseLeaderboardWindow,
   parseOptionalBooleanInput,
   parseOptionalCategoryKindInput,
+  parseOptionalEuroAmountInput,
   parseDayOfWeekInput,
   parseOptionalDateInput,
   parsePaginationInput,
@@ -24,6 +25,10 @@ import {
 import { categoryOrderBy } from "../utils/category-order";
 import { resolveUploadedImageUrl } from "../utils/upload-helpers";
 import { findNextProgramSession, isValidClockTime } from "../services/public-program.service";
+import {
+  getClubMembershipPriceCents,
+  withSuggestedMembershipPrice,
+} from "../services/membership-price.service";
 
 const programSlotOrderBy = [{ dayOfWeek: "asc" as const }, { startTime: "asc" as const }];
 
@@ -469,6 +474,7 @@ categoriesRouter.get(
       throw new AppError("Kategorija nije pronađena.", 404);
     }
 
+    const clubMembershipPriceCents = await getClubMembershipPriceCents();
     const [assignments, total] = await prisma.$transaction([
       prisma.playerCategory.findMany({
         where: { categoryId },
@@ -500,7 +506,16 @@ categoriesRouter.get(
       }),
     ]);
 
-    response.json(buildPaginatedResponse(assignments, total, pagination));
+    response.json(
+      buildPaginatedResponse(
+        assignments.map((assignment) => ({
+          ...assignment,
+          player: withSuggestedMembershipPrice(assignment.player, clubMembershipPriceCents),
+        })),
+        total,
+        pagination,
+      ),
+    );
   }),
 );
 
@@ -591,6 +606,7 @@ categoriesRouter.post(
         name: requireString(request.body.name, "name"),
         kind,
         audience: programSettings.audience,
+        monthlyPriceCents: programSettings.monthlyPriceCents,
         pricePerPracticeCents: programSettings.pricePerPracticeCents,
         signupCloseDaysBefore: programSettings.signupCloseDaysBefore,
         signupCloseTime: programSettings.signupCloseTime,
@@ -669,6 +685,7 @@ categoriesRouter.patch(
         ...(programSettings
           ? {
               audience: programSettings.audience,
+              monthlyPriceCents: programSettings.monthlyPriceCents,
               pricePerPracticeCents: programSettings.pricePerPracticeCents,
               signupCloseDaysBefore: programSettings.signupCloseDaysBefore,
               signupCloseTime: programSettings.signupCloseTime,
@@ -723,6 +740,7 @@ categoriesRouter.delete(
 
 type ProgramFields = {
   audience: ProgramAudience;
+  monthlyPriceCents: number | null;
   pricePerPracticeCents: number | null;
   signupCloseDaysBefore: number | null;
   signupCloseTime: string | null;
@@ -742,6 +760,11 @@ function parseProgramSettings(body: Record<string, unknown>, kind: CategoryKind)
   if (audience !== ProgramAudience.PUBLIC) {
     return {
       audience,
+      // Member programs may set a monthly fee that replaces the club membership fee for their kids.
+      monthlyPriceCents:
+        kind === CategoryKind.PROGRAM
+          ? parseOptionalEuroAmountInput(body.monthlyPrice, "monthlyPrice")
+          : null,
       pricePerPracticeCents: null,
       signupCloseDaysBefore: null,
       signupCloseTime: null,
@@ -749,10 +772,9 @@ function parseProgramSettings(body: Record<string, unknown>, kind: CategoryKind)
     };
   }
 
-  const priceText = typeof body.pricePerPractice === "string" ? body.pricePerPractice.trim() : "";
-  const price = Number(priceText.replace(",", "."));
+  const pricePerPracticeCents = parseOptionalEuroAmountInput(body.pricePerPractice, "pricePerPractice");
 
-  if (!priceText || !Number.isFinite(price) || price <= 0) {
+  if (!pricePerPracticeCents) {
     throw new AppError("Unesite cijenu treninga veću od 0 €.", 400);
   }
 
@@ -802,7 +824,8 @@ function parseProgramSettings(body: Record<string, unknown>, kind: CategoryKind)
 
   return {
     audience,
-    pricePerPracticeCents: Math.round(price * 100),
+    monthlyPriceCents: null,
+    pricePerPracticeCents,
     signupCloseDaysBefore: closeDays,
     signupCloseTime: closeTime,
     slots,
@@ -855,6 +878,7 @@ function serializeCategory(category: {
     name: category.name,
     kind: category.kind,
     audience: category.audience,
+    monthlyPriceCents: category.monthlyPriceCents,
     pricePerPracticeCents: category.pricePerPracticeCents,
     signupCloseDaysBefore: category.signupCloseDaysBefore,
     signupCloseTime: category.signupCloseTime,

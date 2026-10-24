@@ -22,6 +22,7 @@ import { FeedbackToast } from "../ui/feedback-toast";
 import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
 import { TimePicker } from "../ui/time-picker";
+import { centsToEuroInput, MembershipPriceField } from "../ui/membership-price-field";
 import { downloadCategoryPlayersWorkbook } from "./category-players-xlsx";
 import { downloadProgramRegistrationsWorkbook } from "./program-registrations-xlsx";
 
@@ -39,6 +40,7 @@ interface CategoryFormState {
   logoFile: File | null;
   removeLogo: boolean;
   audience: ProgramAudience;
+  monthlyPrice: string;
   pricePerPractice: string;
   signupCloseDaysBefore: string;
   signupCloseTime: string;
@@ -66,6 +68,7 @@ interface ManagedPlayerFormState {
   address: string;
   gdprConsent: boolean;
   membershipExpiresAt: string;
+  membershipPrice: string;
   categoryIds: string[];
   parentIds: string[];
   primaryParentId: string;
@@ -82,6 +85,7 @@ const emptyCategoryForm: CategoryFormState = {
   logoFile: null,
   removeLogo: false,
   audience: "MEMBERS",
+  monthlyPrice: "",
   pricePerPractice: "",
   signupCloseDaysBefore: "",
   signupCloseTime: "",
@@ -100,6 +104,7 @@ const emptyManagedPlayerForm: ManagedPlayerFormState = {
   address: "",
   gdprConsent: false,
   membershipExpiresAt: "",
+  membershipPrice: "",
   categoryIds: [],
   parentIds: [],
   primaryParentId: "",
@@ -1013,6 +1018,28 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                         </label>
                       ))}
                     </div>
+
+                    {form.audience === "MEMBERS" ? (
+                      <label className="mt-5 block lg:max-w-sm">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Mjesečna cijena (€)
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          inputMode="decimal"
+                          value={form.monthlyPrice}
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, monthlyPrice: event.target.value }))
+                          }
+                          placeholder="npr. 30"
+                        />
+                        <span className="mt-2 block text-xs text-muted">
+                          Roditelji djece koja su samo u ovom programu vide ovaj iznos kod plaćanja. Prazno:
+                          vrijedi članarina kluba.
+                        </span>
+                      </label>
+                    ) : null}
                   </fieldset>
                 ) : null}
 
@@ -1630,6 +1657,12 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                           }
                         />
                       </label>
+
+                      <MembershipPriceField
+                        value={managedPlayerForm.membershipPrice}
+                        onChange={(value) => setManagedPlayerForm((current) => ({ ...current, membershipPrice: value }))}
+                        suggestedPriceCents={managedPlayer?.suggestedMembershipPriceCents}
+                      />
                     </div>
                   </fieldset>
 
@@ -1833,10 +1866,8 @@ function createFormFromCategory(category: CategoryRecord): CategoryFormState {
     logoFile: null,
     removeLogo: false,
     audience: category.audience,
-    pricePerPractice:
-      category.pricePerPracticeCents === null
-        ? ""
-        : (category.pricePerPracticeCents / 100).toFixed(2).replace(/\.00$/, "").replace(".", ","),
+    monthlyPrice: centsToEuroInput(category.monthlyPriceCents),
+    pricePerPractice: centsToEuroInput(category.pricePerPracticeCents),
     signupCloseDaysBefore:
       category.signupCloseDaysBefore === null ? "" : String(category.signupCloseDaysBefore),
     signupCloseTime: category.signupCloseTime ?? "",
@@ -1863,6 +1894,7 @@ function buildCategoryFormData(form: CategoryFormState, includeProgramSettings: 
 
   if (includeProgramSettings) {
     formData.append("audience", form.audience);
+    formData.append("monthlyPrice", form.audience === "MEMBERS" ? form.monthlyPrice : "");
     formData.append("pricePerPractice", form.pricePerPractice);
     formData.append("signupCloseDaysBefore", form.signupCloseDaysBefore);
     formData.append("signupCloseTime", form.signupCloseDaysBefore ? form.signupCloseTime : "");
@@ -2067,6 +2099,7 @@ function createManagedPlayerForm(player: PlayerRecord): ManagedPlayerFormState {
     membershipExpiresAt: player.membershipExpiresAt
       ? toDateInputValue(player.membershipExpiresAt)
       : "",
+    membershipPrice: centsToEuroInput(player.membershipPriceCents),
     categoryIds: player.categories.map((assignment) => assignment.categoryId),
     parentIds: player.parents.map((assignment) => assignment.parentId),
     primaryParentId:
@@ -2087,6 +2120,7 @@ function buildManagedPlayerPayload(form: ManagedPlayerFormState) {
   formData.append("address", form.address);
   formData.append("gdprConsent", String(form.gdprConsent));
   formData.append("membershipExpiresAt", form.membershipExpiresAt);
+  formData.append("membershipPrice", form.membershipPrice);
   formData.append("categoryIds", JSON.stringify(form.categoryIds));
   formData.append("parentIds", JSON.stringify(form.parentIds));
   formData.append("primaryParentId", form.primaryParentId);
