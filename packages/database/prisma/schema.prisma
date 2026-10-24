@@ -91,6 +91,9 @@ model ClubSettings {
   bankRecipientCity    String?
   /// Default monthly membership fee in euro cents, suggested to parents when paying.
   membershipPriceCents Int?
+  /// The club fee is free up to and including this day (e.g. until New Year). Applies to categories
+  /// that use the club fee; categories with their own price set their own free period.
+  membershipFreeUntil  DateTime? @db.Date
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -211,9 +214,12 @@ model Category {
   audience                ProgramAudience @default(MEMBERS)
   /// PUBLIC programs only: price of one practice in euro cents.
   pricePerPracticeCents   Int?
-  /// MEMBERS programs only: monthly fee in euro cents, used instead of the club membership fee for
-  /// kids who are only in this program.
+  /// Monthly membership fee in euro cents for this category or member program; null falls back to
+  /// the club fee. Not used by PUBLIC programs, which charge per practice.
   monthlyPriceCents       Int?
+  /// Membership in this category is free up to and including this day; afterwards the fee applies,
+  /// including players' individual prices. Categories on the club fee follow the club's free period.
+  membershipFreeUntil     DateTime?       @db.Date
   /// PUBLIC programs only: signups for a practice day close this many days before it, at
   /// signupCloseTime (Europe/Zagreb, "HH:MM"). Without them, signups close when the first slot starts.
   signupCloseDaysBefore   Int?

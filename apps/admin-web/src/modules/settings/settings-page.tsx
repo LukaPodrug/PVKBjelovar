@@ -6,6 +6,7 @@ import { adminClubSettingsDefaults, resolveSettingValue } from "../core/club-set
 import type { AdminCoachProfile, ClubSettings } from "../core/types";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { PasswordInput } from "../ui/password-input";
+import { DatePicker } from "../ui/date-picker";
 import { centsToEuroInput } from "../ui/membership-price-field";
 
 interface FeedbackState {
@@ -27,6 +28,7 @@ interface BrandingFormState {
   bankRecipientAddress: string;
   bankRecipientCity: string;
   membershipPrice: string;
+  membershipFreeUntil: string;
   logoFile: File | null;
   removeLogo: boolean;
 }
@@ -51,6 +53,7 @@ const emptyBrandingForm: BrandingFormState = {
   bankRecipientAddress: "",
   bankRecipientCity: "",
   membershipPrice: "",
+  membershipFreeUntil: "",
   logoFile: null,
   removeLogo: false,
 };
@@ -118,6 +121,7 @@ export function SettingsPage() {
       bankRecipientAddress: currentSettings.bankRecipientAddress ?? "",
       bankRecipientCity: currentSettings.bankRecipientCity ?? "",
       membershipPrice: centsToEuroInput(currentSettings.membershipPriceCents),
+      membershipFreeUntil: currentSettings.membershipFreeUntil?.slice(0, 10) ?? "",
       logoFile: null,
       removeLogo: false,
     });
@@ -186,6 +190,7 @@ export function SettingsPage() {
         bankRecipientAddress: settings.bankRecipientAddress ?? "",
         bankRecipientCity: settings.bankRecipientCity ?? "",
         membershipPrice: centsToEuroInput(settings.membershipPriceCents),
+        membershipFreeUntil: settings.membershipFreeUntil?.slice(0, 10) ?? "",
         logoFile: null,
         removeLogo: false,
       });
@@ -615,8 +620,25 @@ export function SettingsPage() {
                           placeholder="npr. 60"
                         />
                         <span className="mt-2 block text-xs text-muted">
-                          Predloženi iznos u aplikaciji roditelja, osim za djecu s vlastitom članarinom ili
-                          samo u programu s mjesečnom cijenom.
+                          Vrijedi za kategorije bez vlastite članarine. Djeca s vlastitom članarinom plaćaju
+                          svoj iznos.
+                        </span>
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Članarina besplatna do
+                        </span>
+                        <DatePicker
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          value={brandingForm.membershipFreeUntil}
+                          onChange={(value) =>
+                            setBrandingForm((current) => ({ ...current, membershipFreeUntil: value }))
+                          }
+                        />
+                        <span className="mt-2 block text-xs text-muted">
+                          Do tog dana (uključivo) članarina kluba se ne naplaćuje, ni djeci s vlastitom
+                          članarinom. Prazno: naplaćuje se.
                         </span>
                       </label>
                     </div>
@@ -644,6 +666,7 @@ export function SettingsPage() {
                           bankRecipientAddress: currentSettings.bankRecipientAddress ?? "",
                           bankRecipientCity: currentSettings.bankRecipientCity ?? "",
                           membershipPrice: centsToEuroInput(currentSettings.membershipPriceCents),
+                          membershipFreeUntil: currentSettings.membershipFreeUntil?.slice(0, 10) ?? "",
                           logoFile: null,
                           removeLogo: false,
                         });
@@ -874,6 +897,7 @@ function buildBrandingFormData(form: BrandingFormState) {
   formData.append("bankRecipientAddress", form.bankRecipientAddress);
   formData.append("bankRecipientCity", form.bankRecipientCity);
   formData.append("membershipPrice", form.membershipPrice);
+  formData.append("membershipFreeUntil", form.membershipFreeUntil);
 
   if (form.logoFile) {
     formData.append("logo", form.logoFile);

@@ -167,8 +167,11 @@ interface ParentChildSummary {
   dateOfBirth: string;
   isPrimaryContact: boolean;
   membershipExpiresAt: string | null;
-  /** Monthly fee the club asks for this child (individual, program or club fee); absent on older APIs. */
+  /** Monthly fee the club asks for this child right now (0 while free); absent on older APIs. */
   membershipPriceCents?: number | null;
+  /** Last free day (YYYY-MM-DD) while membership is free, and the fee that applies afterwards. */
+  membershipFreeUntil?: string | null;
+  membershipPriceAfterFreeCents?: number | null;
   categories: ChildCategory[];
   attendance: AttendanceSummary;
 }
@@ -2886,7 +2889,15 @@ function ParentPaymentQrPanel({
   }, [apiBaseUrl, token]);
 
   const selectedChild = children.find((child) => child.playerId === selectedPaymentChildId) ?? null;
-  const suggestedPriceCents = selectedChild?.membershipPriceCents ?? null;
+  const freeUntil = selectedChild?.membershipFreeUntil ?? null;
+  // A month inside the free period costs nothing; a later month (e.g. paying January in December)
+  // costs the fee that applies once the free period ends.
+  const isFreeMonth = Boolean(freeUntil && monthKey <= freeUntil.slice(0, 7));
+  const suggestedPriceCents = isFreeMonth
+    ? null
+    : freeUntil
+      ? selectedChild?.membershipPriceAfterFreeCents ?? null
+      : selectedChild?.membershipPriceCents ?? null;
 
   // Each child starts from the fee the club set for them; parents can still change the amount.
   useEffect(() => {
@@ -2981,10 +2992,17 @@ function ParentPaymentQrPanel({
                 placeholderTextColor="#8ca0b3"
                 style={styles.input}
               />
-              {suggestedPriceCents ? (
+              {isFreeMonth && freeUntil ? (
+                <Text style={styles.paymentHint}>
+                  Članarina za ovo dijete je besplatna do {formatIsoDateHr(freeUntil)}. Za ovaj mjesec ne
+                  trebate ništa uplatiti.
+                </Text>
+              ) : suggestedPriceCents ? (
                 <Text style={styles.paymentHint}>
                   Iznos članarine koji je klub odredio za ovo dijete. Po potrebi ga možete promijeniti.
                 </Text>
+              ) : suggestedPriceCents === 0 ? (
+                <Text style={styles.paymentHint}>Za ovo dijete se članarina ne naplaćuje.</Text>
               ) : null}
             </View>
           </>
@@ -4237,6 +4255,12 @@ function parsePaymentAmount(value: string) {
 
   const amount = Number(normalized);
   return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+/** "2026-12-31" as "31.12.2026." */
+function formatIsoDateHr(isoDate: string) {
+  const [year, month, day] = isoDate.slice(0, 10).split("-");
+  return `${day}.${month}.${year}.`;
 }
 
 /** 6000 cents as "60,00" for the amount field. */

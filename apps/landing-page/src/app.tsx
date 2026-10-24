@@ -1645,6 +1645,11 @@ function ProgramCard({
 
       <div className="landing-program-card-body">
         <h3 className="text-2xl leading-tight">{program.name}</h3>
+        {program.audience !== "PUBLIC" && program.monthlyPriceCents !== null ? (
+          <p className="landing-program-card-meta">
+            <strong>{formatEuro(program.monthlyPriceCents)} mjesečno</strong>
+          </p>
+        ) : null}
         {program.audience === "PUBLIC" ? (
           <p className="landing-program-card-meta">
             <strong>{formatEuro(program.pricePerPracticeCents)} po treningu</strong>

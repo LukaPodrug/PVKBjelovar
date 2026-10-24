@@ -41,6 +41,7 @@ interface CategoryFormState {
   removeLogo: boolean;
   audience: ProgramAudience;
   monthlyPrice: string;
+  membershipFreeUntil: string;
   pricePerPractice: string;
   signupCloseDaysBefore: string;
   signupCloseTime: string;
@@ -86,6 +87,7 @@ const emptyCategoryForm: CategoryFormState = {
   removeLogo: false,
   audience: "MEMBERS",
   monthlyPrice: "",
+  membershipFreeUntil: "",
   pricePerPractice: "",
   signupCloseDaysBefore: "",
   signupCloseTime: "",
@@ -1019,27 +1021,6 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                       ))}
                     </div>
 
-                    {form.audience === "MEMBERS" ? (
-                      <label className="mt-5 block lg:max-w-sm">
-                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
-                          Mjesečna cijena (€)
-                        </span>
-                        <input
-                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
-                          type="text"
-                          inputMode="decimal"
-                          value={form.monthlyPrice}
-                          onChange={(event) =>
-                            setForm((current) => ({ ...current, monthlyPrice: event.target.value }))
-                          }
-                          placeholder="npr. 30"
-                        />
-                        <span className="mt-2 block text-xs text-muted">
-                          Roditelji djece koja su samo u ovom programu vide ovaj iznos kod plaćanja. Prazno:
-                          vrijedi članarina kluba.
-                        </span>
-                      </label>
-                    ) : null}
                   </fieldset>
                 ) : null}
 
@@ -1188,6 +1169,52 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                       >
                         Dodaj termin
                       </button>
+                    </div>
+                  </fieldset>
+                ) : null}
+
+                {!isPublicProgramForm ? (
+                  <fieldset className="category-widget category-widget--wide">
+                    <legend className="category-widget-title">Članarina</legend>
+                    <div className="mt-4 grid gap-5 lg:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Mjesečna članarina (€)
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          inputMode="decimal"
+                          value={form.monthlyPrice}
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, monthlyPrice: event.target.value }))
+                          }
+                          placeholder="Članarina kluba"
+                        />
+                        <span className="mt-2 block text-xs text-muted">
+                          {isProgramPage
+                            ? "Roditelji djece koja su samo u ovom programu vide ovaj iznos kod plaćanja."
+                            : "Unesite 0 za besplatnu kategoriju."}{" "}
+                          Prazno: vrijedi članarina kluba i njezino besplatno razdoblje iz Postavki.
+                        </span>
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Besplatno do
+                        </span>
+                        <DatePicker
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          value={form.membershipFreeUntil}
+                          onChange={(value) =>
+                            setForm((current) => ({ ...current, membershipFreeUntil: value }))
+                          }
+                        />
+                        <span className="mt-2 block text-xs text-muted">
+                          Do tog dana (uključivo) članarina se ne naplaćuje, ni djeci s vlastitom
+                          članarinom.
+                        </span>
+                      </label>
                     </div>
                   </fieldset>
                 ) : null}
@@ -1660,8 +1687,11 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
 
                       <MembershipPriceField
                         value={managedPlayerForm.membershipPrice}
-                        onChange={(value) => setManagedPlayerForm((current) => ({ ...current, membershipPrice: value }))}
+                        onChange={(value) =>
+                          setManagedPlayerForm((current) => ({ ...current, membershipPrice: value }))
+                        }
                         suggestedPriceCents={managedPlayer?.suggestedMembershipPriceCents}
+                        freeUntil={managedPlayer?.membershipFreeUntil}
                       />
                     </div>
                   </fieldset>
@@ -1867,6 +1897,7 @@ function createFormFromCategory(category: CategoryRecord): CategoryFormState {
     removeLogo: false,
     audience: category.audience,
     monthlyPrice: centsToEuroInput(category.monthlyPriceCents),
+    membershipFreeUntil: category.membershipFreeUntil ?? "",
     pricePerPractice: centsToEuroInput(category.pricePerPracticeCents),
     signupCloseDaysBefore:
       category.signupCloseDaysBefore === null ? "" : String(category.signupCloseDaysBefore),
@@ -1891,10 +1922,13 @@ function getYearBoundaryDate(value: string, boundary: "start" | "end") {
 
 function buildCategoryFormData(form: CategoryFormState, includeProgramSettings: boolean) {
   const formData = new FormData();
+  const hasMembershipFee = !includeProgramSettings || form.audience === "MEMBERS";
+
+  formData.append("monthlyPrice", hasMembershipFee ? form.monthlyPrice : "");
+  formData.append("membershipFreeUntil", hasMembershipFee ? form.membershipFreeUntil : "");
 
   if (includeProgramSettings) {
     formData.append("audience", form.audience);
-    formData.append("monthlyPrice", form.audience === "MEMBERS" ? form.monthlyPrice : "");
     formData.append("pricePerPractice", form.pricePerPractice);
     formData.append("signupCloseDaysBefore", form.signupCloseDaysBefore);
     formData.append("signupCloseTime", form.signupCloseDaysBefore ? form.signupCloseTime : "");

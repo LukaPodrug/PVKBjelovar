@@ -26,7 +26,7 @@ import { categoryOrderBy } from "../utils/category-order";
 import { resolveUploadedImageUrl } from "../utils/upload-helpers";
 import { findNextProgramSession, isValidClockTime } from "../services/public-program.service";
 import {
-  getClubMembershipPriceCents,
+  getClubMembershipPricing,
   withSuggestedMembershipPrice,
 } from "../services/membership-price.service";
 
@@ -474,7 +474,7 @@ categoriesRouter.get(
       throw new AppError("Kategorija nije pronađena.", 404);
     }
 
-    const clubMembershipPriceCents = await getClubMembershipPriceCents();
+    const clubMembershipPricing = await getClubMembershipPricing();
     const [assignments, total] = await prisma.$transaction([
       prisma.playerCategory.findMany({
         where: { categoryId },
@@ -510,7 +510,7 @@ categoriesRouter.get(
       buildPaginatedResponse(
         assignments.map((assignment) => ({
           ...assignment,
-          player: withSuggestedMembershipPrice(assignment.player, clubMembershipPriceCents),
+          player: withSuggestedMembershipPrice(assignment.player, clubMembershipPricing),
         })),
         total,
         pagination,
@@ -600,13 +600,17 @@ categoriesRouter.post(
 
     const kind = parseOptionalCategoryKindInput(request.body.kind) ?? CategoryKind.REGULAR;
     const programSettings = parseProgramSettings(request.body, kind);
+    const membershipPricing =
+      programSettings.audience === ProgramAudience.PUBLIC
+        ? { monthlyPriceCents: null, membershipFreeUntil: null }
+        : parseMembershipPricing(request.body);
 
     const category = await prisma.category.create({
       data: {
         name: requireString(request.body.name, "name"),
         kind,
         audience: programSettings.audience,
-        monthlyPriceCents: programSettings.monthlyPriceCents,
+        ...membershipPricing,
         pricePerPracticeCents: programSettings.pricePerPracticeCents,
         signupCloseDaysBefore: programSettings.signupCloseDaysBefore,
         signupCloseTime: programSettings.signupCloseTime,
@@ -678,14 +682,19 @@ categoriesRouter.patch(
       );
     }
 
+    const membershipPricing =
+      (programSettings?.audience ?? existingCategory.audience) === ProgramAudience.PUBLIC
+        ? { monthlyPriceCents: null, membershipFreeUntil: null }
+        : parseMembershipPricing(request.body);
+
     const category = await prisma.category.update({
       where: { id: categoryId },
       data: {
         name: request.body.name ? requireString(request.body.name, "name") : undefined,
+        ...membershipPricing,
         ...(programSettings
           ? {
               audience: programSettings.audience,
-              monthlyPriceCents: programSettings.monthlyPriceCents,
               pricePerPracticeCents: programSettings.pricePerPracticeCents,
               signupCloseDaysBefore: programSettings.signupCloseDaysBefore,
               signupCloseTime: programSettings.signupCloseTime,
@@ -738,9 +747,25 @@ categoriesRouter.delete(
   }),
 );
 
+/**
+ * Monthly fee and free period of a waterpolo category or member program. Returns nothing when the
+ * form did not send them, so other edits leave the pricing alone.
+ */
+function parseMembershipPricing(body: Record<string, unknown>) {
+  if (body.monthlyPrice === undefined && body.membershipFreeUntil === undefined) {
+    return {};
+  }
+
+  return {
+    monthlyPriceCents: parseOptionalEuroAmountInput(body.monthlyPrice, "monthlyPrice"),
+    membershipFreeUntil: parseOptionalDateInput(body.membershipFreeUntil),
+  };
+}
+
 type ProgramFields = {
   audience: ProgramAudience;
   monthlyPriceCents: number | null;
+  membershipFreeUntil: Date | null;
   pricePerPracticeCents: number | null;
   signupCloseDaysBefore: number | null;
   signupCloseTime: string | null;
@@ -760,11 +785,6 @@ function parseProgramSettings(body: Record<string, unknown>, kind: CategoryKind)
   if (audience !== ProgramAudience.PUBLIC) {
     return {
       audience,
-      // Member programs may set a monthly fee that replaces the club membership fee for their kids.
-      monthlyPriceCents:
-        kind === CategoryKind.PROGRAM
-          ? parseOptionalEuroAmountInput(body.monthlyPrice, "monthlyPrice")
-          : null,
       pricePerPracticeCents: null,
       signupCloseDaysBefore: null,
       signupCloseTime: null,
@@ -824,7 +844,6 @@ function parseProgramSettings(body: Record<string, unknown>, kind: CategoryKind)
 
   return {
     audience,
-    monthlyPriceCents: null,
     pricePerPracticeCents,
     signupCloseDaysBefore: closeDays,
     signupCloseTime: closeTime,
@@ -854,6 +873,9 @@ function serializePublicCategory(
     startDateOfBirth: category.startDateOfBirth,
     endDateOfBirth: category.endDateOfBirth,
     pricePerPracticeCents: isPublicProgram ? category.pricePerPracticeCents : null,
+    // Member programs show their monthly fee on the landing page; waterpolo fees stay internal.
+    monthlyPriceCents:
+      category.kind === CategoryKind.PROGRAM && !isPublicProgram ? category.monthlyPriceCents : null,
     programSlots: isPublicProgram
       ? category.programSlots.map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }))
       : [],
@@ -879,6 +901,7 @@ function serializeCategory(category: {
     kind: category.kind,
     audience: category.audience,
     monthlyPriceCents: category.monthlyPriceCents,
+    membershipFreeUntil: category.membershipFreeUntil?.toISOString().slice(0, 10) ?? null,
     pricePerPracticeCents: category.pricePerPracticeCents,
     signupCloseDaysBefore: category.signupCloseDaysBefore,
     signupCloseTime: category.signupCloseTime,

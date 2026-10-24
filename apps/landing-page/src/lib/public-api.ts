@@ -32,6 +32,8 @@ export interface PublicCategory {
   kind: PublicCategoryKind;
   audience: PublicProgramAudience;
   pricePerPracticeCents: number | null;
+  /** Member programs only: monthly fee in euro cents. */
+  monthlyPriceCents: number | null;
   nextSession: PublicProgramSession | null;
   logoUrl: string | null;
   startDateOfBirth: string | null;

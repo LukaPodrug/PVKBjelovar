@@ -9,6 +9,7 @@ import { EntityDrawer } from "../layout/entity-drawer";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { DatePicker } from "../ui/date-picker";
 import { PaginationControls } from "../ui/pagination-controls";
+import { MembershipPriceField } from "../ui/membership-price-field";
 
 interface ApprovalResult {
   addedToExistingPlayer?: boolean;
@@ -53,6 +54,8 @@ export function ApprovalsPage() {
   const [selectedSignupId, setSelectedSignupId] = useState<string | null>(null);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Record<string, string>>({});
   const [declineReasons, setDeclineReasons] = useState<Record<string, string>>({});
+  // Monthly fee typed per signup; untouched signups use the sibling suggestion.
+  const [membershipPrices, setMembershipPrices] = useState<Record<string, string>>({});
   const [editForm, setEditForm] = useState<SignupEditForm | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [signupsPage, setSignupsPage] = useState(1);
@@ -105,6 +108,7 @@ export function ApprovalsPage() {
 
       const response = await api.patch<ApprovalResult>(`/signups/${signup.id}/approve`, {
         assignedCategoryId,
+        membershipPrice: membershipPrices[signup.id] ?? getSuggestedSignupMembershipPrice(signup),
       });
 
       return response.data;
@@ -689,6 +693,28 @@ export function ApprovalsPage() {
                       </select>
                     </label>
 
+                    <div>
+                      <MembershipPriceField
+                        value={
+                          membershipPrices[selectedSignup.id] ??
+                          getSuggestedSignupMembershipPrice(selectedSignup)
+                        }
+                        onChange={(value) =>
+                          setMembershipPrices((current) => ({ ...current, [selectedSignup.id]: value }))
+                        }
+                        suggestedPriceCents={undefined}
+                      />
+                      {selectedSignup.siblingsInClub?.length ? (
+                        <p className="mt-2 text-xs text-muted">
+                          Brat ili sestra već u klubu:{" "}
+                          {selectedSignup.siblingsInClub
+                            .map((sibling) => `${sibling.firstName} ${sibling.lastName}`)
+                            .join(", ")}
+                          . Predložena je članarina za drugo i svako sljedeće dijete.
+                        </p>
+                      ) : null}
+                    </div>
+
                     {selectedSignup.status === "PENDING" ? (
                       <label className="block">
                         <span className="mb-3 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
@@ -871,6 +897,13 @@ function formatNumericDate(dateIso: string) {
 /** Programs for non-members take practice signups only, so they are never offered for approval. */
 function isMemberProgram(category: CategoryOption) {
   return category.kind === "PROGRAM" && category.audience !== "PUBLIC";
+}
+
+/** Second and further kids in a family pay the sibling fee; others keep the default (empty). */
+const siblingMembershipPrice = "20";
+
+function getSuggestedSignupMembershipPrice(signup: SignupRequest) {
+  return signup.siblingsInClub?.length ? siblingMembershipPrice : "";
 }
 
 function buildApprovalSuccessMessage(result: ApprovalResult) {

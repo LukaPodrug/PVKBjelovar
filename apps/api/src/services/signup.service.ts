@@ -10,6 +10,8 @@ interface ApproveSignupInput {
   signupRequestId: string;
   reviewerId: string;
   assignedCategoryId?: string;
+  /** Individual monthly fee for the child, e.g. a sibling discount; undefined keeps the default. */
+  membershipPriceCents?: number | null;
 }
 
 interface DeclineSignupInput {
@@ -222,6 +224,7 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
           player: existingPlayer,
           categoryId: assignedCategoryId,
           parentIds: [primaryParent.id, ...(secondaryParent ? [secondaryParent.id] : [])],
+          membershipPriceCents: input.membershipPriceCents,
         })
       : await transaction.player.create({
           data: {
@@ -229,6 +232,7 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
             oib: signup.childOib,
             address: signup.childAddress,
             gdprConsent: signup.gdprConsent,
+            membershipPriceCents: input.membershipPriceCents ?? null,
             sourceSignup: {
               connect: {
                 id: signup.id,
@@ -405,6 +409,7 @@ async function addCategoryToExistingPlayer(
     };
     categoryId: string;
     parentIds: string[];
+    membershipPriceCents?: number | null;
   },
 ) {
   const linkedParentIds = new Set(input.player.parents.map((link) => link.parentId));
@@ -420,6 +425,7 @@ async function addCategoryToExistingPlayer(
   return transaction.player.update({
     where: { id: input.player.id },
     data: {
+      membershipPriceCents: input.membershipPriceCents,
       categories: {
         create: [{ category: { connect: { id: input.categoryId } } }],
       },

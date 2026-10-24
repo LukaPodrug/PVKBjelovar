@@ -54,6 +54,7 @@ export interface ClubSettings {
   bankRecipientAddress: string | null;
   bankRecipientCity: string | null;
   membershipPriceCents: number | null;
+  membershipFreeUntil: string | null;
 }
 
 /** REGULAR is a waterpolo squad; PROGRAM is a standalone outreach program such as pool games. */
@@ -149,6 +150,8 @@ export interface PlayerRecord {
   membershipPriceCents: number | null;
   /** Program or club fee the parent app suggests when no individual fee is set. */
   suggestedMembershipPriceCents?: number | null;
+  /** Last free day (YYYY-MM-DD) while the player's membership is free; null when paid. */
+  membershipFreeUntil?: string | null;
   createdAt: string;
   sourceSignup?: {
     createdAt: string;
@@ -189,6 +192,7 @@ export interface CategoryRecord extends CategoryOption {
   kind: CategoryKind;
   audience: ProgramAudience;
   monthlyPriceCents: number | null;
+  membershipFreeUntil: string | null;
   pricePerPracticeCents: number | null;
   signupCloseDaysBefore: number | null;
   signupCloseTime: string | null;
@@ -321,6 +325,8 @@ export interface ScheduleCategoryOption {
 export interface SignupRequest {
   id: string;
   status: "PENDING" | "APPROVED" | "DECLINED";
+  /** Kids already in the club with the same parent (by e-mail), for the sibling fee. */
+  siblingsInClub?: Array<{ playerId: string; firstName: string; lastName: string }>;
   parentOneFirstName: string;
   parentOneLastName: string;
   parentOneEmail: string;

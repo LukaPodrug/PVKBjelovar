@@ -11,7 +11,7 @@ import {
   sendPlayerCredentialsToParents,
 } from "../services/credentials.service";
 import {
-  getClubMembershipPriceCents,
+  getClubMembershipPricing,
   withSuggestedMembershipPrice,
 } from "../services/membership-price.service";
 import { notifyPlayerParents } from "../services/notification.service";
@@ -92,7 +92,7 @@ playersRouter.get(
     }
 
     const where: Prisma.PlayerWhereInput = filters.length > 0 ? { AND: filters } : {};
-    const clubMembershipPriceCents = await getClubMembershipPriceCents();
+    const clubMembershipPricing = await getClubMembershipPricing();
     const [players, total] = await prisma.$transaction([
       prisma.player.findMany({
         where,
@@ -108,7 +108,7 @@ playersRouter.get(
 
     response.json(
       buildPaginatedResponse(
-        players.map((player) => withSuggestedMembershipPrice(player, clubMembershipPriceCents)),
+        players.map((player) => withSuggestedMembershipPrice(player, clubMembershipPricing)),
         total,
         pagination,
       ),
@@ -129,7 +129,7 @@ playersRouter.get(
       throw new AppError("Igrač nije pronađen.", 404);
     }
 
-    response.json(withSuggestedMembershipPrice(player, await getClubMembershipPriceCents()));
+    response.json(withSuggestedMembershipPrice(player, await getClubMembershipPricing()));
   }),
 );
 
@@ -233,7 +233,7 @@ playersRouter.post(
 
     await sendPlayerCredentials(player.id, temporaryPassword);
 
-    response.status(201).json(withSuggestedMembershipPrice(player, await getClubMembershipPriceCents()));
+    response.status(201).json(withSuggestedMembershipPrice(player, await getClubMembershipPricing()));
   }),
 );
 
@@ -299,7 +299,7 @@ playersRouter.post(
       });
     });
 
-    response.json(withSuggestedMembershipPrice(player, await getClubMembershipPriceCents()));
+    response.json(withSuggestedMembershipPrice(player, await getClubMembershipPricing()));
   }),
 );
 
@@ -452,7 +452,7 @@ playersRouter.patch(
       include: playerInclude,
     });
 
-    response.json(withSuggestedMembershipPrice(player, await getClubMembershipPriceCents()));
+    response.json(withSuggestedMembershipPrice(player, await getClubMembershipPricing()));
 
     const previousExpiry = existingPlayer.membershipExpiresAt;
     const nextExpiry = player.membershipExpiresAt;

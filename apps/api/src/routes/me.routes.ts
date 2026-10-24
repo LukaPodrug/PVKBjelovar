@@ -2,8 +2,9 @@ import { DevicePlatform, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/app-error";
 import {
-  getClubMembershipPriceCents,
-  resolveMembershipPriceCents,
+  getClubMembershipPricing,
+  getCurrentMembershipPriceCents,
+  resolveMembershipPrice,
 } from "../services/membership-price.service";
 import { asyncHandler } from "../lib/async-handler";
 import { prisma } from "../lib/prisma";
@@ -164,6 +165,7 @@ meRouter.get(
                         kind: true,
                         audience: true,
                         monthlyPriceCents: true,
+                        membershipFreeUntil: true,
                       },
                     },
                   },
@@ -180,9 +182,10 @@ meRouter.get(
     }
 
     const now = new Date();
-    const clubMembershipPriceCents = await getClubMembershipPriceCents();
+    const clubMembershipPricing = await getClubMembershipPricing();
     const children = await Promise.all(
       parent.players.map(async (link) => {
+        const membershipPrice = resolveMembershipPrice(link.player, clubMembershipPricing, now);
         const categories = link.player.categories.map(({ category }) => ({
           id: category.id,
           name: category.name,
@@ -201,8 +204,11 @@ meRouter.get(
           dateOfBirth: link.player.dateOfBirth.toISOString(),
           isPrimaryContact: link.isPrimaryContact,
           membershipExpiresAt: link.player.membershipExpiresAt?.toISOString() ?? null,
-          // Monthly fee prefilled on the parent's payment screen; null when the club set none.
-          membershipPriceCents: resolveMembershipPriceCents(link.player, clubMembershipPriceCents),
+          // Monthly fee prefilled on the parent's payment screen: 0 during a free period, null when
+          // the club set no fee. membershipPriceAfterFreeCents is what applies once it ends.
+          membershipPriceCents: getCurrentMembershipPriceCents(membershipPrice),
+          membershipFreeUntil: membershipPrice.freeUntil,
+          membershipPriceAfterFreeCents: membershipPrice.freeUntil ? membershipPrice.priceCents : null,
           categories,
           attendance,
         };

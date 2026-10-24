@@ -774,7 +774,10 @@ export function PlayersPage() {
                   <MembershipPriceField
                     value={form.membershipPrice}
                     onChange={(value) => setForm((current) => ({ ...current, membershipPrice: value }))}
-                    suggestedPriceCents={formMode === "edit" ? selectedPlayer?.suggestedMembershipPriceCents : undefined}
+                    suggestedPriceCents={
+                      formMode === "edit" ? selectedPlayer?.suggestedMembershipPriceCents : undefined
+                    }
+                    freeUntil={formMode === "edit" ? selectedPlayer?.membershipFreeUntil : undefined}
                   />
                 </div>
                 </fieldset>

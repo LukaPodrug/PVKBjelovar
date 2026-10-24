@@ -8,6 +8,7 @@ import { uploadClubLogo } from "../middlewares/upload";
 import {
   optionalString,
   parseOptionalBooleanInput,
+  parseOptionalDateInput,
   parseOptionalEuroAmountInput,
 } from "../utils/request-parsers";
 import { resolveUploadedImageUrl } from "../utils/upload-helpers";
@@ -31,6 +32,7 @@ const defaultClubSettings = {
   bankRecipientAddress: null,
   bankRecipientCity: null,
   membershipPriceCents: null,
+  membershipFreeUntil: null,
 };
 
 function hasBodyField(body: Record<string, unknown>, field: string): boolean {
@@ -82,6 +84,7 @@ clubSettingsRouter.post(
         bankRecipientAddress: optionalString(request.body.bankRecipientAddress),
         bankRecipientCity: optionalString(request.body.bankRecipientCity),
         membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
+        membershipFreeUntil: parseOptionalDateInput(request.body.membershipFreeUntil),
         logoUrl,
       },
       create: {
@@ -99,6 +102,7 @@ clubSettingsRouter.post(
         bankRecipientAddress: optionalString(request.body.bankRecipientAddress),
         bankRecipientCity: optionalString(request.body.bankRecipientCity),
         membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
+        membershipFreeUntil: parseOptionalDateInput(request.body.membershipFreeUntil),
         logoUrl,
       },
     });
@@ -139,6 +143,9 @@ clubSettingsRouter.patch(
         membershipPriceCents: hasBodyField(request.body, "membershipPrice")
           ? parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice")
           : undefined,
+        membershipFreeUntil: hasBodyField(request.body, "membershipFreeUntil")
+          ? parseOptionalDateInput(request.body.membershipFreeUntil)
+          : undefined,
         logoUrl,
       },
       create: {
@@ -156,6 +163,7 @@ clubSettingsRouter.patch(
         bankRecipientAddress: readOptionalBodyString(request.body, "bankRecipientAddress") ?? null,
         bankRecipientCity: readOptionalBodyString(request.body, "bankRecipientCity") ?? null,
         membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
+        membershipFreeUntil: parseOptionalDateInput(request.body.membershipFreeUntil),
         logoUrl: hasLogoInput ? (logoUrl ?? null) : defaultClubSettings.logoUrl,
       },
     });

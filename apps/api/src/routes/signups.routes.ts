@@ -18,6 +18,7 @@ import {
   buildPaginatedResponse,
   parseBooleanInput,
   parseDateInput,
+  parseOptionalEuroAmountInput,
   parsePaginationInput,
   requireString,
 } from "../utils/request-parsers";
@@ -152,6 +153,69 @@ signupsRouter.post(
 
 signupsRouter.use(authenticateRequest, authorizeRoles(UserRole.ADMIN));
 
+/**
+ * Kids already in the club whose parent signs up another child, matched by parent e-mail. Admin uses
+ * it to give the new kid the sibling fee when approving.
+ */
+async function withSiblingsInClub<
+  T extends { parentOneEmail: string; parentTwoEmail: string | null; childOib: string },
+>(signups: T[]) {
+  const emails = [
+    ...new Set(
+      signups.flatMap((signup) =>
+        [signup.parentOneEmail, signup.parentTwoEmail]
+          .filter((email): email is string => Boolean(email))
+          .map((email) => email.toLowerCase()),
+      ),
+    ),
+  ];
+  const parents = emails.length
+    ? await prisma.user.findMany({
+        where: { email: { in: emails }, parent: { isNot: null } },
+        select: {
+          email: true,
+          parent: {
+            select: {
+              players: {
+                select: {
+                  player: {
+                    select: {
+                      id: true,
+                      oib: true,
+                      user: { select: { firstName: true, lastName: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      })
+    : [];
+  const childrenByEmail = new Map(
+    parents.map((user) => [user.email!.toLowerCase(), user.parent?.players.map((link) => link.player) ?? []]),
+  );
+
+  return signups.map((signup) => {
+    const siblings = new Map<string, { playerId: string; firstName: string; lastName: string }>();
+
+    for (const email of [signup.parentOneEmail, signup.parentTwoEmail]) {
+      for (const player of email ? childrenByEmail.get(email.toLowerCase()) ?? [] : []) {
+        // The child being signed up may already be a player (e.g. moving from a program).
+        if (player.oib !== signup.childOib) {
+          siblings.set(player.id, {
+            playerId: player.id,
+            firstName: player.user.firstName,
+            lastName: player.user.lastName,
+          });
+        }
+      }
+    }
+
+    return { ...signup, siblingsInClub: [...siblings.values()] };
+  });
+}
+
 signupsRouter.get(
   "/",
   asyncHandler(async (request, response) => {
@@ -181,7 +245,7 @@ signupsRouter.get(
       prisma.signupRequest.count({ where }),
     ]);
 
-    response.json(buildPaginatedResponse(signups, total, pagination));
+    response.json(buildPaginatedResponse(await withSiblingsInClub(signups), total, pagination));
   }),
 );
 
@@ -198,7 +262,8 @@ signupsRouter.get(
       throw new AppError("Zahtjev za prijavu nije pronađen.", 404);
     }
 
-    response.json(signup);
+    const [signupWithSiblings] = await withSiblingsInClub([signup]);
+    response.json(signupWithSiblings);
   }),
 );
 
@@ -212,6 +277,10 @@ signupsRouter.patch(
       assignedCategoryId:
         typeof request.body.assignedCategoryId === "string"
           ? request.body.assignedCategoryId
+          : undefined,
+      membershipPriceCents:
+        request.body.membershipPrice !== undefined
+          ? parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice")
           : undefined,
     });
 
@@ -267,7 +336,8 @@ signupsRouter.patch(
       include: signupInclude,
     });
 
-    response.json(updatedSignup);
+    const [updatedSignupWithSiblings] = await withSiblingsInClub([updatedSignup]);
+    response.json(updatedSignupWithSiblings);
   }),
 );
 
