@@ -1,4 +1,11 @@
-import { AccountStatus, Prisma, ProgramAudience, SignupStatus, UserRole } from "@prisma/client";
+import {
+  AccountStatus,
+  Prisma,
+  ProgramAudience,
+  SignupStatus,
+  SwimmingAbility,
+  UserRole,
+} from "@prisma/client";
 import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { prisma } from "../lib/prisma";
@@ -225,6 +232,7 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
           categoryId: assignedCategoryId,
           parentIds: [primaryParent.id, ...(secondaryParent ? [secondaryParent.id] : [])],
           membershipPriceCents: input.membershipPriceCents,
+          swimmingAbility: signup.childSwimmingAbility,
         })
       : await transaction.player.create({
           data: {
@@ -233,6 +241,7 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
             address: signup.childAddress,
             gdprConsent: signup.gdprConsent,
             membershipPriceCents: input.membershipPriceCents ?? null,
+            swimmingAbility: signup.childSwimmingAbility,
             sourceSignup: {
               connect: {
                 id: signup.id,
@@ -410,6 +419,7 @@ async function addCategoryToExistingPlayer(
     categoryId: string;
     parentIds: string[];
     membershipPriceCents?: number | null;
+    swimmingAbility: SwimmingAbility | null;
   },
 ) {
   const linkedParentIds = new Set(input.player.parents.map((link) => link.parentId));
@@ -426,6 +436,8 @@ async function addCategoryToExistingPlayer(
     where: { id: input.player.id },
     data: {
       membershipPriceCents: input.membershipPriceCents,
+      // A newer answer from the parent replaces the old one; no answer keeps what is there.
+      swimmingAbility: input.swimmingAbility ?? undefined,
       categories: {
         create: [{ category: { connect: { id: input.categoryId } } }],
       },

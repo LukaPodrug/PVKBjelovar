@@ -19,7 +19,9 @@ import {
   parseBooleanInput,
   parseDateInput,
   parseOptionalEuroAmountInput,
+  parseOptionalSwimmingAbilityInput,
   parsePaginationInput,
+  requireSwimmingAbilityInput,
   requireString,
 } from "../utils/request-parsers";
 import {
@@ -114,13 +116,17 @@ signupsRouter.post(
     const files = getUploadedFileMap(request.files);
 
     const details = parseSignupDetails(request.body);
+    const programCategoryId = await resolveProgramCategoryId(request.body.programCategoryId);
     const suggestedCategoryId =
-      (await resolveProgramCategoryId(request.body.programCategoryId)) ??
-      (await suggestCategoryIdForDateOfBirth(details.childDateOfBirth));
+      programCategoryId ?? (await suggestCategoryIdForDateOfBirth(details.childDateOfBirth));
 
     const signupRequest = await prisma.signupRequest.create({
       data: {
         ...details,
+        // Only program signups ask about swimming; waterpolo kids already swim.
+        childSwimmingAbility: programCategoryId
+          ? requireSwimmingAbilityInput(request.body.childSwimmingAbility)
+          : null,
         parentOneProfileImageUrl: await resolveUploadedImageUrl(
           files.parentOneProfileImage?.[0],
           buildPersonImageTitle(details.parentOneFirstName, details.parentOneLastName),
@@ -325,6 +331,10 @@ signupsRouter.patch(
       where: { id: signup.id },
       data: {
         ...details,
+        childSwimmingAbility:
+          request.body.childSwimmingAbility !== undefined
+            ? parseOptionalSwimmingAbilityInput(request.body.childSwimmingAbility)
+            : undefined,
         // A removed second parent takes their photo with them.
         parentTwoProfileImageUrl: details.parentTwoFirstName ? signup.parentTwoProfileImageUrl : null,
         // A program signup keeps its program; only waterpolo suggestions follow the date of birth.

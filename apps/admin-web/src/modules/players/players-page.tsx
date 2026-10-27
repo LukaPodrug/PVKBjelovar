@@ -13,6 +13,7 @@ import type {
   ParentSummary,
   ParentRecord,
   PlayerRecord,
+  SwimmingAbility,
 } from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
 import { CategoryFilterDropdown } from "../ui/category-filter-chips";
@@ -23,6 +24,7 @@ import { PaginationControls } from "../ui/pagination-controls";
 import { SearchMultiSelectPanel } from "../ui/search-multi-select-panel";
 import { TableLoadingRows } from "../ui/table-loading-rows";
 import { useDebouncedValue } from "../ui/use-debounced-value";
+import { SwimmingAbilityField } from "../ui/swimming-ability-field";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -40,6 +42,7 @@ interface PlayerFormState {
   gdprConsent: boolean;
   membershipExpiresAt: string;
   membershipPrice: string;
+  swimmingAbility: SwimmingAbility | "";
   categoryIds: string[];
   parentIds: string[];
   primaryParentId: string;
@@ -70,6 +73,7 @@ const emptyPlayerForm: PlayerFormState = {
   gdprConsent: false,
   membershipExpiresAt: "",
   membershipPrice: "",
+  swimmingAbility: "",
   categoryIds: [],
   parentIds: [],
   primaryParentId: "",
@@ -779,6 +783,11 @@ export function PlayersPage() {
                     }
                     freeUntil={formMode === "edit" ? selectedPlayer?.membershipFreeUntil : undefined}
                   />
+
+                  <SwimmingAbilityField
+                    value={form.swimmingAbility}
+                    onChange={(value) => setForm((current) => ({ ...current, swimmingAbility: value }))}
+                  />
                 </div>
                 </fieldset>
 
@@ -1243,6 +1252,7 @@ function createFormFromPlayer(player: PlayerRecord): PlayerFormState {
       ? toDateInputValue(player.membershipExpiresAt)
       : "",
     membershipPrice: centsToEuroInput(player.membershipPriceCents),
+    swimmingAbility: player.swimmingAbility ?? "",
     categoryIds: player.categories.map((assignment) => assignment.categoryId),
     parentIds: player.parents.map((assignment) => assignment.parentId),
     primaryParentId:
@@ -1264,6 +1274,7 @@ function buildPlayerFormData(form: PlayerFormState) {
   formData.append("gdprConsent", String(form.gdprConsent));
   formData.append("membershipExpiresAt", form.membershipExpiresAt);
   formData.append("membershipPrice", form.membershipPrice);
+  formData.append("swimmingAbility", form.swimmingAbility);
   formData.append("categoryIds", JSON.stringify(form.categoryIds));
   formData.append("parentIds", JSON.stringify(form.parentIds));
   formData.append("primaryParentId", form.primaryParentId);

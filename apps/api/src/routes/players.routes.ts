@@ -28,6 +28,7 @@ import {
   parseOptionalBooleanInput,
   parseOptionalDateInput,
   parseOptionalEuroAmountInput,
+  parseOptionalSwimmingAbilityInput,
   parsePaginationInput,
   parseStringArrayInput,
   requireString,
@@ -191,6 +192,7 @@ playersRouter.post(
         gdprConsent: parseBooleanInput(request.body.gdprConsent, "gdprConsent"),
         membershipExpiresAt: parseOptionalDateInput(request.body.membershipExpiresAt),
         membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
+        swimmingAbility: parseOptionalSwimmingAbilityInput(request.body.swimmingAbility),
         user: {
           create: {
             role: UserRole.PLAYER,
@@ -404,6 +406,10 @@ playersRouter.patch(
         membershipPriceCents:
           request.body.membershipPrice !== undefined
             ? parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice")
+            : undefined,
+        swimmingAbility:
+          request.body.swimmingAbility !== undefined
+            ? parseOptionalSwimmingAbilityInput(request.body.swimmingAbility)
             : undefined,
         user: {
           update: {

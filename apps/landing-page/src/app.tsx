@@ -20,6 +20,7 @@ import {
   fetchPublicCoaches,
   fetchPublicSponsors,
   type ProgramRegistrationResult,
+  type SwimmingAbility,
   submitProgramRegistration,
   submitSignup,
 } from "./lib/public-api";
@@ -40,6 +41,7 @@ interface SignupFormState {
   childDateOfBirth: string;
   childOib: string;
   childAddress: string;
+  childSwimmingAbility: SwimmingAbility | "";
   childProfileImage: File | null;
   gdprConsent: boolean;
 }
@@ -62,6 +64,7 @@ const emptySignupForm: SignupFormState = {
   childDateOfBirth: "",
   childOib: "",
   childAddress: "",
+  childSwimmingAbility: "",
   childProfileImage: null,
   gdprConsent: false,
 };
@@ -166,6 +169,7 @@ function LandingHomePage({
 
       if (activeSignupProgram) {
         formData.append("programCategoryId", activeSignupProgram.id);
+        formData.append("childSwimmingAbility", signupForm.childSwimmingAbility);
       }
 
       if (showSecondParent) {
@@ -737,6 +741,15 @@ function LandingHomePage({
                         }
                       />
                     </Fieldset>
+
+                    {activeSignupProgram ? (
+                      <SwimmingAbilityFieldset
+                        value={signupForm.childSwimmingAbility}
+                        onChange={(value) =>
+                          setSignupForm((current) => ({ ...current, childSwimmingAbility: value }))
+                        }
+                      />
+                    ) : null}
 
                     <label className="landing-gdpr-consent flex items-start gap-3 border-2 border-line bg-white px-4 py-4">
                       <input
@@ -1731,6 +1744,7 @@ interface PublicProgramSignupForm {
   childFirstName: string;
   childLastName: string;
   childDateOfBirth: string;
+  childSwimmingAbility: SwimmingAbility | "";
   parentFirstName: string;
   parentLastName: string;
   parentEmail: string;
@@ -1743,6 +1757,7 @@ const emptyPublicProgramSignupForm: PublicProgramSignupForm = {
   childFirstName: "",
   childLastName: "",
   childDateOfBirth: "",
+  childSwimmingAbility: "",
   parentFirstName: "",
   parentLastName: "",
   parentEmail: "",
@@ -1875,6 +1890,11 @@ function PublicProgramSignup({ program }: { program: PublicCategory }) {
         </div>
       </Fieldset>
 
+      <SwimmingAbilityFieldset
+        value={form.childSwimmingAbility}
+        onChange={(value) => update({ childSwimmingAbility: value })}
+      />
+
       <Fieldset title="Roditelj">
         <div className="grid gap-4 md:grid-cols-2">
           <InputField label="Ime" value={form.parentFirstName} onChange={(value) => update({ parentFirstName: value })} required />
@@ -1953,6 +1973,44 @@ function readDateParts(date: Date, timeZone: string) {
     hour: read("hour"),
     minute: read("minute"),
   };
+}
+
+const swimmingAbilityOptions: Array<{ value: SwimmingAbility; label: string }> = [
+  { value: "CAN_SWIM", label: "Zna plivati" },
+  { value: "PARTIAL", label: "Djelomično, snalazi se u vodi" },
+  { value: "CANNOT_SWIM", label: "Ne zna plivati" },
+];
+
+/** Required on program signups so coaches know how well each kid swims before the first practice. */
+function SwimmingAbilityFieldset({
+  value,
+  onChange,
+}: {
+  value: SwimmingAbility | "";
+  onChange: (value: SwimmingAbility) => void;
+}) {
+  return (
+    <Fieldset title="Plivanje">
+      <p className="text-sm text-muted">Koliko dijete zna plivati? Treneri tako unaprijed znaju što očekivati.</p>
+      <div className="landing-slot-options">
+        {swimmingAbilityOptions.map((option) => (
+          <label
+            className={`landing-slot-option ${value === option.value ? "is-selected" : ""}`}
+            key={option.value}
+          >
+            <input
+              type="radio"
+              name="child-swimming-ability"
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+              required
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </Fieldset>
+  );
 }
 
 function SignupTab({

@@ -15,6 +15,7 @@ import {
   parseBooleanInput,
   parseDateInput,
   requireString,
+  requireSwimmingAbilityInput,
 } from "../utils/request-parsers";
 
 /**
@@ -64,6 +65,7 @@ programRegistrationsRouter.post(
         childFirstName: requireString(request.body.childFirstName, "childFirstName"),
         childLastName: requireString(request.body.childLastName, "childLastName"),
         childDateOfBirth: parseDateInput(request.body.childDateOfBirth, "childDateOfBirth"),
+        childSwimmingAbility: requireSwimmingAbilityInput(request.body.childSwimmingAbility),
         parentFirstName: requireString(request.body.parentFirstName, "parentFirstName"),
         parentLastName: requireString(request.body.parentLastName, "parentLastName"),
         parentEmail: normalizeEmail(request.body.parentEmail, "parentEmail"),

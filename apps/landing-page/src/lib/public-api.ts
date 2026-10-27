@@ -196,12 +196,16 @@ export interface ProgramRegistrationResult {
   payment: ProgramPayment | null;
 }
 
+/** How well a child swims, asked on program signups. */
+export type SwimmingAbility = "CAN_SWIM" | "PARTIAL" | "CANNOT_SWIM";
+
 export interface ProgramRegistrationInput {
   categoryId: string;
   slotId: string;
   childFirstName: string;
   childLastName: string;
   childDateOfBirth: string;
+  childSwimmingAbility: SwimmingAbility | "";
   parentFirstName: string;
   parentLastName: string;
   parentEmail: string;

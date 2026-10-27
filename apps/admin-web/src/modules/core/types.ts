@@ -60,6 +60,9 @@ export interface ClubSettings {
 /** REGULAR is a waterpolo squad; PROGRAM is a standalone outreach program such as pool games. */
 export type CategoryKind = "REGULAR" | "PROGRAM";
 
+/** How well a child swims, as reported by the parent on a program signup. */
+export type SwimmingAbility = "CAN_SWIM" | "PARTIAL" | "CANNOT_SWIM";
+
 /** MEMBERS programs enrol kids with accounts; PUBLIC programs take paid one-off practice signups. */
 export type ProgramAudience = "MEMBERS" | "PUBLIC";
 
@@ -80,6 +83,7 @@ export interface ProgramRegistrationRecord {
   childFirstName: string;
   childLastName: string;
   childDateOfBirth: string;
+  childSwimmingAbility: SwimmingAbility | null;
   parentFirstName: string;
   parentLastName: string;
   parentEmail: string;
@@ -148,6 +152,7 @@ export interface PlayerRecord {
   membershipExpiresAt: string | null;
   /** Individual monthly fee set by admin; null falls back to the suggestion. */
   membershipPriceCents: number | null;
+  swimmingAbility: SwimmingAbility | null;
   /** Program or club fee the parent app suggests when no individual fee is set. */
   suggestedMembershipPriceCents?: number | null;
   /** Last free day (YYYY-MM-DD) while the player's membership is free; null when paid. */
@@ -325,6 +330,7 @@ export interface ScheduleCategoryOption {
 export interface SignupRequest {
   id: string;
   status: "PENDING" | "APPROVED" | "DECLINED";
+  childSwimmingAbility?: SwimmingAbility | null;
   /** Kids already in the club with the same parent (by e-mail), for the sibling fee. */
   siblingsInClub?: Array<{ playerId: string; firstName: string; lastName: string }>;
   parentOneFirstName: string;

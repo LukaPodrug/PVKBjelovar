@@ -1,4 +1,4 @@
-import { AccountStatus, CategoryKind, DayOfWeek, PracticeType } from "@prisma/client";
+import { AccountStatus, CategoryKind, DayOfWeek, PracticeType, SwimmingAbility } from "@prisma/client";
 import { AppError } from "../errors/app-error";
 
 function ensureString(value: unknown): string | null {
@@ -199,6 +199,32 @@ export function parseOptionalCategoryKindInput(value: unknown): CategoryKind | u
   }
 
   return parsed as CategoryKind;
+}
+
+/** A child's swimming level from a form; empty means not given. */
+export function parseOptionalSwimmingAbilityInput(value: unknown): SwimmingAbility | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsed = requireString(value, "swimmingAbility").toUpperCase();
+
+  if (!Object.values(SwimmingAbility).includes(parsed as SwimmingAbility)) {
+    throw new AppError("Razina plivanja mora biti CAN_SWIM, PARTIAL ili CANNOT_SWIM.", 400);
+  }
+
+  return parsed as SwimmingAbility;
+}
+
+/** Program signups must say how well the child swims, so coaches know what to expect. */
+export function requireSwimmingAbilityInput(value: unknown): SwimmingAbility {
+  const ability = parseOptionalSwimmingAbilityInput(value);
+
+  if (!ability) {
+    throw new AppError("Odaberite koliko dijete zna plivati.", 400);
+  }
+
+  return ability;
 }
 
 export function normalizeEmail(value: unknown, fieldName: string): string {

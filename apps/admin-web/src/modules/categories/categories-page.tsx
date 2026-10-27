@@ -15,6 +15,7 @@ import type {
   ProgramAudience,
   ProgramRegistrationRecord,
   ProgramSlotRecord,
+  SwimmingAbility,
 } from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
 import { DatePicker } from "../ui/date-picker";
@@ -25,6 +26,7 @@ import { TimePicker } from "../ui/time-picker";
 import { centsToEuroInput, MembershipPriceField } from "../ui/membership-price-field";
 import { downloadCategoryPlayersWorkbook } from "./category-players-xlsx";
 import { downloadProgramRegistrationsWorkbook } from "./program-registrations-xlsx";
+import { formatSwimmingAbility, SwimmingAbilityField } from "../ui/swimming-ability-field";
 
 interface FeedbackState {
   tone: "success" | "error";
@@ -70,6 +72,7 @@ interface ManagedPlayerFormState {
   gdprConsent: boolean;
   membershipExpiresAt: string;
   membershipPrice: string;
+  swimmingAbility: SwimmingAbility | "";
   categoryIds: string[];
   parentIds: string[];
   primaryParentId: string;
@@ -107,6 +110,7 @@ const emptyManagedPlayerForm: ManagedPlayerFormState = {
   gdprConsent: false,
   membershipExpiresAt: "",
   membershipPrice: "",
+  swimmingAbility: "",
   categoryIds: [],
   parentIds: [],
   primaryParentId: "",
@@ -1693,6 +1697,11 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
                         suggestedPriceCents={managedPlayer?.suggestedMembershipPriceCents}
                         freeUntil={managedPlayer?.membershipFreeUntil}
                       />
+
+                      <SwimmingAbilityField
+                        value={managedPlayerForm.swimmingAbility}
+                        onChange={(value) => setManagedPlayerForm((current) => ({ ...current, swimmingAbility: value }))}
+                      />
                     </div>
                   </fieldset>
 
@@ -2071,7 +2080,12 @@ function ProgramRegistrationsList({
                           <span className="block font-bold">
                             {registration.childFirstName} {registration.childLastName}
                           </span>
-                          <span className="text-muted">{formatNumericDate(registration.childDateOfBirth)}</span>
+                          <span className="block text-muted">
+                            {formatNumericDate(registration.childDateOfBirth)}
+                          </span>
+                          <span className="block text-muted">
+                            {formatSwimmingAbility(registration.childSwimmingAbility)}
+                          </span>
                         </td>
                         <td className="px-3 py-2">
                           {registration.parentFirstName} {registration.parentLastName}
@@ -2134,6 +2148,7 @@ function createManagedPlayerForm(player: PlayerRecord): ManagedPlayerFormState {
       ? toDateInputValue(player.membershipExpiresAt)
       : "",
     membershipPrice: centsToEuroInput(player.membershipPriceCents),
+    swimmingAbility: player.swimmingAbility ?? "",
     categoryIds: player.categories.map((assignment) => assignment.categoryId),
     parentIds: player.parents.map((assignment) => assignment.parentId),
     primaryParentId:
@@ -2155,6 +2170,7 @@ function buildManagedPlayerPayload(form: ManagedPlayerFormState) {
   formData.append("gdprConsent", String(form.gdprConsent));
   formData.append("membershipExpiresAt", form.membershipExpiresAt);
   formData.append("membershipPrice", form.membershipPrice);
+  formData.append("swimmingAbility", form.swimmingAbility);
   formData.append("categoryIds", JSON.stringify(form.categoryIds));
   formData.append("parentIds", JSON.stringify(form.parentIds));
   formData.append("primaryParentId", form.primaryParentId);

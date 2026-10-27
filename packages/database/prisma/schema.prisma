@@ -41,6 +41,14 @@ enum ProgramAudience {
   PUBLIC
 }
 
+/// How well a child swims, as reported by the parent on a program signup so coaches know what to
+/// expect in the pool.
+enum SwimmingAbility {
+  CAN_SWIM
+  PARTIAL
+  CANNOT_SWIM
+}
+
 enum DayOfWeek {
   MONDAY
   TUESDAY
@@ -195,6 +203,7 @@ model Player {
   /// Monthly fee set by admin for this player (e.g. a sibling discount). Null means the suggested
   /// fee from the player's program or the club default applies.
   membershipPriceCents Int?
+  swimmingAbility     SwimmingAbility?
   sourceSignupId      String?          @unique
   sourceSignup        SignupRequest?   @relation("SignupToPlayer", fields: [sourceSignupId], references: [id], onDelete: SetNull)
   categories          PlayerCategory[]
@@ -463,6 +472,7 @@ model SignupRequest {
   childDateOfBirth             DateTime
   childOib                     String
   childAddress                 String?
+  childSwimmingAbility         SwimmingAbility?
   childProfileImageUrl         String?
   gdprConsent                  Boolean
   suggestedCategoryId          String?
@@ -515,6 +525,7 @@ model ProgramRegistration {
   childFirstName   String
   childLastName    String
   childDateOfBirth DateTime
+  childSwimmingAbility SwimmingAbility?
   parentFirstName  String
   parentLastName   String
   parentEmail      String

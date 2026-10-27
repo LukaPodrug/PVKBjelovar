@@ -1,5 +1,6 @@
 import { formatDate, formatDateTime } from "../core/date";
 import type { ProgramRegistrationRecord } from "../core/types";
+import { formatSwimmingAbility } from "../ui/swimming-ability-field";
 import {
   createFileNamePart,
   createWorksheetName,
@@ -29,6 +30,7 @@ export async function downloadProgramRegistrationsWorkbook(
     { header: "Ime", key: "childFirstName", width: 18 },
     { header: "Prezime", key: "childLastName", width: 20 },
     { header: "Datum rođenja", key: "childDateOfBirth", width: 15 },
+    { header: "Plivanje", key: "swimming", width: 28 },
     { header: "Roditelj", key: "parentName", width: 26 },
     { header: "Telefon", key: "parentPhone", width: 18 },
     { header: "E-pošta", key: "parentEmail", width: 30 },
@@ -48,6 +50,7 @@ export async function downloadProgramRegistrationsWorkbook(
       childFirstName: registration.childFirstName,
       childLastName: registration.childLastName,
       childDateOfBirth: formatDate(registration.childDateOfBirth),
+      swimming: formatSwimmingAbility(registration.childSwimmingAbility),
       parentName: `${registration.parentFirstName} ${registration.parentLastName}`,
       parentPhone: registration.parentPhone,
       parentEmail: registration.parentEmail,

@@ -10,6 +10,7 @@ import { FeedbackToast } from "../ui/feedback-toast";
 import { DatePicker } from "../ui/date-picker";
 import { PaginationControls } from "../ui/pagination-controls";
 import { MembershipPriceField } from "../ui/membership-price-field";
+import { formatSwimmingAbility } from "../ui/swimming-ability-field";
 
 interface ApprovalResult {
   addedToExistingPlayer?: boolean;
@@ -633,6 +634,12 @@ export function ApprovalsPage() {
                       </span>
                       <strong>{selectedSignup.suggestedCategory?.name ?? "Nema prijedloga"}</strong>
                     </div>
+                    {selectedSignup.childSwimmingAbility ? (
+                      <div className="approval-info-row">
+                        <span>Plivanje</span>
+                        <strong>{formatSwimmingAbility(selectedSignup.childSwimmingAbility)}</strong>
+                      </div>
+                    ) : null}
                     {selectedSignup.status === "DECLINED" ? (
                       <>
                         <div className="approval-info-row">
