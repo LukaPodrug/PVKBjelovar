@@ -221,12 +221,30 @@ signupsRouter.post(
 
 signupsRouter.use(authenticateRequest, authorizeRoles(UserRole.ADMIN));
 
+interface FamilySibling {
+  playerId: string | null;
+  signupId: string | null;
+  firstName: string;
+  lastName: string;
+  /** True for a child whose own signup is still waiting for approval. */
+  isPendingSignup: boolean;
+}
+
 /**
- * Kids already in the club whose parent signs up another child, matched by parent e-mail. Admin uses
- * it to give the new kid the sibling fee when approving.
+ * Other children of the same family, matched by parent e-mail: kids already in the club and kids
+ * whose signup is still pending (a parent may sign up several children before any is approved).
+ * `siblingsInClub` are the ones that make this child a second or further kid, so the sibling fee
+ * applies: players plus pending signups sent earlier. `laterFamilySignups` are pending signups sent
+ * after this one, shown to admin for context only; they get the sibling fee themselves.
  */
 async function withSiblingsInClub<
-  T extends { parentOneEmail: string; parentTwoEmail: string | null; childOib: string },
+  T extends {
+    id?: string;
+    createdAt?: Date;
+    parentOneEmail: string;
+    parentTwoEmail: string | null;
+    childOib: string;
+  },
 >(signups: T[]) {
   const emails = [
     ...new Set(
@@ -237,50 +255,105 @@ async function withSiblingsInClub<
       ),
     ),
   ];
-  const parents = emails.length
-    ? await prisma.user.findMany({
-        where: { email: { in: emails }, parent: { isNot: null } },
-        select: {
-          email: true,
-          parent: {
-            select: {
-              players: {
-                select: {
-                  player: {
-                    select: {
-                      id: true,
-                      oib: true,
-                      user: { select: { firstName: true, lastName: true } },
+  const [parents, pendingSignups] = emails.length
+    ? await Promise.all([
+        prisma.user.findMany({
+          where: { email: { in: emails }, parent: { isNot: null } },
+          select: {
+            email: true,
+            parent: {
+              select: {
+                players: {
+                  select: {
+                    player: {
+                      select: {
+                        id: true,
+                        oib: true,
+                        user: { select: { firstName: true, lastName: true } },
+                      },
                     },
                   },
                 },
               },
             },
           },
-        },
-      })
-    : [];
+        }),
+        prisma.signupRequest.findMany({
+          where: {
+            status: SignupStatus.PENDING,
+            OR: [
+              { parentOneEmail: { in: emails, mode: "insensitive" } },
+              { parentTwoEmail: { in: emails, mode: "insensitive" } },
+            ],
+          },
+          select: {
+            id: true,
+            createdAt: true,
+            parentOneEmail: true,
+            parentTwoEmail: true,
+            childOib: true,
+            childFirstName: true,
+            childLastName: true,
+          },
+        }),
+      ])
+    : [[], []];
   const childrenByEmail = new Map(
     parents.map((user) => [user.email!.toLowerCase(), user.parent?.players.map((link) => link.player) ?? []]),
   );
 
   return signups.map((signup) => {
-    const siblings = new Map<string, { playerId: string; firstName: string; lastName: string }>();
+    const familyEmails = [signup.parentOneEmail, signup.parentTwoEmail]
+      .filter((email): email is string => Boolean(email))
+      .map((email) => email.toLowerCase());
+    const siblings = new Map<string, FamilySibling>();
+    const laterSignups = new Map<string, FamilySibling>();
+    // Children already counted by OIB, so a kid with both a player and a pending signup shows once.
+    const seenOibs = new Set([signup.childOib]);
 
-    for (const email of [signup.parentOneEmail, signup.parentTwoEmail]) {
-      for (const player of email ? childrenByEmail.get(email.toLowerCase()) ?? [] : []) {
+    for (const email of familyEmails) {
+      for (const player of childrenByEmail.get(email) ?? []) {
         // The child being signed up may already be a player (e.g. moving from a program).
-        if (player.oib !== signup.childOib) {
+        if (!seenOibs.has(player.oib)) {
+          seenOibs.add(player.oib);
           siblings.set(player.id, {
             playerId: player.id,
+            signupId: null,
             firstName: player.user.firstName,
             lastName: player.user.lastName,
+            isPendingSignup: false,
           });
         }
       }
     }
 
-    return { ...signup, siblingsInClub: [...siblings.values()] };
+    for (const pending of pendingSignups) {
+      const sharesParent = [pending.parentOneEmail, pending.parentTwoEmail].some(
+        (email) => email && familyEmails.includes(email.toLowerCase()),
+      );
+
+      if (!sharesParent || pending.id === signup.id || seenOibs.has(pending.childOib)) {
+        continue;
+      }
+
+      seenOibs.add(pending.childOib);
+      const entry: FamilySibling = {
+        playerId: null,
+        signupId: pending.id,
+        firstName: pending.childFirstName,
+        lastName: pending.childLastName,
+        isPendingSignup: true,
+      };
+      // A signup not saved yet (the public form) is the newest, so every pending one came first.
+      const isEarlier = !signup.createdAt || pending.createdAt < signup.createdAt;
+      (isEarlier ? siblings : laterSignups).set(pending.id, entry);
+    }
+
+    return {
+      ...signup,
+      siblingsInClub: [...siblings.values()],
+      laterFamilySignups: [...laterSignups.values()],
+    };
   });
 }
 

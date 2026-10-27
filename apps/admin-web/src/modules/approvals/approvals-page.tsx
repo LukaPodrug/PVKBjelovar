@@ -4,7 +4,13 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { api } from "../core/api";
 import { formatDateTime, toDateInputValue } from "../core/date";
-import type { CategoryOption, ClubSettings, PaginatedResponse, SignupRequest } from "../core/types";
+import type {
+  CategoryOption,
+  ClubSettings,
+  FamilySibling,
+  PaginatedResponse,
+  SignupRequest,
+} from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { DatePicker } from "../ui/date-picker";
@@ -358,6 +364,11 @@ export function ApprovalsPage() {
                         {hasDuplicateParentEmails(signup) ? (
                           <p className="mt-2">
                             <StatusChip label="Ista e-adresa" tone="warning" />
+                          </p>
+                        ) : null}
+                        {signup.siblingsInClub?.length || signup.laterFamilySignups?.length ? (
+                          <p className="mt-2">
+                            <StatusChip label="Ista obitelj" tone="success" />
                           </p>
                         ) : null}
                       </td>
@@ -750,14 +761,18 @@ export function ApprovalsPage() {
                       />
                       {selectedSignup.siblingsInClub?.length ? (
                         <p className="mt-2 text-xs text-muted">
-                          Brat ili sestra već u klubu:{" "}
-                          {selectedSignup.siblingsInClub
-                            .map((sibling) => `${sibling.firstName} ${sibling.lastName}`)
-                            .join(", ")}
-                          .{" "}
+                          Brat ili sestra iz iste obitelji:{" "}
+                          {formatFamilySiblings(selectedSignup.siblingsInClub)}.{" "}
                           {getCategorySiblingPriceCents(selectedCategoryId) !== null
                             ? "Predložena je članarina odabrane kategorije za drugo i svako sljedeće dijete."
                             : "Odabrana kategorija nema cijenu za drugo dijete, pa vrijedi redovna članarina."}
+                        </p>
+                      ) : null}
+                      {selectedSignup.laterFamilySignups?.length ? (
+                        <p className="mt-2 text-xs text-muted">
+                          Iz iste obitelji kasnije je prijavljeno:{" "}
+                          {formatFamilySiblings(selectedSignup.laterFamilySignups)}. Ovo dijete plaća redovnu
+                          članarinu, a za kasnije prijave predlaže se članarina za drugo dijete.
                         </p>
                       ) : null}
                     </div>
@@ -962,6 +977,15 @@ function buildApprovalSuccessMessage(result: ApprovalResult) {
   }
 
   return "Prijava je uspješno odobrena.";
+}
+
+function formatFamilySiblings(siblings: FamilySibling[]) {
+  return siblings
+    .map(
+      (sibling) =>
+        `${sibling.firstName} ${sibling.lastName}${sibling.isPendingSignup ? " (prijava na čekanju)" : ""}`,
+    )
+    .join(", ");
 }
 
 function hasDuplicateParentEmails(signup: SignupRequest) {

@@ -331,12 +331,25 @@ export interface ScheduleCategoryOption {
   logoUrl: string | null;
 }
 
+export interface FamilySibling {
+  playerId: string | null;
+  signupId: string | null;
+  firstName: string;
+  lastName: string;
+  isPendingSignup: boolean;
+}
+
 export interface SignupRequest {
   id: string;
   status: "PENDING" | "APPROVED" | "DECLINED";
   childSwimmingAbility?: SwimmingAbility | null;
-  /** Kids already in the club with the same parent (by e-mail), for the sibling fee. */
-  siblingsInClub?: Array<{ playerId: string; firstName: string; lastName: string }>;
+  /**
+   * Other children of the same family (by parent e-mail) that make this kid a second or further
+   * child: players, and pending signups sent earlier.
+   */
+  siblingsInClub?: FamilySibling[];
+  /** Pending signups from the same family sent after this one; context only. */
+  laterFamilySignups?: FamilySibling[];
   parentOneFirstName: string;
   parentOneLastName: string;
   parentOneEmail: string;
