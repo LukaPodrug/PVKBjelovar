@@ -105,8 +105,13 @@ export function PaymentPanel({ payment }: { payment: ProgramPayment }) {
         <PaymentDetail label="Primatelj" value={recipientLines.join(", ")} />
         <PaymentDetail label="IBAN" value={formatIban(payment.iban)} />
         {payment.bankName ? <PaymentDetail label="Banka" value={payment.bankName} /> : null}
-        <PaymentDetail label="Model" value={payment.model} />
-        <PaymentDetail label="Poziv na broj" value={payment.reference} />
+        {/* Membership payments carry no reference (model HR99), like the ones from the parent app. */}
+        {payment.reference ? (
+          <>
+            <PaymentDetail label="Model" value={payment.model} />
+            <PaymentDetail label="Poziv na broj" value={payment.reference} />
+          </>
+        ) : null}
         <PaymentDetail label="Opis plaćanja" value={payment.description} />
       </dl>
     </div>

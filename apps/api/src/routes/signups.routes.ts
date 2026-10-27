@@ -8,6 +8,12 @@ import { authorizeRoles } from "../middlewares/authorize";
 import { uploadSignupImages } from "../middlewares/upload";
 import { suggestCategoryIdForDateOfBirth } from "../services/category.service";
 import {
+  getClubMembershipPricing,
+  getSiblingPriceCents,
+  resolveMembershipPrice,
+} from "../services/membership-price.service";
+import { buildMembershipPayment } from "../services/public-program.service";
+import {
   approveSignupRequest,
   declineSignupRequest,
   reopenSignupRequest,
@@ -89,7 +95,7 @@ function parseSignupDetails(body: Record<string, unknown>) {
  * A signup sent from a program's tab names that program, and it becomes the suggestion as-is.
  * Everything else is a waterpolo signup and gets the age-based suggestion.
  */
-async function resolveProgramCategoryId(value: unknown) {
+async function resolveProgram(value: unknown) {
   const programCategoryId = optionalString(value);
 
   if (!programCategoryId) {
@@ -99,14 +105,69 @@ async function resolveProgramCategoryId(value: unknown) {
   const program = await prisma.category.findFirst({
     // Programs for non-members take practice signups instead and never create accounts.
     where: { id: programCategoryId, kind: CategoryKind.PROGRAM, audience: ProgramAudience.MEMBERS },
-    select: { id: true },
+    select: {
+      id: true,
+      kind: true,
+      audience: true,
+      monthlyPriceCents: true,
+      siblingPriceCents: true,
+      membershipFreeUntil: true,
+    },
   });
 
   if (!program) {
     throw new AppError("Odabrani program nije pronađen.", 404);
   }
 
-  return program.id;
+  return program;
+}
+
+/**
+ * The club wants program families to be able to pay the first month straight away, even though the
+ * signup still waits for approval. A family that already has a kid in the club pays the program's
+ * sibling fee; during a free period there is nothing to pay.
+ */
+async function buildFirstMembershipPayment(
+  program: NonNullable<Awaited<ReturnType<typeof resolveProgram>>>,
+  details: ReturnType<typeof parseSignupDetails>,
+) {
+  const [clubPricing, bank, [withSiblings]] = await Promise.all([
+    getClubMembershipPricing(),
+    prisma.clubSettings.findUnique({ where: { id: "club-settings" } }),
+    withSiblingsInClub([details]),
+  ]);
+  const siblingPriceCents =
+    withSiblings!.siblingsInClub.length > 0 ? getSiblingPriceCents(program, clubPricing) : null;
+  const price = resolveMembershipPrice(
+    { membershipPriceCents: siblingPriceCents, categories: [{ category: program }] },
+    clubPricing,
+  );
+
+  if (price.freeUntil || !price.priceCents) {
+    return { payment: null, membershipFreeUntil: price.freeUntil, siblingPriceApplied: false };
+  }
+
+  return {
+    siblingPriceApplied: siblingPriceCents !== null,
+    payment: buildMembershipPayment(
+      {
+        amountCents: price.priceCents,
+        month: new Date(),
+        childFirstName: details.childFirstName,
+        childLastName: details.childLastName,
+        parentFirstName: details.parentOneFirstName,
+        parentLastName: details.parentOneLastName,
+      },
+      {
+        bankRecipient: bank?.bankRecipient ?? null,
+        bankIban: bank?.bankIban ?? null,
+        bankName: bank?.bankName ?? null,
+        bankRecipientAddress: bank?.bankRecipientAddress ?? null,
+        bankRecipientCity: bank?.bankRecipientCity ?? null,
+      },
+    ),
+    membershipFreeUntil: null,
+  };
 }
 
 signupsRouter.post(
@@ -116,15 +177,15 @@ signupsRouter.post(
     const files = getUploadedFileMap(request.files);
 
     const details = parseSignupDetails(request.body);
-    const programCategoryId = await resolveProgramCategoryId(request.body.programCategoryId);
+    const program = await resolveProgram(request.body.programCategoryId);
     const suggestedCategoryId =
-      programCategoryId ?? (await suggestCategoryIdForDateOfBirth(details.childDateOfBirth));
+      program?.id ?? (await suggestCategoryIdForDateOfBirth(details.childDateOfBirth));
 
     const signupRequest = await prisma.signupRequest.create({
       data: {
         ...details,
         // Only program signups ask about swimming; waterpolo kids already swim.
-        childSwimmingAbility: programCategoryId
+        childSwimmingAbility: program
           ? requireSwimmingAbilityInput(request.body.childSwimmingAbility)
           : null,
         parentOneProfileImageUrl: await resolveUploadedImageUrl(
@@ -153,6 +214,7 @@ signupsRouter.post(
     response.status(201).json({
       message: "Prijava je uspješno zaprimljena.",
       signupRequest,
+      ...(program ? await buildFirstMembershipPayment(program, details) : {}),
     });
   }),
 );

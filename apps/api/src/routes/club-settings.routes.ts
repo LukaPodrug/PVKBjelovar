@@ -33,6 +33,7 @@ const defaultClubSettings = {
   bankRecipientCity: null,
   membershipPriceCents: null,
   membershipFreeUntil: null,
+  siblingMembershipPriceCents: null,
 };
 
 function hasBodyField(body: Record<string, unknown>, field: string): boolean {
@@ -85,6 +86,10 @@ clubSettingsRouter.post(
         bankRecipientCity: optionalString(request.body.bankRecipientCity),
         membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
         membershipFreeUntil: parseOptionalDateInput(request.body.membershipFreeUntil),
+        siblingMembershipPriceCents: parseOptionalEuroAmountInput(
+          request.body.siblingMembershipPrice,
+          "siblingMembershipPrice",
+        ),
         logoUrl,
       },
       create: {
@@ -103,6 +108,10 @@ clubSettingsRouter.post(
         bankRecipientCity: optionalString(request.body.bankRecipientCity),
         membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
         membershipFreeUntil: parseOptionalDateInput(request.body.membershipFreeUntil),
+        siblingMembershipPriceCents: parseOptionalEuroAmountInput(
+          request.body.siblingMembershipPrice,
+          "siblingMembershipPrice",
+        ),
         logoUrl,
       },
     });
@@ -146,6 +155,9 @@ clubSettingsRouter.patch(
         membershipFreeUntil: hasBodyField(request.body, "membershipFreeUntil")
           ? parseOptionalDateInput(request.body.membershipFreeUntil)
           : undefined,
+        siblingMembershipPriceCents: hasBodyField(request.body, "siblingMembershipPrice")
+          ? parseOptionalEuroAmountInput(request.body.siblingMembershipPrice, "siblingMembershipPrice")
+          : undefined,
         logoUrl,
       },
       create: {
@@ -164,6 +176,10 @@ clubSettingsRouter.patch(
         bankRecipientCity: readOptionalBodyString(request.body, "bankRecipientCity") ?? null,
         membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
         membershipFreeUntil: parseOptionalDateInput(request.body.membershipFreeUntil),
+        siblingMembershipPriceCents: parseOptionalEuroAmountInput(
+          request.body.siblingMembershipPrice,
+          "siblingMembershipPrice",
+        ),
         logoUrl: hasLogoInput ? (logoUrl ?? null) : defaultClubSettings.logoUrl,
       },
     });

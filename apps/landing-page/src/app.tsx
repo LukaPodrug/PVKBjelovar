@@ -20,6 +20,7 @@ import {
   fetchPublicCoaches,
   fetchPublicSponsors,
   type ProgramRegistrationResult,
+  type SignupResult,
   type SwimmingAbility,
   submitProgramRegistration,
   submitSignup,
@@ -117,6 +118,12 @@ function LandingHomePage({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   // Null is the waterpolo signup; a program id is that program's own signup tab.
   const [signupProgramId, setSignupProgramId] = useState<string | null>(null);
+  // A member program signup ends on its confirmation with the first monthly payment.
+  const [memberProgramSignupResult, setMemberProgramSignupResult] = useState<{
+    programName: string;
+    childName: string;
+    result: SignupResult;
+  } | null>(null);
   const [visibleNewsCount, setVisibleNewsCount] = useState(initialVisibleNewsCount);
   const [signupFeedback, setSignupFeedback] = useState<{
     tone: "success" | "error";
@@ -195,6 +202,18 @@ function LandingHomePage({
     },
     onSuccess: (result) => {
       const suggestedCategory = result.signupRequest.suggestedCategory;
+
+      if (activeSignupProgram && suggestedCategory?.kind === "PROGRAM") {
+        setMemberProgramSignupResult({
+          programName: activeSignupProgram.name,
+          childName: `${signupForm.childFirstName} ${signupForm.childLastName}`,
+          result,
+        });
+        setShowSecondParent(false);
+        setSignupForm(emptySignupForm);
+        document.getElementById("signup-form")?.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
 
       setSignupFeedback({
         tone: "success",
@@ -521,14 +540,20 @@ function LandingHomePage({
                       <SignupTab
                         isActive={!activeSignupProgram}
                         label="Vaterpolo"
-                        onSelect={() => setSignupProgramId(null)}
+                        onSelect={() => {
+                          setSignupProgramId(null);
+                          setMemberProgramSignupResult(null);
+                        }}
                       />
                       {programs.map((program) => (
                         <SignupTab
                           key={program.id}
                           isActive={activeSignupProgram?.id === program.id}
                           label={program.name}
-                          onSelect={() => setSignupProgramId(program.id)}
+                          onSelect={() => {
+                            setSignupProgramId(program.id);
+                            setMemberProgramSignupResult(null);
+                          }}
                         />
                       ))}
                     </div>
@@ -547,6 +572,11 @@ function LandingHomePage({
 
                 {isPublicProgramTab && activeSignupProgram ? (
                   <PublicProgramSignup key={activeSignupProgram.id} program={activeSignupProgram} />
+                ) : memberProgramSignupResult && activeSignupProgram ? (
+                  <MemberProgramSignupResult
+                    {...memberProgramSignupResult}
+                    onNewSignup={() => setMemberProgramSignupResult(null)}
+                  />
                 ) : (
                   <form
                     className="space-y-6 p-5"
@@ -1707,6 +1737,64 @@ function createProgramSlug(name: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Confirmation of a member program signup. The signup still waits for approval, but the club lets
+ * families pay the first month right away.
+ */
+function MemberProgramSignupResult({
+  programName,
+  childName,
+  result,
+  onNewSignup,
+}: {
+  programName: string;
+  childName: string;
+  result: SignupResult;
+  onNewSignup: () => void;
+}) {
+  return (
+    <div className="space-y-5 p-5">
+      <div className="landing-panel border-2 border-line bg-panel px-4 py-4">
+        <p className="landing-kicker text-muted">Prijava je zaprimljena</p>
+        <p className="mt-3 text-sm leading-7 text-ink">
+          <strong>{childName}</strong> prijavljen/a je u program {programName}. Klub će pregledati
+          prijavu, a roditelji će nakon odobrenja e-poštom dobiti pristupne podatke za aplikaciju.
+        </p>
+      </div>
+
+      {result.membershipFreeUntil ? (
+        <p className="landing-copy text-sm">
+          Članarina je besplatna do {formatIsoDate(result.membershipFreeUntil)}, pa sada ne trebate ništa
+          uplatiti.
+        </p>
+      ) : result.payment ? (
+        <>
+          <p className="landing-copy text-sm">
+            Prvu mjesečnu članarinu možete uplatiti odmah.{" "}
+            {result.siblingPriceApplied
+              ? "Budući da već imate dijete u klubu, primijenjena je članarina za drugo i svako sljedeće dijete."
+              : "Klub može prilagoditi iznos nakon odobrenja prijave."}
+          </p>
+          <PaymentPanel payment={result.payment} />
+        </>
+      ) : null}
+
+      <button
+        className="landing-pill landing-pill-button landing-pill--panel w-full"
+        type="button"
+        onClick={onNewSignup}
+      >
+        Prijavi još jedno dijete
+      </button>
+    </div>
+  );
+}
+
+function formatIsoDate(isoDate: string) {
+  const [year, month, day] = isoDate.slice(0, 10).split("-");
+  return `${day}.${month}.${year}.`;
 }
 
 function PublicProgramIntro({ program }: { program: PublicCategory }) {

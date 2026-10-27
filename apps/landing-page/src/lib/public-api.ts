@@ -137,6 +137,11 @@ export interface PublicScheduleCalendarItem {
 
 export interface SignupResult {
   message: string;
+  /** Member program signups: first monthly payment, or the end of a free period instead. */
+  payment?: ProgramPayment | null;
+  membershipFreeUntil?: string | null;
+  /** True when the family already has a kid in the club and the sibling fee was used. */
+  siblingPriceApplied?: boolean;
   signupRequest: {
     id: string;
     createdAt?: string;

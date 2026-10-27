@@ -102,6 +102,8 @@ model ClubSettings {
   /// The club fee is free up to and including this day (e.g. until New Year). Applies to categories
   /// that use the club fee; categories with their own price set their own free period.
   membershipFreeUntil  DateTime? @db.Date
+  /// Club fee for the second and every further child of a family, suggested when approving.
+  siblingMembershipPriceCents Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -226,6 +228,9 @@ model Category {
   /// Monthly membership fee in euro cents for this category or member program; null falls back to
   /// the club fee. Not used by PUBLIC programs, which charge per practice.
   monthlyPriceCents       Int?
+  /// Fee for the second and every further child of a family in this category or program. Null means
+  /// the club sibling fee for categories on the club fee, and no discount for ones with their own.
+  siblingPriceCents       Int?
   /// Membership in this category is free up to and including this day; afterwards the fee applies,
   /// including players' individual prices. Categories on the club fee follow the club's free period.
   membershipFreeUntil     DateTime?       @db.Date

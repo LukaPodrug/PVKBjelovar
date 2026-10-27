@@ -43,6 +43,7 @@ interface CategoryFormState {
   removeLogo: boolean;
   audience: ProgramAudience;
   monthlyPrice: string;
+  siblingPrice: string;
   membershipFreeUntil: string;
   pricePerPractice: string;
   signupCloseDaysBefore: string;
@@ -90,6 +91,7 @@ const emptyCategoryForm: CategoryFormState = {
   removeLogo: false,
   audience: "MEMBERS",
   monthlyPrice: "",
+  siblingPrice: "",
   membershipFreeUntil: "",
   pricePerPractice: "",
   signupCloseDaysBefore: "",
@@ -1205,6 +1207,28 @@ export function CategoriesPage({ kind }: { kind: CategoryKind }) {
 
                       <label className="block">
                         <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Za drugo i svako sljedeće dijete (€)
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          inputMode="decimal"
+                          value={form.siblingPrice}
+                          onChange={(event) =>
+                            setForm((current) => ({ ...current, siblingPrice: event.target.value }))
+                          }
+                          placeholder={form.monthlyPrice.trim() ? "Bez popusta" : "Kao u Postavkama"}
+                        />
+                        <span className="mt-2 block text-xs text-muted">
+                          Predlaže se kod odobravanja kad roditelj već ima dijete u klubu. Prazno:{" "}
+                          {form.monthlyPrice.trim()
+                            ? "nema popusta za drugo dijete."
+                            : "vrijedi iznos za drugo dijete iz Postavki."}
+                        </span>
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                           Besplatno do
                         </span>
                         <DatePicker
@@ -1906,6 +1930,7 @@ function createFormFromCategory(category: CategoryRecord): CategoryFormState {
     removeLogo: false,
     audience: category.audience,
     monthlyPrice: centsToEuroInput(category.monthlyPriceCents),
+    siblingPrice: centsToEuroInput(category.siblingPriceCents),
     membershipFreeUntil: category.membershipFreeUntil ?? "",
     pricePerPractice: centsToEuroInput(category.pricePerPracticeCents),
     signupCloseDaysBefore:
@@ -1934,6 +1959,7 @@ function buildCategoryFormData(form: CategoryFormState, includeProgramSettings: 
   const hasMembershipFee = !includeProgramSettings || form.audience === "MEMBERS";
 
   formData.append("monthlyPrice", hasMembershipFee ? form.monthlyPrice : "");
+  formData.append("siblingPrice", hasMembershipFee ? form.siblingPrice : "");
   formData.append("membershipFreeUntil", hasMembershipFee ? form.membershipFreeUntil : "");
 
   if (includeProgramSettings) {

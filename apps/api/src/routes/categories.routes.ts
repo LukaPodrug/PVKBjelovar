@@ -602,7 +602,7 @@ categoriesRouter.post(
     const programSettings = parseProgramSettings(request.body, kind);
     const membershipPricing =
       programSettings.audience === ProgramAudience.PUBLIC
-        ? { monthlyPriceCents: null, membershipFreeUntil: null }
+        ? { monthlyPriceCents: null, siblingPriceCents: null, membershipFreeUntil: null }
         : parseMembershipPricing(request.body);
 
     const category = await prisma.category.create({
@@ -684,7 +684,7 @@ categoriesRouter.patch(
 
     const membershipPricing =
       (programSettings?.audience ?? existingCategory.audience) === ProgramAudience.PUBLIC
-        ? { monthlyPriceCents: null, membershipFreeUntil: null }
+        ? { monthlyPriceCents: null, siblingPriceCents: null, membershipFreeUntil: null }
         : parseMembershipPricing(request.body);
 
     const category = await prisma.category.update({
@@ -752,12 +752,17 @@ categoriesRouter.delete(
  * form did not send them, so other edits leave the pricing alone.
  */
 function parseMembershipPricing(body: Record<string, unknown>) {
-  if (body.monthlyPrice === undefined && body.membershipFreeUntil === undefined) {
+  if (
+    body.monthlyPrice === undefined &&
+    body.membershipFreeUntil === undefined &&
+    body.siblingPrice === undefined
+  ) {
     return {};
   }
 
   return {
     monthlyPriceCents: parseOptionalEuroAmountInput(body.monthlyPrice, "monthlyPrice"),
+    siblingPriceCents: parseOptionalEuroAmountInput(body.siblingPrice, "siblingPrice"),
     membershipFreeUntil: parseOptionalDateInput(body.membershipFreeUntil),
   };
 }
@@ -765,6 +770,7 @@ function parseMembershipPricing(body: Record<string, unknown>) {
 type ProgramFields = {
   audience: ProgramAudience;
   monthlyPriceCents: number | null;
+  siblingPriceCents: number | null;
   membershipFreeUntil: Date | null;
   pricePerPracticeCents: number | null;
   signupCloseDaysBefore: number | null;
@@ -901,6 +907,7 @@ function serializeCategory(category: {
     kind: category.kind,
     audience: category.audience,
     monthlyPriceCents: category.monthlyPriceCents,
+    siblingPriceCents: category.siblingPriceCents,
     membershipFreeUntil: category.membershipFreeUntil?.toISOString().slice(0, 10) ?? null,
     pricePerPracticeCents: category.pricePerPracticeCents,
     signupCloseDaysBefore: category.signupCloseDaysBefore,

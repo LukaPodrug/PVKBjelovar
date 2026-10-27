@@ -55,6 +55,7 @@ export interface ClubSettings {
   bankRecipientCity: string | null;
   membershipPriceCents: number | null;
   membershipFreeUntil: string | null;
+  siblingMembershipPriceCents: number | null;
 }
 
 /** REGULAR is a waterpolo squad; PROGRAM is a standalone outreach program such as pool games. */
@@ -97,6 +98,8 @@ export interface CategoryOption {
   name: string;
   kind?: CategoryKind;
   audience?: ProgramAudience;
+  monthlyPriceCents?: number | null;
+  siblingPriceCents?: number | null;
   logoUrl: string | null;
   startDateOfBirth?: string | null;
   endDateOfBirth?: string | null;
@@ -197,6 +200,7 @@ export interface CategoryRecord extends CategoryOption {
   kind: CategoryKind;
   audience: ProgramAudience;
   monthlyPriceCents: number | null;
+  siblingPriceCents: number | null;
   membershipFreeUntil: string | null;
   pricePerPracticeCents: number | null;
   signupCloseDaysBefore: number | null;

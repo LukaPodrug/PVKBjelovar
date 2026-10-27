@@ -29,6 +29,7 @@ interface BrandingFormState {
   bankRecipientCity: string;
   membershipPrice: string;
   membershipFreeUntil: string;
+  siblingMembershipPrice: string;
   logoFile: File | null;
   removeLogo: boolean;
 }
@@ -54,6 +55,7 @@ const emptyBrandingForm: BrandingFormState = {
   bankRecipientCity: "",
   membershipPrice: "",
   membershipFreeUntil: "",
+  siblingMembershipPrice: "",
   logoFile: null,
   removeLogo: false,
 };
@@ -122,6 +124,7 @@ export function SettingsPage() {
       bankRecipientCity: currentSettings.bankRecipientCity ?? "",
       membershipPrice: centsToEuroInput(currentSettings.membershipPriceCents),
       membershipFreeUntil: currentSettings.membershipFreeUntil?.slice(0, 10) ?? "",
+      siblingMembershipPrice: centsToEuroInput(currentSettings.siblingMembershipPriceCents),
       logoFile: null,
       removeLogo: false,
     });
@@ -191,6 +194,7 @@ export function SettingsPage() {
         bankRecipientCity: settings.bankRecipientCity ?? "",
         membershipPrice: centsToEuroInput(settings.membershipPriceCents),
         membershipFreeUntil: settings.membershipFreeUntil?.slice(0, 10) ?? "",
+        siblingMembershipPrice: centsToEuroInput(settings.siblingMembershipPriceCents),
         logoFile: null,
         removeLogo: false,
       });
@@ -627,6 +631,29 @@ export function SettingsPage() {
 
                       <label className="block">
                         <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                          Članarina za drugo i svako sljedeće dijete (€)
+                        </span>
+                        <input
+                          className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                          type="text"
+                          inputMode="decimal"
+                          value={brandingForm.siblingMembershipPrice}
+                          onChange={(event) =>
+                            setBrandingForm((current) => ({
+                              ...current,
+                              siblingMembershipPrice: event.target.value,
+                            }))
+                          }
+                          placeholder="npr. 20"
+                        />
+                        <span className="mt-2 block text-xs text-muted">
+                          Predlaže se kod odobravanja prijave kad roditelj već ima dijete u klubu, za
+                          kategorije bez vlastite članarine.
+                        </span>
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
                           Članarina besplatna do
                         </span>
                         <DatePicker
@@ -667,6 +694,7 @@ export function SettingsPage() {
                           bankRecipientCity: currentSettings.bankRecipientCity ?? "",
                           membershipPrice: centsToEuroInput(currentSettings.membershipPriceCents),
                           membershipFreeUntil: currentSettings.membershipFreeUntil?.slice(0, 10) ?? "",
+                          siblingMembershipPrice: centsToEuroInput(currentSettings.siblingMembershipPriceCents),
                           logoFile: null,
                           removeLogo: false,
                         });
@@ -898,6 +926,7 @@ function buildBrandingFormData(form: BrandingFormState) {
   formData.append("bankRecipientCity", form.bankRecipientCity);
   formData.append("membershipPrice", form.membershipPrice);
   formData.append("membershipFreeUntil", form.membershipFreeUntil);
+  formData.append("siblingMembershipPrice", form.siblingMembershipPrice);
 
   if (form.logoFile) {
     formData.append("logo", form.logoFile);

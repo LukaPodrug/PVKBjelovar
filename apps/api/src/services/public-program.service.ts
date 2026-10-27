@@ -157,44 +157,109 @@ export interface ClubBankDetails {
   bankRecipientCity: string | null;
 }
 
-/**
- * Bank transfer details for one practice signup, plus the two scannable payloads: the Croatian HUB3
- * PDF417 barcode that local mobile banking reads, and the European EPC QR code. Returns null when
- * the club has not filled in its bank details yet.
- */
+/** Payment for one practice of a program for non-members, referenced by signup and date. */
 export function buildProgramPayment(input: ProgramPaymentInput, bank: ClubBankDetails) {
+  const [, month, day] = input.sessionDate.toISOString().slice(0, 10).split("-");
+
+  return buildBankPayment(
+    {
+      amountCents: input.priceCents,
+      payerName: `${input.parentFirstName} ${input.parentLastName}`,
+      model: paymentModel,
+      reference: buildPaymentReference(input.referenceNumber, input.sessionDate),
+      // HUB3 allows 35 characters: the child and practice matter most for matching payments, so the
+      // program name only fills whatever room is left.
+      description: truncate(
+        `${input.childFirstName} ${input.childLastName} ${day}.${month}. ${input.startTime} ${input.programName}`,
+        35,
+      ),
+    },
+    bank,
+  );
+}
+
+/**
+ * First monthly membership payment shown right after a member program signup, worded like the
+ * parent app's payments ("Clanarina <month> - <child>", no reference) so all membership payments look
+ * the same on the bank statement.
+ */
+export function buildMembershipPayment(
+  input: {
+    amountCents: number;
+    month: Date;
+    childFirstName: string;
+    childLastName: string;
+    parentFirstName: string;
+    parentLastName: string;
+  },
+  bank: ClubBankDetails,
+) {
+  const monthName = new Intl.DateTimeFormat("hr-HR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Zagreb",
+  }).format(input.month);
+  const monthNumber = new Intl.DateTimeFormat("hr-HR", {
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Zagreb",
+  })
+    .formatToParts(input.month)
+    .reduce((parts, part) => ({ ...parts, [part.type]: part.value }), {} as Record<string, string>);
+  const childName = `${input.childFirstName} ${input.childLastName}`;
+
+  return buildBankPayment(
+    {
+      amountCents: input.amountCents,
+      payerName: `${input.parentFirstName} ${input.parentLastName}`,
+      model: "HR99",
+      reference: "",
+      description: `Clanarina ${monthName} - ${childName}`,
+      // The barcode allows only 35 characters, so it uses the short month to keep the whole name.
+      hub3Description: `Clanarina ${monthNumber.month}/${monthNumber.year} ${childName}`,
+    },
+    bank,
+  );
+}
+
+/**
+ * Bank transfer details plus the two scannable payloads: the Croatian HUB3 PDF417 barcode that local
+ * mobile banking reads, and the European EPC QR code. Returns null when the club has not filled in
+ * its bank details yet.
+ */
+function buildBankPayment(
+  input: {
+    amountCents: number;
+    payerName: string;
+    model: string;
+    reference: string;
+    description: string;
+    hub3Description?: string;
+  },
+  bank: ClubBankDetails,
+) {
   if (!bank.bankIban || !bank.bankRecipient) {
     return null;
   }
 
   const iban = bank.bankIban.replace(/\s+/g, "").toUpperCase();
-  const [, month, day] = input.sessionDate.toISOString().slice(0, 10).split("-");
-  const model = paymentModel;
-  const reference = buildPaymentReference(input.referenceNumber, input.sessionDate);
-  // HUB3 allows 35 characters: the child and practice matter most for matching payments, so the
-  // program name only fills whatever room is left.
-  const description = truncate(
-    `${input.childFirstName} ${input.childLastName} ${day}.${month}. ${input.startTime} ${input.programName}`,
-    35,
-  );
-  const amount = (input.priceCents / 100).toFixed(2);
-  const payerName = `${input.parentFirstName} ${input.parentLastName}`;
+  const amount = (input.amountCents / 100).toFixed(2);
 
   const hub3Text = [
     "HRVHUB30",
     "EUR",
-    String(input.priceCents).padStart(15, "0"),
-    truncate(toHub3Text(payerName), 30),
+    String(input.amountCents).padStart(15, "0"),
+    truncate(toHub3Text(input.payerName), 30),
     "",
     "",
     truncate(toHub3Text(bank.bankRecipient), 25),
     truncate(toHub3Text(bank.bankRecipientAddress ?? ""), 25),
     truncate(toHub3Text(bank.bankRecipientCity ?? ""), 27),
     iban,
-    model,
-    reference,
+    input.model,
+    input.reference,
     "OTHR",
-    toHub3Text(description),
+    truncate(toHub3Text(input.hub3Description ?? input.description), 35),
   ].join("\n");
 
   const epcQrText = [
@@ -208,7 +273,12 @@ export function buildProgramPayment(input: ProgramPaymentInput, bank: ClubBankDe
     `EUR${amount}`,
     "",
     "",
-    truncate(`${model} ${reference} ${description}`, 140),
+    truncate(
+      [input.reference ? `${input.model} ${input.reference}` : "", input.description]
+        .filter(Boolean)
+        .join(" "),
+      140,
+    ),
   ].join("\n");
 
   return {
@@ -219,9 +289,9 @@ export function buildProgramPayment(input: ProgramPaymentInput, bank: ClubBankDe
     recipientCity: bank.bankRecipientCity,
     iban,
     bankName: bank.bankName,
-    model,
-    reference,
-    description,
+    model: input.model,
+    reference: input.reference,
+    description: input.description,
     hub3Text,
     epcQrText,
   };

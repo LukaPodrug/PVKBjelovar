@@ -12,6 +12,7 @@ interface PricedCategory {
 export interface ClubMembershipPricing {
   priceCents: number | null;
   freeUntil: Date | null;
+  siblingPriceCents: number | null;
 }
 
 export interface MembershipPrice {
@@ -85,13 +86,26 @@ export function getCurrentMembershipPriceCents(price: MembershipPrice) {
 export async function getClubMembershipPricing(): Promise<ClubMembershipPricing> {
   const settings = await prisma.clubSettings.findUnique({
     where: { id: "club-settings" },
-    select: { membershipPriceCents: true, membershipFreeUntil: true },
+    select: { membershipPriceCents: true, membershipFreeUntil: true, siblingMembershipPriceCents: true },
   });
 
   return {
     priceCents: settings?.membershipPriceCents ?? null,
     freeUntil: settings?.membershipFreeUntil ?? null,
+    siblingPriceCents: settings?.siblingMembershipPriceCents ?? null,
   };
+}
+
+/**
+ * Fee for the second and every further child of a family joining this category or program: its own
+ * sibling fee, else the club sibling fee when it charges the club fee. A category with its own fee
+ * and no sibling fee gives no discount (null).
+ */
+export function getSiblingPriceCents(
+  category: { monthlyPriceCents: number | null; siblingPriceCents: number | null },
+  club: ClubMembershipPricing,
+) {
+  return category.siblingPriceCents ?? (category.monthlyPriceCents === null ? club.siblingPriceCents : null);
 }
 
 /** Adds the suggested fee and free period to a player loaded with its categories, for admin. */

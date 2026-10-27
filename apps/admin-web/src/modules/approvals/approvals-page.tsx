@@ -4,12 +4,12 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { api } from "../core/api";
 import { formatDateTime, toDateInputValue } from "../core/date";
-import type { CategoryOption, PaginatedResponse, SignupRequest } from "../core/types";
+import type { CategoryOption, ClubSettings, PaginatedResponse, SignupRequest } from "../core/types";
 import { EntityDrawer } from "../layout/entity-drawer";
 import { FeedbackToast } from "../ui/feedback-toast";
 import { DatePicker } from "../ui/date-picker";
 import { PaginationControls } from "../ui/pagination-controls";
-import { MembershipPriceField } from "../ui/membership-price-field";
+import { centsToEuroInput, MembershipPriceField } from "../ui/membership-price-field";
 import { formatSwimmingAbility } from "../ui/swimming-ability-field";
 
 interface ApprovalResult {
@@ -82,10 +82,47 @@ export function ApprovalsPage() {
         name: category.name,
         kind: category.kind,
         audience: category.audience,
+        monthlyPriceCents: category.monthlyPriceCents ?? null,
+        siblingPriceCents: category.siblingPriceCents ?? null,
         logoUrl: category.logoUrl,
       }));
     },
   });
+
+  const clubSettingsQuery = useQuery({
+    queryKey: ["club-settings"],
+    queryFn: async () => {
+      const response = await api.get<ClubSettings>("/club-settings");
+      return response.data;
+    },
+  });
+
+  /**
+   * Sibling fee of the category or program the kid joins, prefilled when the family already has a
+   * kid in the club; otherwise empty, which keeps the regular fee.
+   */
+  const getSuggestedSignupMembershipPrice = (signup: SignupRequest) => {
+    const categoryId =
+      selectedCategoryIds[signup.id] ?? signup.assignedCategoryId ?? signup.suggestedCategoryId ?? "";
+    const siblingPriceCents = getCategorySiblingPriceCents(categoryId);
+
+    return signup.siblingsInClub?.length ? centsToEuroInput(siblingPriceCents) : "";
+  };
+
+  const getCategorySiblingPriceCents = (categoryId: string) => {
+    const category = (categoriesQuery.data ?? []).find((option) => option.id === categoryId);
+
+    if (!category) {
+      return null;
+    }
+
+    return (
+      category.siblingPriceCents ??
+      (category.monthlyPriceCents === null
+        ? clubSettingsQuery.data?.siblingMembershipPriceCents ?? null
+        : null)
+    );
+  };
 
   const closeDrawer = () => {
     setSelectedSignupId(null);
@@ -717,7 +754,10 @@ export function ApprovalsPage() {
                           {selectedSignup.siblingsInClub
                             .map((sibling) => `${sibling.firstName} ${sibling.lastName}`)
                             .join(", ")}
-                          . Predložena je članarina za drugo i svako sljedeće dijete.
+                          .{" "}
+                          {getCategorySiblingPriceCents(selectedCategoryId) !== null
+                            ? "Predložena je članarina odabrane kategorije za drugo i svako sljedeće dijete."
+                            : "Odabrana kategorija nema cijenu za drugo dijete, pa vrijedi redovna članarina."}
                         </p>
                       ) : null}
                     </div>
@@ -904,13 +944,6 @@ function formatNumericDate(dateIso: string) {
 /** Programs for non-members take practice signups only, so they are never offered for approval. */
 function isMemberProgram(category: CategoryOption) {
   return category.kind === "PROGRAM" && category.audience !== "PUBLIC";
-}
-
-/** Second and further kids in a family pay the sibling fee; others keep the default (empty). */
-const siblingMembershipPrice = "20";
-
-function getSuggestedSignupMembershipPrice(signup: SignupRequest) {
-  return signup.siblingsInClub?.length ? siblingMembershipPrice : "";
 }
 
 function buildApprovalSuccessMessage(result: ApprovalResult) {
