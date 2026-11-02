@@ -11,6 +11,7 @@ import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { authorizeParentAccess, authorizeRoles } from "../middlewares/authorize";
 import { computeCategoryLeaderboard } from "../services/leaderboard.service";
+import { buildMembershipCard } from "../services/membership-card.service";
 import { isExpoPushToken } from "../services/push.service";
 import { parseLeaderboardWindow, parsePaginationInput, requireString } from "../utils/request-parsers";
 import {
@@ -295,6 +296,17 @@ meRouter.get(
       })),
       attendance,
     });
+  }),
+);
+
+meRouter.get(
+  "/children/:playerId/membership-card",
+  parentOnly,
+  asyncHandler(async (request, response) => {
+    const playerId = requireString(request.params.playerId, "playerId");
+    await resolveParentChild(request.auth!.userId, playerId);
+
+    response.json(await buildMembershipCard(playerId));
   }),
 );
 
@@ -763,6 +775,23 @@ meRouter.get(
     const leaderboard = await computeCategoryLeaderboard(categoryId, window, pagination);
 
     response.json({ ...leaderboard, highlightPlayerIds });
+  }),
+);
+
+meRouter.get(
+  "/membership-card",
+  playerOnly,
+  asyncHandler(async (request, response) => {
+    const player = await prisma.player.findUnique({
+      where: { userId: request.auth!.userId },
+      select: { id: true },
+    });
+
+    if (!player) {
+      throw new AppError("Profil igrača nije pronađen.", 403);
+    }
+
+    response.json(await buildMembershipCard(player.id));
   }),
 );
 

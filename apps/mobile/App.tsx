@@ -1820,6 +1820,186 @@ function activeTabIconName(iconName: TabIconName): TabIconName {
   return activeIconMap[iconName] ?? iconName;
 }
 
+interface MembershipCard {
+  playerId: string;
+  memberNumber: string;
+  firstName: string;
+  lastName: string;
+  profileImageUrl: string | null;
+  dateOfBirth: string;
+  categories: string[];
+  memberSince: string;
+  status: "ACTIVE" | "FREE" | "EXPIRED" | "NONE";
+  validUntil: string | null;
+  club: { name: string | null; subtitle: string | null; logoUrl: string | null };
+}
+
+const membershipCardStatusContent: Record<
+  MembershipCard["status"],
+  { label: (validUntil: string | null) => string; color: string; icon: TabIconName }
+> = {
+  ACTIVE: {
+    label: (validUntil) => `Članarina vrijedi do ${validUntil ? formatIsoDateHr(validUntil) : "-"}`,
+    color: "#1f9d55",
+    icon: "checkmark-circle",
+  },
+  FREE: {
+    label: (validUntil) => `Članarina besplatna do ${validUntil ? formatIsoDateHr(validUntil) : "-"}`,
+    color: "#1f9d55",
+    icon: "checkmark-circle",
+  },
+  EXPIRED: {
+    label: (validUntil) => `Članarina istekla ${validUntil ? formatIsoDateHr(validUntil) : ""}`.trim(),
+    color: "#d64545",
+    icon: "alert-circle",
+  },
+  NONE: {
+    label: () => "Članarina nije evidentirana",
+    color: "#8a97a8",
+    icon: "help-circle",
+  },
+};
+
+/**
+ * The virtual membership card: club, photo, name, date of birth and whether membership is paid.
+ * A ticking clock on the card shows it is live, not a screenshot.
+ */
+function MembershipCardPanel({
+  apiBaseUrl,
+  token,
+  endpoint,
+}: {
+  apiBaseUrl: string;
+  token: string;
+  endpoint: string;
+}) {
+  const [card, setCard] = useState<MembershipCard | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    let isActive = true;
+
+    requestJson<MembershipCard>(apiBaseUrl, endpoint, { method: "GET", token })
+      .then((payload) => {
+        if (isActive) {
+          setCard(payload);
+          setErrorMessage(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (isActive) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Iskaznicu trenutno nije moguće učitati.",
+          );
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [apiBaseUrl, endpoint, token]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (errorMessage) {
+    return <MessageBanner tone="error" message={errorMessage} />;
+  }
+
+  if (!card) {
+    return (
+      <View style={styles.card}>
+        <View style={styles.loadingBlock}>
+          <ActivityIndicator color="#123d75" />
+        </View>
+      </View>
+    );
+  }
+
+  const status = membershipCardStatusContent[card.status];
+  const fullName = `${card.firstName} ${card.lastName}`;
+
+  return (
+    <View style={styles.memberCard}>
+      <View style={styles.memberCardGlow} pointerEvents="none" />
+
+      <View style={styles.memberCardHeader}>
+        <View style={styles.memberCardLogoWrap}>
+          <Image
+            source={card.club.logoUrl ? { uri: card.club.logoUrl } : clubLogoSource}
+            style={styles.memberCardLogo}
+            resizeMode="contain"
+          />
+        </View>
+        <View style={styles.memberCardHeaderCopy}>
+          <Text style={styles.memberCardEyebrow}>Članska iskaznica</Text>
+          <Text style={styles.memberCardClubName} numberOfLines={2}>
+            {card.club.name ?? "PVK Mladost Bjelovar"}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.memberCardIdentity}>
+        <ImageFirstAvatar
+          name={fullName}
+          imageUrl={card.profileImageUrl}
+          containerStyle={styles.memberCardPhoto}
+          textStyle={styles.memberCardPhotoInitials}
+        />
+        <Text style={styles.memberCardName}>{fullName}</Text>
+        <Text style={styles.memberCardNumber}>Br. člana {card.memberNumber}</Text>
+      </View>
+
+      <View style={styles.memberCardDetails}>
+        <MembershipCardDetail label="Datum rođenja" value={formatIsoDateHr(card.dateOfBirth)} />
+        <MembershipCardDetail label="Član od" value={formatIsoDateHr(card.memberSince)} />
+        <MembershipCardDetail
+          label={card.categories.length > 1 ? "Kategorije" : "Kategorija"}
+          value={card.categories.length > 0 ? card.categories.join(", ") : "-"}
+          isWide
+        />
+      </View>
+
+      <View style={[styles.memberCardStatus, { backgroundColor: status.color }]}>
+        <Ionicons name={status.icon} size={18} color="#ffffff" />
+        <Text style={styles.memberCardStatusText}>{status.label(card.validUntil)}</Text>
+      </View>
+
+      <View style={styles.memberCardClock}>
+        <View style={[styles.memberCardClockDot, now.getSeconds() % 2 === 0 && styles.memberCardClockDotDim]} />
+        <Text style={styles.memberCardClockText}>Prikazano {formatDateTimeSeconds(now)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function MembershipCardDetail({
+  label,
+  value,
+  isWide = false,
+}: {
+  label: string;
+  value: string;
+  isWide?: boolean;
+}) {
+  return (
+    <View style={[styles.memberCardDetail, isWide && styles.memberCardDetailWide]}>
+      <Text style={styles.memberCardDetailLabel}>{label}</Text>
+      <Text style={styles.memberCardDetailValue}>{value}</Text>
+    </View>
+  );
+}
+
+function formatDateTimeSeconds(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}. ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 function TabScrollView({ children }: { children: ReactNode }) {
   return <ScrollView contentContainerStyle={styles.tabContent}>{children}</ScrollView>;
 }
@@ -2669,6 +2849,7 @@ function PlayerAttendanceScreen({
   const playerTabs: TabItem[] = [
     { key: "schedule", label: "Raspored", icon: "calendar-outline" },
     { key: "checkin", label: "Dolazak", icon: "scan-outline" },
+    { key: "card", label: "Iskaznica", icon: "card-outline" },
     { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
     { key: "profile", label: "Profil", icon: "person-circle-outline" },
   ];
@@ -2685,6 +2866,14 @@ function PlayerAttendanceScreen({
       <View style={styles.tabBody}>
         {activeTab === "schedule" ? (
           <WeeklySchedulePanel apiBaseUrl={apiBaseUrl} token={session.token} endpoint="/me/schedule" />
+        ) : activeTab === "card" ? (
+          <TabScrollView>
+            <MembershipCardPanel
+              apiBaseUrl={apiBaseUrl}
+              token={session.token}
+              endpoint="/me/membership-card"
+            />
+          </TabScrollView>
         ) : activeTab === "checkin" ? (
           <TabScrollView>
             {errorMessage ? <MessageBanner tone="error" message={errorMessage} /> : null}
@@ -2898,6 +3087,7 @@ function ParentDashboardScreen({
   const parentTabs: TabItem[] = [
     { key: "overview", label: "Pregled", icon: "home-outline" },
     { key: "schedule", label: "Raspored", icon: "calendar-outline" },
+    { key: "card", label: "Iskaznica", icon: "card-outline" },
     { key: "notifications", label: "Obavijesti", icon: "notifications-outline" },
     { key: "profile", label: "Profil", icon: "person-circle-outline" },
   ];
@@ -3021,6 +3211,17 @@ function ParentDashboardScreen({
                   token={session.token}
                   endpoint={`/me/children/${child.playerId}/schedule`}
                 />
+              ))
+            ) : activeTab === "card" ? (
+              renderChildScopedTab((child) => (
+                <TabScrollView>
+                  <MembershipCardPanel
+                    key={child.playerId}
+                    apiBaseUrl={apiBaseUrl}
+                    token={session.token}
+                    endpoint={`/me/children/${child.playerId}/membership-card`}
+                  />
+                </TabScrollView>
               ))
             ) : activeTab === "notifications" ? (
               <TabScrollView>
@@ -5337,6 +5538,158 @@ const styles = StyleSheet.create({
     color: "#123d75",
     fontSize: 13,
     fontWeight: "700",
+  },
+  memberCard: {
+    overflow: "hidden",
+    borderRadius: 28,
+    backgroundColor: "#123d75",
+    padding: 22,
+    gap: 20,
+    shadowColor: "#0b1f3d",
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
+  },
+  memberCardGlow: {
+    position: "absolute",
+    top: -120,
+    right: -90,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: "#2a6bc2",
+    opacity: 0.45,
+  },
+  memberCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  memberCardLogoWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  memberCardLogo: {
+    width: 40,
+    height: 40,
+  },
+  memberCardHeaderCopy: {
+    flex: 1,
+  },
+  memberCardEyebrow: {
+    color: "#a9c6ec",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  memberCardClubName: {
+    marginTop: 2,
+    color: "#ffffff",
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  memberCardIdentity: {
+    alignItems: "center",
+    gap: 6,
+  },
+  memberCardPhoto: {
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    borderWidth: 4,
+    borderColor: "#ffffff",
+    backgroundColor: "#eef5fc",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  memberCardPhotoInitials: {
+    color: "#123d75",
+    fontSize: 40,
+    fontWeight: "800",
+  },
+  memberCardName: {
+    color: "#ffffff",
+    fontSize: 24,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  memberCardNumber: {
+    color: "#a9c6ec",
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  memberCardDetails: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    padding: 16,
+  },
+  memberCardDetail: {
+    width: "50%",
+    gap: 3,
+  },
+  memberCardDetailWide: {
+    width: "100%",
+  },
+  memberCardDetailLabel: {
+    color: "#a9c6ec",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  memberCardDetailValue: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  memberCardStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  memberCardStatusText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "800",
+    textAlign: "center",
+    flexShrink: 1,
+  },
+  memberCardClock: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  memberCardClockDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#5fe39a",
+  },
+  memberCardClockDotDim: {
+    opacity: 0.3,
+  },
+  memberCardClockText: {
+    color: "#a9c6ec",
+    fontSize: 12,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
   appUpdateButton: {
     marginTop: 18,
