@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import type { AxiosError } from "axios";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useAuth } from "../auth/auth-context";
-import { api } from "../core/api";
+import { api, postPersonForm } from "../core/api";
 import type {
   AccountStatus,
   CategoryRecord,
@@ -158,11 +158,7 @@ export function CoachesPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const response = await api.post<CoachCreateResult>("/coaches", buildCoachFormData(form), {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await postPersonForm<CoachCreateResult>("/coaches", buildCoachFormData(form));
 
       return response.data;
     },

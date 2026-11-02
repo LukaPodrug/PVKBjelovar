@@ -56,6 +56,14 @@ export interface ClubSettings {
   membershipPriceCents: number | null;
   membershipFreeUntil: string | null;
   siblingMembershipPriceCents: number | null;
+  /** Mobile app versions ("1.2.0"): below latest the app suggests an update, below minimum it blocks. */
+  iosLatestVersion: string | null;
+  iosMinimumVersion: string | null;
+  iosDownloadUrl: string | null;
+  androidLatestVersion: string | null;
+  androidMinimumVersion: string | null;
+  /** Google Drive link while the app waits for Google Play, then the Play Store link. */
+  androidDownloadUrl: string | null;
 }
 
 /** REGULAR is a waterpolo squad; PROGRAM is a standalone outreach program such as pool games. */
@@ -160,6 +168,10 @@ export interface PlayerRecord {
   suggestedMembershipPriceCents?: number | null;
   /** Last free day (YYYY-MM-DD) while the player's membership is free; null when paid. */
   membershipFreeUntil?: string | null;
+  /** Set when the player was deleted; they stay listed as deleted and can be restored. */
+  archivedAt: string | null;
+  /** Categories the player was in when deleted, restored with them. */
+  archivedCategoryIds: string[];
   createdAt: string;
   sourceSignup?: {
     createdAt: string;

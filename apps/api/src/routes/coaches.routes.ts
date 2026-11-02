@@ -8,6 +8,11 @@ import { authorizeRoles } from "../middlewares/authorize";
 import { uploadProfileImage } from "../middlewares/upload";
 import { generateTemporaryPassword, hashPassword } from "../services/password.service";
 import {
+  ensureAccountCanTakeProfile,
+  findAccountByEmail,
+  removeUserProfile,
+} from "../services/user-profile.service";
+import {
   resetCoachCredentials,
   sendCoachCredentials,
 } from "../services/credentials.service";
@@ -197,8 +202,15 @@ coachesRouter.post(
       throw new AppError("Ova e-adresa već ima trenerski profil.", 409);
     }
 
+    // A parent or player who starts coaching keeps their account and gets a coach profile on it,
+    // once the admin confirms. Admins have always been able to take a coach profile directly.
     if (existingUser && existingUser.role !== UserRole.ADMIN) {
-      throw new AppError("Ova e-adresa je već zauzeta.", 409);
+      const account = await findAccountByEmail(email);
+      ensureAccountCanTakeProfile(
+        account!,
+        UserRole.COACH,
+        parseOptionalBooleanInput(request.body.attachToExistingUser) ?? false,
+      );
     }
 
     const coach = existingUser
@@ -206,6 +218,8 @@ coachesRouter.post(
           await transaction.user.update({
             where: { id: existingUser.id },
             data: {
+              // Staff screens are keyed off the primary role, so a parent or player becomes a coach.
+              role: existingUser.role === UserRole.ADMIN ? undefined : UserRole.COACH,
               firstName,
               lastName,
               phone: optionalString(request.body.phone),
@@ -377,22 +391,8 @@ coachesRouter.delete(
       return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: coach.userId },
-      select: { role: true },
-    });
-
-    if (user?.role === UserRole.ADMIN) {
-      await prisma.coach.delete({
-        where: { id: coachId },
-      });
-    } else {
-      await prisma.user.delete({
-        where: {
-          id: coach.userId,
-        },
-      });
-    }
+    // An admin, parent or player who also coaches keeps their account; only the coach profile goes.
+    await removeUserProfile(coach.userId, UserRole.COACH);
 
     response.status(204).send();
   }),

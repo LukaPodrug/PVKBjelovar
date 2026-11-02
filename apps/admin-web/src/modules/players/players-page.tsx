@@ -3,7 +3,7 @@ import type { AxiosError } from "axios";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/auth-context";
-import { api } from "../core/api";
+import { api, postPersonForm } from "../core/api";
 import { formatDate, toDateInputValue } from "../core/date";
 import type {
   AccountStatus,
@@ -107,6 +107,7 @@ export function PlayersPage() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [parentSearch, setParentSearch] = useState("");
   const [selectedCategoryFilterIds, setSelectedCategoryFilterIds] = useState<string[]>([]);
+  const [archiveFilter, setArchiveFilter] = useState<PlayerArchiveFilter>("active");
   const [selectedParentOptions, setSelectedParentOptions] = useState<ParentSummary[]>([]);
   const [isQuickParentFormOpen, setIsQuickParentFormOpen] = useState(false);
   const [quickParentForm, setQuickParentForm] =
@@ -115,7 +116,14 @@ export function PlayersPage() {
   const debouncedParentSearch = useDebouncedValue(parentSearch.trim());
 
   const playersQuery = useQuery({
-    queryKey: ["players", "management", playersPage, debouncedPlayerSearch, selectedCategoryFilterIds],
+    queryKey: [
+      "players",
+      "management",
+      playersPage,
+      debouncedPlayerSearch,
+      selectedCategoryFilterIds,
+      archiveFilter,
+    ],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const response = await api.get<PaginatedResponse<PlayerRecord>>("/players", {
@@ -125,6 +133,7 @@ export function PlayersPage() {
           search: debouncedPlayerSearch || undefined,
           categoryIds:
             selectedCategoryFilterIds.length > 0 ? selectedCategoryFilterIds.join(",") : undefined,
+          status: archiveFilter,
         },
       });
       return response.data;
@@ -258,11 +267,7 @@ export function PlayersPage() {
     mutationFn: async () => {
       ensurePlayerFormHasParent(form);
 
-      const response = await api.post<PlayerRecord>("/players", buildPlayerFormData(form), {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await postPersonForm<PlayerRecord>("/players", buildPlayerFormData(form));
 
       return response.data;
     },
@@ -296,11 +301,7 @@ export function PlayersPage() {
       formData.append("playerIds", JSON.stringify(selectedPlayer ? [selectedPlayer.id] : []));
       formData.append("primaryPlayerIds", JSON.stringify([]));
 
-      const response = await api.post<ParentRecord>("/parents", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await postPersonForm<ParentRecord>("/parents", formData);
 
       return response.data;
     },
@@ -394,7 +395,7 @@ export function PlayersPage() {
 
       setFeedback({
         tone: "success",
-        message: `Igrač ${deletedName} uspješno je obrisan.`,
+        message: `Igrač ${deletedName} je obrisan. Možete ga vratiti s popisa obrisanih igrača.`,
       });
       setSelectedPlayerId(null);
       setFormMode("create");
@@ -407,6 +408,46 @@ export function PlayersPage() {
       setFeedback({
         tone: "error",
         message: error.response?.data?.message ?? "Brisanje igrača nije uspjelo.",
+      });
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async (player: PlayerRecord) => {
+      const response = await api.post<PlayerRecord>(`/players/${player.id}/restore`);
+      return response.data;
+    },
+    onSuccess: (restoredPlayer) => {
+      setFeedback({
+        tone: "success",
+        message: `Igrač ${restoredPlayer.user.firstName} ${restoredPlayer.user.lastName} ponovno je aktivan.`,
+      });
+      void invalidatePlayerQueries(queryClient, isAdmin);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message: error.response?.data?.message ?? "Vraćanje igrača nije uspjelo.",
+      });
+    },
+  });
+
+  const permanentDeleteMutation = useMutation({
+    mutationFn: async (player: PlayerRecord) => {
+      await api.delete(`/players/${player.id}`, { params: { permanent: true } });
+      return player;
+    },
+    onSuccess: (player) => {
+      setFeedback({
+        tone: "success",
+        message: `Igrač ${player.user.firstName} ${player.user.lastName} trajno je obrisan.`,
+      });
+      void invalidatePlayerQueries(queryClient, isAdmin);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      setFeedback({
+        tone: "error",
+        message: error.response?.data?.message ?? "Trajno brisanje igrača nije uspjelo.",
       });
     },
   });
@@ -534,7 +575,7 @@ export function PlayersPage() {
               </button>
             </div>
 
-            <div className="relative z-30 grid gap-4 border-b-2 border-line bg-white px-4 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
+            <div className="relative z-30 grid gap-4 border-b-2 border-line bg-white px-4 py-4 md:grid-cols-[minmax(0,1fr)_200px] xl:grid-cols-[minmax(0,1fr)_200px_minmax(280px,380px)]">
               <label className="block min-w-0">
                 <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.25em] text-muted">
                   Pretraga
@@ -549,6 +590,23 @@ export function PlayersPage() {
                   }}
                   placeholder="Ime i prezime"
                 />
+              </label>
+              <label className="block min-w-0">
+                <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.25em] text-muted">
+                  Prikaz
+                </span>
+                <select
+                  className="h-[52px] w-full rounded-[18px] border border-line bg-surface px-4 outline-none focus:bg-bg"
+                  value={archiveFilter}
+                  onChange={(event) => {
+                    setArchiveFilter(event.target.value as PlayerArchiveFilter);
+                    setPlayersPage(1);
+                  }}
+                >
+                  <option value="active">Aktivni igrači</option>
+                  <option value="archived">Obrisani igrači</option>
+                  <option value="all">Svi igrači</option>
+                </select>
               </label>
               <CategoryFilterDropdown
                 categories={categories}
@@ -578,6 +636,34 @@ export function PlayersPage() {
                   players.map((player) => {
                     const isSelected =
                       isDrawerOpen && selectedPlayerId === player.id && formMode === "edit";
+
+                    if (player.archivedAt) {
+                      return (
+                        <ArchivedPlayerRow
+                          key={player.id}
+                          player={player}
+                          categories={categories}
+                          canDeletePermanently={isAdmin}
+                          isBusy={restoreMutation.isPending || permanentDeleteMutation.isPending}
+                          onRestore={() => {
+                            setFeedback(null);
+                            restoreMutation.mutate(player);
+                          }}
+                          onDeletePermanently={() => {
+                            if (
+                              !window.confirm(
+                                `Trajno obrisati igrača ${player.user.firstName} ${player.user.lastName}? Ovo se ne može poništiti.`,
+                              )
+                            ) {
+                              return;
+                            }
+
+                            setFeedback(null);
+                            permanentDeleteMutation.mutate(player);
+                          }}
+                        />
+                      );
+                    }
 
                     return (
                       <tr
@@ -1142,7 +1228,18 @@ export function PlayersPage() {
                       statusMutation.isPending ||
                       resendCredentialsMutation.isPending
                     }
-                    onClick={() => deleteMutation.mutate()}
+                    onClick={() => {
+                      if (
+                        !selectedPlayer ||
+                        !window.confirm(
+                          `Obrisati igrača ${selectedPlayer.user.firstName} ${selectedPlayer.user.lastName}? Ostat će na popisu obrisanih igrača i možete ga vratiti.`,
+                        )
+                      ) {
+                        return;
+                      }
+
+                      deleteMutation.mutate();
+                    }}
                   >
                     {deleteMutation.isPending ? "Brisanje..." : "Obriši igrača"}
                   </button>
@@ -1387,6 +1484,69 @@ function parentToSearchItem(parent: ParentSummary) {
       parent.user.phone ?? "",
     ],
   };
+}
+
+type PlayerArchiveFilter = "active" | "archived" | "all";
+
+function ArchivedPlayerRow({
+  player,
+  categories,
+  canDeletePermanently,
+  isBusy,
+  onRestore,
+  onDeletePermanently,
+}: {
+  player: PlayerRecord;
+  categories: CategoryRecord[];
+  canDeletePermanently: boolean;
+  isBusy: boolean;
+  onRestore: () => void;
+  onDeletePermanently: () => void;
+}) {
+  const formerCategoryNames = player.archivedCategoryIds
+    .map((categoryId) => categories.find((category) => category.id === categoryId)?.name)
+    .filter((name): name is string => Boolean(name));
+
+  return (
+    <tr className="border-b-2 border-line bg-bg text-muted">
+      <td className="px-4 py-4 align-middle text-center">
+        <p className="text-sm font-bold uppercase line-through">
+          {player.user.firstName} {player.user.lastName}
+        </p>
+      </td>
+      <td className="px-4 py-4 align-middle text-center text-sm">
+        {formerCategoryNames.length > 0 ? `Bio u: ${formerCategoryNames.join(", ")}` : "Bez kategorije"}
+      </td>
+      <td className="px-4 py-4 align-middle text-center text-sm">
+        {player.membershipExpiresAt ? formatDate(player.membershipExpiresAt) : "Nije postavljeno"}
+      </td>
+      <td className="px-4 py-4 align-middle text-center">
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="ui-pill ui-pill--panel">
+            Obrisan {player.archivedAt ? formatDate(player.archivedAt) : ""}
+          </span>
+          <button
+            className="ui-pill ui-pill-button ui-pill--success"
+            type="button"
+            disabled={isBusy}
+            onClick={onRestore}
+          >
+            Vrati
+          </button>
+          {canDeletePermanently ? (
+            <button
+              className="ui-pill ui-pill-button ui-pill--signal"
+              type="button"
+              disabled={isBusy}
+              onClick={onDeletePermanently}
+            >
+              Trajno obriši
+            </button>
+          ) : null}
+        </div>
+      </td>
+    </tr>
+  );
 }
 
 function StatusChip({ status }: { status: AccountStatus }) {

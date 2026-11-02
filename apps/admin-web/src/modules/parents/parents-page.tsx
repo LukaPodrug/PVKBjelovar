@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
 import { type ChangeEvent, useEffect, useState } from "react";
-import { api } from "../core/api";
+import { api, postPersonForm } from "../core/api";
 import { formatDate } from "../core/date";
 import type {
   AccountStatus,
@@ -173,11 +173,7 @@ export function ParentsPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const response = await api.post<ParentRecord>("/parents", buildParentFormData(form), {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await postPersonForm<ParentRecord>("/parents", buildParentFormData(form));
 
       return response.data;
     },
@@ -220,11 +216,7 @@ export function ParentsPage() {
       formData.append("parentIds", JSON.stringify([selectedParent.id]));
       formData.append("primaryParentId", selectedParent.id);
 
-      const response = await api.post<PlayerRecord>("/players", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await postPersonForm<PlayerRecord>("/players", formData);
 
       return response.data;
     },

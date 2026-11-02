@@ -1,8 +1,9 @@
-import { AccountStatus } from "@prisma/client";
+import { AccountStatus, UserRole } from "@prisma/client";
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../errors/app-error";
 import { prisma } from "../lib/prisma";
 import { verifyAuthToken } from "../services/token.service";
+import { listUserProfiles } from "../services/user-profile.service";
 
 export async function authenticateRequest(
   request: Request,
@@ -33,6 +34,9 @@ export async function authenticateRequest(
       profileImageUrl: true,
       accountStatus: true,
       mustChangePassword: true,
+      coach: { select: { id: true } },
+      parent: { select: { id: true } },
+      player: { select: { id: true, archivedAt: true } },
     },
   });
 
@@ -46,9 +50,13 @@ export async function authenticateRequest(
     return;
   }
 
+  const profiles = listUserProfiles(user);
+
   request.auth = {
     userId: user.id,
-    role: user.role,
+    role: resolveActingRole(request.headers["x-acting-role"], user.role, profiles),
+    primaryRole: user.role,
+    profiles,
     email: user.email,
     username: user.username,
     firstName: user.firstName,
@@ -58,4 +66,15 @@ export async function authenticateRequest(
   };
 
   next();
+}
+
+/**
+ * A user with several profiles (e.g. a coach who also plays for the veterans) picks which one the
+ * mobile app is showing with the X-Acting-Role header. Every role check then sees that role, but
+ * only one the user actually holds; anything else falls back to the primary role.
+ */
+function resolveActingRole(header: unknown, primaryRole: UserRole, profiles: UserRole[]): UserRole {
+  const requested = typeof header === "string" ? header.trim().toUpperCase() : "";
+
+  return profiles.find((role) => role === requested) ?? primaryRole;
 }

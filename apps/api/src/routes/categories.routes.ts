@@ -341,6 +341,7 @@ categoriesRouter.post(
         )?.id ?? null;
 
       const players = await transaction.player.findMany({
+        where: { archivedAt: null },
         select: {
           id: true,
           dateOfBirth: true,

@@ -67,6 +67,7 @@ export async function notifyAbsentPlayersForStartedPractice(
         id: {
           notIn: Array.from(presentPlayerIds),
         },
+        archivedAt: null,
         user: {
           accountStatus: "ACTIVE",
         },

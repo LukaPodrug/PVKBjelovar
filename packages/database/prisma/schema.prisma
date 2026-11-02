@@ -104,6 +104,14 @@ model ClubSettings {
   membershipFreeUntil  DateTime? @db.Date
   /// Club fee for the second and every further child of a family, suggested when approving.
   siblingMembershipPriceCents Int?
+  /// Mobile app versions ("1.2.0"). Below the latest the app suggests updating; below the minimum it
+  /// blocks until the user updates. Android is installed from a shared download link, not Play.
+  iosLatestVersion      String?
+  iosMinimumVersion     String?
+  iosDownloadUrl        String?
+  androidLatestVersion  String?
+  androidMinimumVersion String?
+  androidDownloadUrl    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -206,6 +214,10 @@ model Player {
   /// fee from the player's program or the club default applies.
   membershipPriceCents Int?
   swimmingAbility     SwimmingAbility?
+  /// Set when an admin deletes the player. The player stays listed as deleted and can be restored;
+  /// their category links move to archivedCategoryIds so rosters, schedules and leaderboards drop them.
+  archivedAt          DateTime?
+  archivedCategoryIds String[]         @default([])
   sourceSignupId      String?          @unique
   sourceSignup        SignupRequest?   @relation("SignupToPlayer", fields: [sourceSignupId], references: [id], onDelete: SetNull)
   categories          PlayerCategory[]
@@ -215,6 +227,7 @@ model Player {
   updatedAt           DateTime         @updatedAt
 
   @@index([dateOfBirth])
+  @@index([archivedAt])
   @@map("players")
 }
 

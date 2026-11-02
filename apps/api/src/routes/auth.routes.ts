@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
 import { hashPassword, validatePasswordStrength, verifyPassword } from "../services/password.service";
 import { signAuthToken } from "../services/token.service";
+import { findUserProfiles } from "../services/user-profile.service";
 import { normalizeLoginIdentifier, parseUsernameInput } from "../services/username.service";
 import { optionalString, requireString } from "../utils/request-parsers";
 
@@ -75,6 +76,7 @@ authRouter.post(
       user: {
         userId: user.id,
         role: user.role,
+        profiles: await findUserProfiles(user.id),
         email: user.email,
         username: user.username,
         firstName: user.firstName,
@@ -99,7 +101,7 @@ authRouter.post(
 
     const token = signAuthToken({
       sub: auth.userId,
-      role: auth.role,
+      role: auth.primaryRole,
       email: auth.email,
       username: auth.username,
     });
@@ -108,7 +110,8 @@ authRouter.post(
       token,
       user: {
         userId: auth.userId,
-        role: auth.role,
+        role: auth.primaryRole,
+        profiles: auth.profiles,
         email: auth.email,
         username: auth.username,
         firstName: auth.firstName,
@@ -215,6 +218,7 @@ authRouter.patch(
       user: {
         userId: user.id,
         role: user.role,
+        profiles: request.auth!.profiles,
         email: user.email,
         username: user.username,
         firstName: user.firstName,

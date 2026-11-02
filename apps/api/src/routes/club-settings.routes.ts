@@ -1,5 +1,6 @@
 import { UserRole } from "@prisma/client";
 import { Router } from "express";
+import { AppError } from "../errors/app-error";
 import { asyncHandler } from "../lib/async-handler";
 import { prisma } from "../lib/prisma";
 import { authenticateRequest } from "../middlewares/authenticate";
@@ -34,7 +35,26 @@ const defaultClubSettings = {
   membershipPriceCents: null,
   membershipFreeUntil: null,
   siblingMembershipPriceCents: null,
+  iosLatestVersion: null,
+  iosMinimumVersion: null,
+  iosDownloadUrl: null,
+  androidLatestVersion: null,
+  androidMinimumVersion: null,
+  androidDownloadUrl: null,
 };
+
+/** Where the app is installed from when the admin has not set a link in settings. */
+const defaultDownloadUrls = {
+  ios: "https://apps.apple.com/hr/app/pvk-mladost-bjelovar/id6803112338",
+  android: "https://drive.google.com/drive/folders/1zifEQwDQfhsjpudKz7wx-_d_ducCaHGw?usp=drive_link",
+};
+
+const appVersionFields = [
+  "iosLatestVersion",
+  "iosMinimumVersion",
+  "androidLatestVersion",
+  "androidMinimumVersion",
+] as const;
 
 function hasBodyField(body: Record<string, unknown>, field: string): boolean {
   return Object.prototype.hasOwnProperty.call(body, field);
@@ -54,6 +74,25 @@ clubSettingsRouter.get(
     });
 
     response.json(settings);
+  }),
+);
+
+/**
+ * Public, so the mobile app can check before anyone signs in: which version is current on the
+ * device's platform, the oldest one still allowed, and where to download the update.
+ */
+clubSettingsRouter.get(
+  "/app-version",
+  asyncHandler(async (request, response) => {
+    const platform = optionalString(request.query.platform) === "android" ? "android" : "ios";
+    const settings = await prisma.clubSettings.findUnique({ where: { id: clubSettingsId } });
+
+    response.json({
+      platform,
+      latestVersion: settings?.[`${platform}LatestVersion`] ?? null,
+      minimumVersion: settings?.[`${platform}MinimumVersion`] ?? null,
+      downloadUrl: settings?.[`${platform}DownloadUrl`] ?? defaultDownloadUrls[platform],
+    });
   }),
 );
 
@@ -158,6 +197,7 @@ clubSettingsRouter.patch(
         siblingMembershipPriceCents: hasBodyField(request.body, "siblingMembershipPrice")
           ? parseOptionalEuroAmountInput(request.body.siblingMembershipPrice, "siblingMembershipPrice")
           : undefined,
+        ...readAppVersionSettings(request.body),
         logoUrl,
       },
       create: {
@@ -180,6 +220,7 @@ clubSettingsRouter.patch(
           request.body.siblingMembershipPrice,
           "siblingMembershipPrice",
         ),
+        ...readAppVersionSettings(request.body),
         logoUrl: hasLogoInput ? (logoUrl ?? null) : defaultClubSettings.logoUrl,
       },
     });
@@ -187,3 +228,25 @@ clubSettingsRouter.patch(
     response.json(settings);
   }),
 );
+
+function readAppVersionSettings(body: Record<string, unknown>) {
+  const versions = Object.fromEntries(
+    appVersionFields.map((field) => [field, readOptionalVersion(body, field)]),
+  ) as Record<(typeof appVersionFields)[number], string | null | undefined>;
+
+  return {
+    ...versions,
+    iosDownloadUrl: readOptionalBodyString(body, "iosDownloadUrl"),
+    androidDownloadUrl: readOptionalBodyString(body, "androidDownloadUrl"),
+  };
+}
+
+function readOptionalVersion(body: Record<string, unknown>, field: string): string | null | undefined {
+  const value = readOptionalBodyString(body, field);
+
+  if (value && !/^\d+(\.\d+){0,2}$/.test(value)) {
+    throw new AppError(`${field} mora biti verzija u obliku 1.2.0.`, 400);
+  }
+
+  return value;
+}

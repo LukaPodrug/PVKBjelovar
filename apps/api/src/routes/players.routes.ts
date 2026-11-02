@@ -16,6 +16,13 @@ import {
 } from "../services/membership-price.service";
 import { notifyPlayerParents } from "../services/notification.service";
 import { generateTemporaryPassword, hashPassword } from "../services/password.service";
+import {
+  archivePlayer,
+  ensureAccountCanTakeProfile,
+  findAccountByEmail,
+  removeUserProfile,
+  restorePlayer,
+} from "../services/user-profile.service";
 import { buildDefaultPlayerUsername, parseUsernameInput } from "../services/username.service";
 import { formatDateHr } from "../utils/datetime";
 import { uploadProfileImage } from "../middlewares/upload";
@@ -64,7 +71,14 @@ playersRouter.get(
     const search = optionalString(request.query.search ?? request.query.q);
     const categoryIds = parseStringArrayInput(request.query.categoryIds ?? request.query.categoryId);
     const searchTerms = search?.split(/\s+/).filter(Boolean) ?? [];
+    const archiveStatus = parsePlayerArchiveStatus(request.query.status);
     const filters: Prisma.PlayerWhereInput[] = [];
+
+    if (archiveStatus === "active") {
+      filters.push({ archivedAt: null });
+    } else if (archiveStatus === "archived") {
+      filters.push({ archivedAt: { not: null } });
+    }
 
     if (categoryIds.length > 0) {
       filters.push({ categories: { some: { categoryId: { in: categoryIds } } } });
@@ -154,35 +168,48 @@ playersRouter.post(
       request.body.profileImageUrl,
     );
 
-    const existingUser = await prisma.user.findUnique({
-      where: {
-        username,
-      },
-      select: {
-        id: true,
-      },
+    const attachToExistingUser = parseOptionalBooleanInput(request.body.attachToExistingUser) ?? false;
+
+    const existingOibPlayer = await prisma.player.findUnique({
+      where: { oib },
+      select: { archivedAt: true },
     });
 
-    if (existingUser) {
-      throw new AppError("Odabrano korisničko ime igrača je zauzeto.", 409);
+    if (existingOibPlayer) {
+      throw new AppError(
+        existingOibPlayer.archivedAt
+          ? "Igrač s ovim OIB-om je obrisan. Vratite ga s popisa obrisanih igrača."
+          : "Igrač s ovim OIB-om već postoji.",
+        409,
+      );
     }
 
-    if (email) {
-      const existingEmailUser = await prisma.user.findUnique({
-        where: { email },
-        select: { id: true },
+    // A coach, parent or admin who also plays (e.g. for the veterans) gets a player profile on their
+    // existing account, so they keep one login. The admin has to confirm this explicitly.
+    const existingEmailUser = email ? await findAccountByEmail(email) : null;
+
+    if (existingEmailUser) {
+      ensureAccountCanTakeProfile(existingEmailUser, UserRole.PLAYER, attachToExistingUser);
+    } else {
+      const existingUser = await prisma.user.findUnique({
+        where: {
+          username,
+        },
+        select: {
+          id: true,
+        },
       });
 
-      if (existingEmailUser) {
-        throw new AppError("Odabrana e-adresa igrača je zauzeta.", 409);
+      if (existingUser) {
+        throw new AppError("Odabrano korisničko ime igrača je zauzeto.", 409);
       }
     }
 
     const canSkipParent = await canPlayerSkipParentWithEmail(email, categoryIds);
     ensurePlayerHasParent(parentIds, primaryParentId, canSkipParent);
 
-    const temporaryPassword = generateTemporaryPassword();
-    const passwordHash = await hashPassword(temporaryPassword);
+    const temporaryPassword = existingEmailUser ? null : generateTemporaryPassword();
+    const passwordHash = temporaryPassword ? await hashPassword(temporaryPassword) : null;
 
     const player = await prisma.player.create({
       data: {
@@ -193,21 +220,23 @@ playersRouter.post(
         membershipExpiresAt: parseOptionalDateInput(request.body.membershipExpiresAt),
         membershipPriceCents: parseOptionalEuroAmountInput(request.body.membershipPrice, "membershipPrice"),
         swimmingAbility: parseOptionalSwimmingAbilityInput(request.body.swimmingAbility),
-        user: {
-          create: {
-            role: UserRole.PLAYER,
-            email,
-            username,
-            passwordHash,
-            firstName,
-            lastName,
-            phone: optionalString(request.body.phone),
-            profileImageUrl,
-            accountStatus:
-              parseOptionalAccountStatusInput(request.body.accountStatus) ?? AccountStatus.ACTIVE,
-            mustChangePassword: true,
-          },
-        },
+        user: existingEmailUser
+          ? { connect: { id: existingEmailUser.id } }
+          : {
+              create: {
+                role: UserRole.PLAYER,
+                email,
+                username,
+                passwordHash,
+                firstName,
+                lastName,
+                phone: optionalString(request.body.phone),
+                profileImageUrl,
+                accountStatus:
+                  parseOptionalAccountStatusInput(request.body.accountStatus) ?? AccountStatus.ACTIVE,
+                mustChangePassword: true,
+              },
+            },
         categories:
           categoryIds.length > 0
             ? {
@@ -233,7 +262,9 @@ playersRouter.post(
       include: playerInclude,
     });
 
-    await sendPlayerCredentials(player.id, temporaryPassword);
+    if (temporaryPassword) {
+      await sendPlayerCredentials(player.id, temporaryPassword);
+    }
 
     response.status(201).json(withSuggestedMembershipPrice(player, await getClubMembershipPricing()));
   }),
@@ -320,6 +351,7 @@ playersRouter.patch(
       select: {
         id: true,
         userId: true,
+        archivedAt: true,
         membershipExpiresAt: true,
         user: {
           select: {
@@ -337,6 +369,10 @@ playersRouter.patch(
 
     if (!existingPlayer) {
       throw new AppError("Igrač nije pronađen.", 404);
+    }
+
+    if (existingPlayer.archivedAt) {
+      throw new AppError("Igrač je obrisan. Vratite ga prije uređivanja.", 400);
     }
 
     const removeProfileImage = parseOptionalBooleanInput(request.body.removeProfileImage) ?? false;
@@ -515,13 +551,18 @@ async function canPlayerSkipParentWithEmail(email: string | null, categoryIds: s
   return categories.every((category) => category.startDateOfBirth === null);
 }
 
+/**
+ * Deleting a player only archives them: they stay on the list marked as deleted and can be
+ * restored. `?permanent=true` (admins, already-deleted players only) removes them for good.
+ */
 playersRouter.delete(
   "/:id",
   asyncHandler(async (request, response) => {
     const playerId = requireString(request.params.id, "id");
+    const permanent = parseOptionalBooleanInput(request.query.permanent) ?? false;
     const player = await prisma.player.findUnique({
       where: { id: playerId },
-      select: { userId: true },
+      select: { userId: true, archivedAt: true },
     });
 
     if (!player) {
@@ -529,10 +570,56 @@ playersRouter.delete(
       return;
     }
 
-    await prisma.user.delete({
-      where: { id: player.userId },
-    });
+    if (!permanent) {
+      await archivePlayer(playerId);
+      response.status(204).send();
+      return;
+    }
+
+    if (request.auth!.role !== UserRole.ADMIN) {
+      throw new AppError("Samo administrator može trajno obrisati igrača.", 403);
+    }
+
+    if (!player.archivedAt) {
+      throw new AppError("Trajno je moguće obrisati samo igrača koji je već obrisan.", 400);
+    }
+
+    await removeUserProfile(player.userId, UserRole.PLAYER);
 
     response.status(204).send();
   }),
 );
+
+playersRouter.post(
+  "/:id/restore",
+  asyncHandler(async (request, response) => {
+    const playerId = requireString(request.params.id, "id");
+    const player = await prisma.player.findUnique({
+      where: { id: playerId },
+      select: { id: true },
+    });
+
+    if (!player) {
+      throw new AppError("Igrač nije pronađen.", 404);
+    }
+
+    await restorePlayer(playerId);
+
+    const restored = await prisma.player.findUniqueOrThrow({
+      where: { id: playerId },
+      include: playerInclude,
+    });
+
+    response.json(withSuggestedMembershipPrice(restored, await getClubMembershipPricing()));
+  }),
+);
+
+function parsePlayerArchiveStatus(value: unknown): "active" | "archived" | "all" {
+  const status = optionalString(value) ?? "active";
+
+  if (status !== "active" && status !== "archived" && status !== "all") {
+    throw new AppError("status mora biti active, archived ili all.", 400);
+  }
+
+  return status;
+}

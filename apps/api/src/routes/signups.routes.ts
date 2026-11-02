@@ -264,6 +264,8 @@ async function withSiblingsInClub<
             parent: {
               select: {
                 players: {
+                  // A deleted child no longer makes the family a club family.
+                  where: { player: { archivedAt: null } },
                   select: {
                     player: {
                       select: {

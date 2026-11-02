@@ -200,6 +200,7 @@ export async function notifyAllPracticeAudience(payload: NotificationPayload): P
         select: { userId: true },
       }),
       prisma.player.findMany({
+        where: { archivedAt: null },
         select: { userId: true },
       }),
       prisma.coach.findMany({

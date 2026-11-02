@@ -20,6 +20,7 @@ export async function runMembershipExpiryReminders(referenceDate = new Date()): 
         gte: referenceDate,
         lte: windowEnd,
       },
+      archivedAt: null,
       user: {
         accountStatus: "ACTIVE",
       },

@@ -103,6 +103,7 @@ export async function approveSignupRequest(input: ApproveSignupInput) {
       },
       select: {
         id: true,
+        archivedAt: true,
         user: {
           select: {
             firstName: true,
@@ -414,6 +415,7 @@ async function addCategoryToExistingPlayer(
   input: {
     player: {
       id: string;
+      archivedAt: Date | null;
       parents: Array<{ parentId: string; isPrimaryContact: boolean }>;
     };
     categoryId: string;
@@ -435,6 +437,14 @@ async function addCategoryToExistingPlayer(
   return transaction.player.update({
     where: { id: input.player.id },
     data: {
+      // A deleted child who signs up again comes back in the new category only.
+      ...(input.player.archivedAt
+        ? {
+            archivedAt: null,
+            archivedCategoryIds: [],
+            user: { update: { accountStatus: AccountStatus.ACTIVE } },
+          }
+        : {}),
       membershipPriceCents: input.membershipPriceCents,
       // A newer answer from the parent replaces the old one; no answer keeps what is there.
       swimmingAbility: input.swimmingAbility ?? undefined,

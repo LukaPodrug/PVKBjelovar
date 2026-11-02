@@ -5,7 +5,10 @@ declare global {
     interface Request {
       auth?: {
         userId: string;
+        /** The role this request acts as: the primary role or another profile the user holds. */
         role: UserRole;
+        primaryRole: UserRole;
+        profiles: UserRole[];
         email: string | null;
         username: string | null;
         firstName: string;

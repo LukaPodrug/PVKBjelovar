@@ -12,6 +12,8 @@ import {
 } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
 import {
+  createContext,
+  useContext,
   useEffect,
   useState,
   type ComponentProps,
@@ -51,6 +53,8 @@ const clubLogoSource = require("./assets/icon.png");
 interface AuthUser {
   userId: string;
   role: UserRole;
+  /** Every role the account holds, e.g. a coach who also plays; older sessions lack it. */
+  profiles?: UserRole[];
   email: string | null;
   username: string | null;
   firstName: string;
@@ -307,6 +311,7 @@ const defaultApiBaseUrl =
   "https://pvkbjelovar.onrender.com/api";
 
 const authStorageKey = "water-polo-club-mobile-auth";
+const actingRoleStorageKey = "water-polo-club-mobile-acting-role";
 
 const roleContent: Record<
   UserRole,
@@ -386,6 +391,43 @@ async function readStoredAuthState(): Promise<StoredAuthState | null> {
     return null;
   }
 }
+
+async function readStoredActingRole(): Promise<string | null> {
+  try {
+    return Platform.OS === "web"
+      ? typeof window === "undefined"
+        ? null
+        : window.localStorage.getItem(actingRoleStorageKey)
+      : await SecureStore.getItemAsync(actingRoleStorageKey);
+  } catch {
+    return null;
+  }
+}
+
+async function writeStoredActingRole(role: UserRole) {
+  try {
+    if (Platform.OS === "web") {
+      window.localStorage.setItem(actingRoleStorageKey, role);
+      return;
+    }
+
+    await SecureStore.setItemAsync(actingRoleStorageKey, role);
+  } catch {
+    // Remembering the chosen view is a convenience; the app falls back to the primary role.
+  }
+}
+
+function getUserProfiles(user: AuthUser): UserRole[] {
+  return user.profiles?.length ? user.profiles : [user.role];
+}
+
+interface ActingRoleContextValue {
+  profiles: UserRole[];
+  actingRole: UserRole;
+  onActingRoleChange: (role: UserRole) => void;
+}
+
+const ActingRoleContext = createContext<ActingRoleContextValue | null>(null);
 
 async function writeStoredAuthState(state: StoredAuthState | null) {
   if (Platform.OS === "web") {
@@ -687,7 +729,151 @@ function AppShell() {
         )}
       </KeyboardAvoidingView>
       {toastMessage ? <ToastOverlay toast={toastMessage} /> : null}
+      <AppUpdateModal apiBaseUrl={normalizeApiBaseUrl(loginForm.apiBaseUrl)} />
     </SafeAreaView>
+  );
+}
+
+interface AppVersionInfo {
+  latestVersion: string | null;
+  minimumVersion: string | null;
+  downloadUrl: string;
+}
+
+/**
+ * Compares dotted versions ("1.2.0") part by part, so 1.10.0 is newer than 1.9.0. Missing parts
+ * count as 0.
+ */
+function compareVersions(left: string, right: string) {
+  const leftParts = left.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const rightParts = right.split(".").map((part) => Number.parseInt(part, 10) || 0);
+
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+
+  return 0;
+}
+
+function describeDownloadSource(url: string) {
+  if (url.includes("play.google.com")) {
+    return { button: "Otvori Google Play", hint: "Ažurirajte aplikaciju na Google Playu." };
+  }
+
+  if (url.includes("apps.apple.com")) {
+    return { button: "Otvori App Store", hint: "Ažurirajte aplikaciju u App Storeu." };
+  }
+
+  return {
+    button: "Preuzmi novu verziju",
+    hint: "Preuzmite novu instalacijsku datoteku (APK) i instalirajte je preko postojeće aplikacije. Vaši podaci ostaju sačuvani.",
+  };
+}
+
+/**
+ * Checks on launch whether a newer app version is out on this platform. Below the minimum version
+ * the app cannot be used until it is updated; otherwise the update can be postponed. The admin sets
+ * the versions and download links (App Store, Google Drive or Google Play) in the club settings.
+ */
+function AppUpdateModal({ apiBaseUrl }: { apiBaseUrl: string }) {
+  const [versionInfo, setVersionInfo] = useState<AppVersionInfo | null>(null);
+  const [isDismissed, setIsDismissed] = useState(false);
+  const installedVersion = Constants.expoConfig?.version ?? null;
+
+  useEffect(() => {
+    if (Platform.OS !== "ios" && Platform.OS !== "android") {
+      return;
+    }
+
+    let isActive = true;
+
+    void requestJson<AppVersionInfo>(apiBaseUrl, `/club-settings/app-version?platform=${Platform.OS}`, {
+      method: "GET",
+    })
+      .then((info) => {
+        if (isActive) {
+          setVersionInfo(info);
+        }
+      })
+      // An older API or no connection simply means no update prompt.
+      .catch(() => undefined);
+
+    return () => {
+      isActive = false;
+    };
+  }, [apiBaseUrl]);
+
+  if (!versionInfo || !installedVersion) {
+    return null;
+  }
+
+  const isRequired = Boolean(
+    versionInfo.minimumVersion && compareVersions(installedVersion, versionInfo.minimumVersion) < 0,
+  );
+  const isOutdated =
+    isRequired ||
+    Boolean(
+      versionInfo.latestVersion && compareVersions(installedVersion, versionInfo.latestVersion) < 0,
+    );
+
+  if (!isOutdated || (isDismissed && !isRequired)) {
+    return null;
+  }
+
+  const source = describeDownloadSource(versionInfo.downloadUrl);
+  const newVersion = versionInfo.latestVersion ?? versionInfo.minimumVersion;
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible
+      onRequestClose={() => {
+        if (!isRequired) {
+          setIsDismissed(true);
+        }
+      }}
+    >
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <Text style={styles.sectionEyebrow}>Nova verzija</Text>
+          <Text style={styles.modalTitle}>
+            {isRequired ? "Potrebno je ažuriranje" : "Dostupna je nova verzija"}
+          </Text>
+          <Text style={styles.sectionCopy}>
+            {isRequired
+              ? "Ova verzija aplikacije više nije podržana. Ažurirajte aplikaciju za nastavak korištenja."
+              : "Ažurirajte aplikaciju za najnovije mogućnosti i ispravke."}
+          </Text>
+          <Text style={styles.sectionCopy}>
+            Vaša verzija: {installedVersion}
+            {newVersion ? ` • Nova verzija: ${newVersion}` : ""}
+          </Text>
+          <Text style={styles.sectionCopy}>{source.hint}</Text>
+
+          <Pressable
+            style={[styles.primaryButton, styles.appUpdateButton]}
+            onPress={() => {
+              void Linking.openURL(versionInfo.downloadUrl);
+            }}
+          >
+            <Text style={styles.primaryButtonText}>{source.button}</Text>
+          </Pressable>
+          {isRequired ? null : (
+            <Pressable
+              style={[styles.secondaryButton, styles.appUpdateLaterButton]}
+              onPress={() => setIsDismissed(true)}
+            >
+              <Text style={styles.secondaryButtonText}>Kasnije</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -863,9 +1049,97 @@ function RoleHomeScreen({
   onUserUpdate: (user: AuthUser) => void;
   onToast: (toast: ToastMessage) => void;
 }) {
-  const content = roleContent[session.user.role];
+  const profiles = getUserProfiles(session.user);
+  const [actingRole, setActingRole] = useState<UserRole | null>(
+    profiles.length > 1 ? null : session.user.role,
+  );
+  const effectiveRole = actingRole && profiles.includes(actingRole) ? actingRole : session.user.role;
 
-  if (session.user.role === "ADMIN" || session.user.role === "COACH") {
+  // The API sees the chosen role through the X-Acting-Role header on every request.
+  actingRoleHeader = effectiveRole === session.user.role ? null : effectiveRole;
+
+  useEffect(() => {
+    if (profiles.length < 2) {
+      return;
+    }
+
+    let isActive = true;
+
+    void readStoredActingRole().then((storedRole) => {
+      if (isActive) {
+        setActingRole(
+          profiles.find((role) => role === storedRole) ?? session.user.role,
+        );
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+    // profiles is derived from session.user; the user id is the stable dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.user.userId]);
+
+  useEffect(
+    () => () => {
+      actingRoleHeader = null;
+    },
+    [],
+  );
+
+  if (!actingRole) {
+    return (
+      <View style={styles.loadingBlock}>
+        <ActivityIndicator color="#123d75" />
+      </View>
+    );
+  }
+
+  return (
+    <ActingRoleContext.Provider
+      value={{
+        profiles,
+        actingRole: effectiveRole,
+        onActingRoleChange: (role) => {
+          setActingRole(role);
+          void writeStoredActingRole(role);
+        },
+      }}
+    >
+      <RoleScreen
+        key={effectiveRole}
+        role={effectiveRole}
+        apiBaseUrl={apiBaseUrl}
+        session={session}
+        successMessage={successMessage}
+        onLogout={onLogout}
+        onUserUpdate={onUserUpdate}
+        onToast={onToast}
+      />
+    </ActingRoleContext.Provider>
+  );
+}
+
+function RoleScreen({
+  role,
+  apiBaseUrl,
+  session,
+  successMessage,
+  onLogout,
+  onUserUpdate,
+  onToast,
+}: {
+  role: UserRole;
+  apiBaseUrl: string;
+  session: AuthResponse;
+  successMessage: string | null;
+  onLogout: () => void;
+  onUserUpdate: (user: AuthUser) => void;
+  onToast: (toast: ToastMessage) => void;
+}) {
+  const content = roleContent[role];
+
+  if (role === "ADMIN" || role === "COACH") {
     return (
       <StaffAttendanceScreen
         apiBaseUrl={apiBaseUrl}
@@ -879,7 +1153,7 @@ function RoleHomeScreen({
     );
   }
 
-  if (session.user.role === "PLAYER") {
+  if (role === "PLAYER") {
     return (
       <PlayerAttendanceScreen
         apiBaseUrl={apiBaseUrl}
@@ -1762,6 +2036,8 @@ function AccountProfilePanel({
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const actingRoleContext = useContext(ActingRoleContext);
+  const shownRole = actingRoleContext?.actingRole ?? session.user.role;
 
   useEffect(() => {
     setUsername(session.user.username ?? "");
@@ -1851,10 +2127,45 @@ function AccountProfilePanel({
             </Text>
             <View style={styles.accountRoleChip}>
               <Ionicons name="shield-checkmark-outline" size={14} color="#123d75" />
-              <Text style={styles.accountRoleChipText}>{roleContent[session.user.role].badge}</Text>
+              <Text style={styles.accountRoleChipText}>{roleContent[shownRole].badge}</Text>
             </View>
           </View>
         </View>
+
+        {actingRoleContext && actingRoleContext.profiles.length > 1 ? (
+          <View style={styles.actingRoleSection}>
+            <Text style={styles.sectionEyebrow}>Prikaz aplikacije</Text>
+            <Text style={styles.sectionCopy}>
+              Vaš račun ima više uloga. Odaberite što želite vidjeti.
+            </Text>
+            <View style={styles.actingRoleChips}>
+              {actingRoleContext.profiles.map((role) => {
+                const isSelected = role === actingRoleContext.actingRole;
+
+                return (
+                  <Pressable
+                    key={role}
+                    style={[styles.outlineChip, isSelected ? styles.actingRoleChipSelected : null]}
+                    onPress={() => {
+                      if (!isSelected) {
+                        actingRoleContext.onActingRoleChange(role);
+                      }
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.outlineChipText,
+                        isSelected ? styles.actingRoleChipTextSelected : null,
+                      ]}
+                    >
+                      {roleContent[role].badge}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.accountDetailList}>
           <AccountDetailRow
@@ -4176,6 +4487,7 @@ function buildInitials(value: string) {
 class SessionExpiredError extends Error {}
 
 let sessionExpiredHandler: (() => void) | null = null;
+let actingRoleHeader: UserRole | null = null;
 
 function setSessionExpiredHandler(handler: (() => void) | null) {
   sessionExpiredHandler = handler;
@@ -4196,6 +4508,7 @@ async function requestJson<T>(
       Accept: "application/json",
       "Content-Type": "application/json",
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+      ...(options.token && actingRoleHeader ? { "X-Acting-Role": actingRoleHeader } : {}),
     },
     body: options.body,
   });
@@ -5024,6 +5337,29 @@ const styles = StyleSheet.create({
     color: "#123d75",
     fontSize: 13,
     fontWeight: "700",
+  },
+  appUpdateButton: {
+    marginTop: 18,
+  },
+  appUpdateLaterButton: {
+    marginTop: 10,
+  },
+  actingRoleSection: {
+    marginTop: 16,
+    gap: 6,
+  },
+  actingRoleChips: {
+    marginTop: 6,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  actingRoleChipSelected: {
+    backgroundColor: "#123d75",
+    borderColor: "#123d75",
+  },
+  actingRoleChipTextSelected: {
+    color: "#ffffff",
   },
   loadingBlock: {
     paddingVertical: 24,

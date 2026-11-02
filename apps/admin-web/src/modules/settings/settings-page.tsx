@@ -30,6 +30,12 @@ interface BrandingFormState {
   membershipPrice: string;
   membershipFreeUntil: string;
   siblingMembershipPrice: string;
+  iosLatestVersion: string;
+  iosMinimumVersion: string;
+  iosDownloadUrl: string;
+  androidLatestVersion: string;
+  androidMinimumVersion: string;
+  androidDownloadUrl: string;
   logoFile: File | null;
   removeLogo: boolean;
 }
@@ -56,6 +62,12 @@ const emptyBrandingForm: BrandingFormState = {
   membershipPrice: "",
   membershipFreeUntil: "",
   siblingMembershipPrice: "",
+  iosLatestVersion: "",
+  iosMinimumVersion: "",
+  iosDownloadUrl: "",
+  androidLatestVersion: "",
+  androidMinimumVersion: "",
+  androidDownloadUrl: "",
   logoFile: null,
   removeLogo: false,
 };
@@ -125,6 +137,7 @@ export function SettingsPage() {
       membershipPrice: centsToEuroInput(currentSettings.membershipPriceCents),
       membershipFreeUntil: currentSettings.membershipFreeUntil?.slice(0, 10) ?? "",
       siblingMembershipPrice: centsToEuroInput(currentSettings.siblingMembershipPriceCents),
+      ...appVersionFormFromSettings(currentSettings),
       logoFile: null,
       removeLogo: false,
     });
@@ -195,6 +208,7 @@ export function SettingsPage() {
         membershipPrice: centsToEuroInput(settings.membershipPriceCents),
         membershipFreeUntil: settings.membershipFreeUntil?.slice(0, 10) ?? "",
         siblingMembershipPrice: centsToEuroInput(settings.siblingMembershipPriceCents),
+        ...appVersionFormFromSettings(settings),
         logoFile: null,
         removeLogo: false,
       });
@@ -670,6 +684,64 @@ export function SettingsPage() {
                       </label>
                     </div>
                   </fieldset>
+
+                  <fieldset className="admin-settings-widget">
+                    <legend className="admin-settings-widget-title">
+                      Mobilna aplikacija
+                    </legend>
+                    <div className="grid gap-5">
+                      <p className="text-xs text-muted">
+                        Kad korisnik ima stariju verziju od najnovije, aplikacija mu predloži ažuriranje.
+                        Ispod minimalne verzije aplikacija se ne može koristiti dok se ne ažurira. Prazno:
+                        bez provjere.
+                      </p>
+                      {appVersionPlatforms.map((platform) => (
+                        <div key={platform.key} className="grid gap-4 border-t-2 border-line pt-4">
+                          <p className="text-sm font-bold uppercase">{platform.label}</p>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <AppVersionInput
+                              label="Najnovija verzija"
+                              value={brandingForm[`${platform.key}LatestVersion`]}
+                              onChange={(value) =>
+                                setBrandingForm((current) => ({
+                                  ...current,
+                                  [`${platform.key}LatestVersion`]: value,
+                                }))
+                              }
+                            />
+                            <AppVersionInput
+                              label="Minimalna verzija"
+                              value={brandingForm[`${platform.key}MinimumVersion`]}
+                              onChange={(value) =>
+                                setBrandingForm((current) => ({
+                                  ...current,
+                                  [`${platform.key}MinimumVersion`]: value,
+                                }))
+                              }
+                            />
+                          </div>
+                          <label className="block">
+                            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                              Poveznica za preuzimanje
+                            </span>
+                            <input
+                              className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+                              type="url"
+                              value={brandingForm[`${platform.key}DownloadUrl`]}
+                              onChange={(event) =>
+                                setBrandingForm((current) => ({
+                                  ...current,
+                                  [`${platform.key}DownloadUrl`]: event.target.value,
+                                }))
+                              }
+                              placeholder={platform.defaultUrl}
+                            />
+                            <span className="mt-2 block text-xs text-muted">{platform.hint}</span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </fieldset>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
@@ -695,6 +767,7 @@ export function SettingsPage() {
                           membershipPrice: centsToEuroInput(currentSettings.membershipPriceCents),
                           membershipFreeUntil: currentSettings.membershipFreeUntil?.slice(0, 10) ?? "",
                           siblingMembershipPrice: centsToEuroInput(currentSettings.siblingMembershipPriceCents),
+                          ...appVersionFormFromSettings(currentSettings),
                           logoFile: null,
                           removeLogo: false,
                         });
@@ -910,6 +983,58 @@ export function SettingsPage() {
   );
 }
 
+const appVersionPlatforms = [
+  {
+    key: "ios",
+    label: "iOS (App Store)",
+    defaultUrl: "https://apps.apple.com/hr/app/pvk-mladost-bjelovar/id6803112338",
+    hint: "Prazno: poveznica na App Store.",
+  },
+  {
+    key: "android",
+    label: "Android",
+    defaultUrl: "https://drive.google.com/drive/folders/1zifEQwDQfhsjpudKz7wx-_d_ducCaHGw?usp=drive_link",
+    hint: "Google Drive ili Google Play. Kad Google Play odobri aplikaciju, ovdje zalijepite poveznicu na Google Play. Prazno: Google Drive mapa.",
+  },
+] as const;
+
+function appVersionFormFromSettings(settings: ClubSettings) {
+  return {
+    iosLatestVersion: settings.iosLatestVersion ?? "",
+    iosMinimumVersion: settings.iosMinimumVersion ?? "",
+    iosDownloadUrl: settings.iosDownloadUrl ?? "",
+    androidLatestVersion: settings.androidLatestVersion ?? "",
+    androidMinimumVersion: settings.androidMinimumVersion ?? "",
+    androidDownloadUrl: settings.androidDownloadUrl ?? "",
+  };
+}
+
+function AppVersionInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+        {label}
+      </span>
+      <input
+        className="w-full border-2 border-line bg-white px-4 py-3 outline-none focus:bg-bg"
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="npr. 1.1.7"
+      />
+    </label>
+  );
+}
+
 function buildBrandingFormData(form: BrandingFormState) {
   const formData = new FormData();
   formData.append("clubName", form.clubName);
@@ -927,6 +1052,12 @@ function buildBrandingFormData(form: BrandingFormState) {
   formData.append("membershipPrice", form.membershipPrice);
   formData.append("membershipFreeUntil", form.membershipFreeUntil);
   formData.append("siblingMembershipPrice", form.siblingMembershipPrice);
+  formData.append("iosLatestVersion", form.iosLatestVersion);
+  formData.append("iosMinimumVersion", form.iosMinimumVersion);
+  formData.append("iosDownloadUrl", form.iosDownloadUrl);
+  formData.append("androidLatestVersion", form.androidLatestVersion);
+  formData.append("androidMinimumVersion", form.androidMinimumVersion);
+  formData.append("androidDownloadUrl", form.androidDownloadUrl);
 
   if (form.logoFile) {
     formData.append("logo", form.logoFile);

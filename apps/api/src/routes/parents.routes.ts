@@ -12,6 +12,11 @@ import {
 } from "../services/credentials.service";
 import { generateTemporaryPassword, hashPassword } from "../services/password.service";
 import {
+  ensureAccountCanTakeProfile,
+  findAccountByEmail,
+  removeUserProfile,
+} from "../services/user-profile.service";
+import {
   buildPaginatedResponse,
   normalizeEmail,
   optionalString,
@@ -108,8 +113,21 @@ parentsRouter.post(
   asyncHandler(async (request, response) => {
     const playerIds = [...new Set(parseStringArrayInput(request.body.playerIds))];
     const primaryPlayerIds = new Set(parseStringArrayInput(request.body.primaryPlayerIds));
-    const password = optionalString(request.body.password) ?? generateTemporaryPassword();
-    const passwordHash = await hashPassword(password);
+    const email = normalizeEmail(request.body.email, "email");
+    const attachToExistingUser = parseOptionalBooleanInput(request.body.attachToExistingUser) ?? false;
+
+    // A coach, admin or player who is also a parent gets a parent profile on their existing account
+    // and keeps their login. The admin has to confirm this explicitly.
+    const existingAccount = await findAccountByEmail(email);
+
+    if (existingAccount) {
+      ensureAccountCanTakeProfile(existingAccount, UserRole.PARENT, attachToExistingUser);
+    }
+
+    const password = existingAccount
+      ? null
+      : optionalString(request.body.password) ?? generateTemporaryPassword();
+    const passwordHash = password ? await hashPassword(password) : null;
     const firstName = requireString(request.body.firstName, "firstName");
     const lastName = requireString(request.body.lastName, "lastName");
     const profileImageUrl = await resolveUploadedImageUrl(
@@ -120,20 +138,22 @@ parentsRouter.post(
 
     const parent = await prisma.parent.create({
       data: {
-        user: {
-          create: {
-            role: UserRole.PARENT,
-            email: normalizeEmail(request.body.email, "email"),
-            passwordHash,
-            firstName,
-            lastName,
-            phone: requireString(request.body.phone, "phone"),
-            profileImageUrl,
-            accountStatus:
-              parseOptionalAccountStatusInput(request.body.accountStatus) ?? AccountStatus.ACTIVE,
-            mustChangePassword: true,
-          },
-        },
+        user: existingAccount
+          ? { connect: { id: existingAccount.id } }
+          : {
+              create: {
+                role: UserRole.PARENT,
+                email,
+                passwordHash,
+                firstName,
+                lastName,
+                phone: requireString(request.body.phone, "phone"),
+                profileImageUrl,
+                accountStatus:
+                  parseOptionalAccountStatusInput(request.body.accountStatus) ?? AccountStatus.ACTIVE,
+                mustChangePassword: true,
+              },
+            },
         players:
           playerIds.length > 0
             ? {
@@ -149,7 +169,9 @@ parentsRouter.post(
       include: parentInclude,
     });
 
-    await sendParentCredentials(parent.id, password);
+    if (password) {
+      await sendParentCredentials(parent.id, password);
+    }
 
     response.status(201).json(parent);
   }),
@@ -283,9 +305,8 @@ parentsRouter.delete(
       parentId,
     );
 
-    await prisma.user.delete({
-      where: { id: parent.userId },
-    });
+    // A coach, admin or player who is also a parent keeps their account; only the parent profile goes.
+    await removeUserProfile(parent.userId, UserRole.PARENT);
 
     response.status(204).send();
   }),

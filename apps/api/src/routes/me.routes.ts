@@ -60,6 +60,7 @@ async function resolveParentChild(userId: string, playerId: string): Promise<Res
       isPrimaryContact: true,
       player: {
         select: {
+          archivedAt: true,
           categories: {
             select: {
               categoryId: true,
@@ -70,7 +71,7 @@ async function resolveParentChild(userId: string, playerId: string): Promise<Res
     },
   });
 
-  if (!link) {
+  if (!link || link.player.archivedAt) {
     throw new AppError("Nemate pristup ovom djetetu.", 404);
   }
 
@@ -134,6 +135,7 @@ meRouter.get(
       where: { userId: request.auth!.userId },
       select: {
         players: {
+          where: { player: { archivedAt: null } },
           orderBy: {
             player: {
               user: {
